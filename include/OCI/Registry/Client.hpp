@@ -27,7 +27,8 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       Schema_t manifest( std::string rsrc, std::string target );
 
       void pull( Schema1::ImageManifest im );
-      void pull( Schema2::ManifestList ml );
+      void pull( Schema2::ManifestList ml ); // multi-arch/platform pull
+      void pull( Schema2::ImageManifest im ); // single schema v2 pull
 
       void push( Schema1::ImageManifest im );
       void push( Schema2::ManifestList ml );
