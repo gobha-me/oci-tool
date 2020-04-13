@@ -74,6 +74,9 @@ int main( int argc, char ** argv ) {
     // 5. retry operation
     // 6. review response
     client.inspect( rsrc ); // there is no arg arg parsing ATM to determine what to do
+    
+    auto manifest_list = client.manifest< OCI::Schema2::ManifestList >( rsrc, "latest" );
+    client.pull( manifest_list );
   }
 
   return EXIT_SUCCESS;

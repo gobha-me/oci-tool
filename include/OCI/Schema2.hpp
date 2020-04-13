@@ -25,6 +25,7 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       std::uint16_t           schemaVersion;
       std::string             mediaType = "application/vnd.docker.distribution.manifest.list.v2+json";
       std::vector< Manifest > manifests;
+      std::string             name; // <namespace>/<repo>
     };
 
     struct ImageManifest { // Accept: application/vnd.docker.distribution.manifest.v2+json
@@ -35,6 +36,7 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
         std::vector< std::string >  urls;
       };
 
+      std::string     name; // <namespace>/<repo>
       std::uint16_t   schemaVersion;
       std::string     mediaType = "application/vnd.docker.distribution.manifest.v2+json";
       struct {

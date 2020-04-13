@@ -24,13 +24,13 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       void inspect( std::string rsrc );
 
       template< class Schema_t >
-      Schema_t manifest( std::string rsrc );
+      Schema_t manifest( std::string rsrc, std::string target );
 
-      void pull( Schema1::ImageManifest );
-      void pull( Schema2::ManifestList );
+      void pull( Schema1::ImageManifest im );
+      void pull( Schema2::ManifestList ml );
 
-      void push( Schema1::ImageManifest );
-      void push( Schema2::ManifestList );
+      void push( Schema1::ImageManifest im );
+      void push( Schema2::ManifestList ml );
 
       Tags tagList( std::string rsrc );
 
@@ -50,7 +50,10 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
 // IMPLEMENTATION
 // OCI::Registry::Client
-OCI::Registry::Client::Client( std::string const & domain ) : _cli( domain, 443 ) {}
+OCI::Registry::Client::Client( std::string const & domain ) : _cli( domain, 443 ) {
+  _cli.set_follow_location( true );
+}
+
 OCI::Registry::Client::~Client() = default;
 
 void OCI::Registry::Client::auth( std::string rsrc ) {
@@ -71,9 +74,6 @@ void OCI::Registry::Client::auth( std::string rsrc ) {
   if ( res->status != 200 ) { // This hot mess just to get the auth endpoint
     auto errors     = nlohmann::json::parse( res->body ).at( "errors" ).get< std::vector< Error > >();
     auto www_auth   = res->headers.find( "Www-Authenticate" );
-    auto location   = res->headers.find( "Location" );
-
-    // Problem with Registry.access.redhat.com
 
     if ( www_auth != res->headers.end() ) {
       auto auth_type  = www_auth->second.substr( 0, www_auth->second.find( ' ' ) );
@@ -105,9 +105,6 @@ void OCI::Registry::Client::auth( std::string rsrc ) {
       //std::cout << nlohmann::json::parse( result->body ).dump( 2 ) << std::endl;
 
       _token = nlohmann::json::parse( result->body ).at( "token" );
-    } else if ( location != res->headers.end() ) {
-      std::cerr << location->second << std::endl;
-      // for this case we are already authorized but would need to follow Location
     }
   }
 }
@@ -131,17 +128,13 @@ void OCI::Registry::Client::inspect( std::string base_rsrc ) {
 
   auto tags         = tagList( rsrc );
 
-  rsrc += "/manifests/" + target;
-
-  std::cout << rsrc << std::endl;
-
-  auto manifestList = manifest< Schema2::ManifestList >( rsrc );
+  auto manifestList = manifest< Schema2::ManifestList >( rsrc, target );
 
   if ( manifestList.schemaVersion == 1 ) { // Fall back to Schema1
-      auto image_manifest = manifest< Schema1::ImageManifest >( rsrc );
+      auto image_manifest = manifest< Schema1::ImageManifest >( rsrc, target );
   } else if ( manifestList.schemaVersion == 2 ) {
     // need to do more than this, doing this instead of to_json for the moment
-    std::cout << "name: " << tags.name << "\n";
+    std::cout << "name: " << manifestList.name << "\n";
     std::cout << "schemaVersion: " << manifestList.schemaVersion << "\n";
     std::cout << "mediaType: " << manifestList.mediaType << "\n";
     std::cout << "tags: [" << "\n";
@@ -170,7 +163,7 @@ void OCI::Registry::Client::inspect( std::string base_rsrc ) {
         std::cout << "    feature: " << feature << "\n";
 
       std::cout << "    ImageManifest: {\n";
-      auto image_manifest = manifest< Schema2::ImageManifest >( rsrc );
+      auto image_manifest = manifest< Schema2::ImageManifest >( rsrc, target );
       std::cout << "      schemaVersion: " << image_manifest.schemaVersion << "\n";
       std::cout << "      mediaType: " << image_manifest.mediaType << "\n";
       std::cout << "      config: { \n";
@@ -199,23 +192,23 @@ void OCI::Registry::Client::inspect( std::string base_rsrc ) {
 }
 
 template< class Schema_t >
-Schema_t OCI::Registry::Client::manifest( std::string rsrc ) {
+Schema_t OCI::Registry::Client::manifest( std::string rsrc, std::string target ) {
   Schema_t retVal;
   auto headers = defaultHeaders();
   headers.emplace( "Accept", retVal.mediaType );
 
-  auto res = _cli.Get( rsrc.c_str(), headers );
+  auto res = _cli.Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
 
   if ( res == nullptr ) {
     std::abort();
   }
 
   if ( res->status != 200 ) { // TODO: Should find the reason instead of assuming
-    auth( rsrc ); // auth modifies the headers, so should auth return headers???
+    auth( rsrc + "/manifests/" + target ); // auth modifies the headers, so should auth return headers???
     headers = defaultHeaders();
     headers.emplace( "Accept", retVal.mediaType );
 
-    res = _cli.Get( std::string( "/v2/" + rsrc ).c_str(), headers );
+    res = _cli.Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
 
     if ( res == nullptr ) {
       std::abort();
@@ -224,6 +217,9 @@ Schema_t OCI::Registry::Client::manifest( std::string rsrc ) {
 
   if ( res->status == 200 ) {
     retVal = nlohmann::json::parse( res->body ).get< Schema_t >();
+
+    if ( retVal.name.empty() )
+      retVal.name = rsrc;
   } else {
     std::cerr << res->body << std::endl;
   }
@@ -253,6 +249,23 @@ OCI::Tags OCI::Registry::Client::tagList( std::string rsrc ) {
   }
 
   return retVal;
+}
+
+void OCI::Registry::Client::pull( Schema2::ManifestList ml ) {
+  using namespace std::string_literals;
+  for ( auto const& im: ml.manifests ) {
+    auto image_manifest = manifest< Schema2::ImageManifest >( ml.name, im.digest );
+
+    for ( auto const& iml: image_manifest.layers ) {
+      _cli.Get( ( "/v2/"s + ml.name + "/blobs/"s + iml.digest ).c_str(), [](long long len, long long total) {
+          printf("%lld / %lld bytes => %d%% complete\r",
+            len, total,
+            (int)(len*100/total));
+          return true; // return 'false' if you want to cancel the request.
+        } );
+      std::cout << std::endl;
+    }
+  }
 }
 
 bool OCI::Registry::Client::pingResource( std::string rsrc ) {
