@@ -14,11 +14,12 @@ namespace OCI {
       template< class Schema_t >
       Schema_t manifest( std::string rsrc );
 
-      void pull( Schema1::ImageManifest );
-      void pull( Schema2::ManifestList );
+      void pull( Schema1::ImageManifest im );
+      void pull( Schema2::ManifestList ml );
+      void pull( Schema2::ImageManifest im );
 
-      void push( Schema1::ImageManifest );
-      void push( Schema2::ManifestList );
+      void push( Schema1::ImageManifest im );
+      void push( Schema2::ManifestList ml );
 
       bool pingResource( std::string rsrc );
     protected:

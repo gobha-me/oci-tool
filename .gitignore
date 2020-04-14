@@ -1,3 +1,4 @@
 oci-tool
 *.sw*
 yaml
+bin

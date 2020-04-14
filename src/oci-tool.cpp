@@ -13,6 +13,7 @@
 // TODO: replace std::cout, std::cerr and std::about() with proper error handling and reporting
 
 int main( int argc, char ** argv ) {
+  using namespace std::string_literals;
   // simply we start with requiring at least two options, the command and the uri
   if ( argc < 2 ) return EXIT_FAILURE;
 
@@ -47,6 +48,7 @@ int main( int argc, char ** argv ) {
     location = location.substr( 2 ); // the // is not needed for this http client library
     auto domain = location.substr( 0, location.find( '/' ) );
     auto rsrc   = location.substr( location.find( '/') + 1 );
+    auto target = "latest"s;
 
     // if domain not provided use /etc/containers/registries.conf - INI? This process turns into a loop?
     if ( domain == rsrc ) { // domain was not provided
@@ -62,6 +64,11 @@ int main( int argc, char ** argv ) {
     if ( rsrc.find( '/' ) == std::string::npos )
       rsrc = "library/" + rsrc; // set to default namespace if non provided
 
+    if ( rsrc.find( ':' ) != std::string::npos ) {
+      rsrc = rsrc.substr( 0, rsrc.find( ':' ) );
+      target = rsrc.substr( rsrc.find( ':' ) + 1 );
+    }
+
     // std::cout << command << " " << proto << " " << domain << " " << rsrc << std::endl;
 
     OCI::Registry::Client client( domain );
@@ -75,7 +82,7 @@ int main( int argc, char ** argv ) {
     // 6. review response
     client.inspect( rsrc ); // there is no arg arg parsing ATM to determine what to do
     
-    auto manifest_list = client.manifest< OCI::Schema2::ManifestList >( rsrc, "latest" );
+    auto manifest_list = client.manifest< OCI::Schema2::ManifestList >( rsrc, target );
     client.pull( manifest_list );
   }
 
