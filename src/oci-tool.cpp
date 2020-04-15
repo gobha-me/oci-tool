@@ -1,6 +1,7 @@
 #include <iostream>
 #include <OCI/Registry/Client.hpp>
 #include <OCI/Extensions/Dir.hpp>
+#include <OCI/Copy.hpp>
 
 // This spawned from the need of doing a multi arch sync, which requires a multi arch copy
 //  and learn how REST interfaces can be implemented, so going the 'hard' route was a personal choice
@@ -65,13 +66,15 @@ int main( int argc, char ** argv ) {
       rsrc = "library/" + rsrc; // set to default namespace if non provided
 
     if ( rsrc.find( ':' ) != std::string::npos ) {
-      rsrc = rsrc.substr( 0, rsrc.find( ':' ) );
-      target = rsrc.substr( rsrc.find( ':' ) + 1 );
+      rsrc    = rsrc.substr( 0, rsrc.find( ':' ) );
+      target  = rsrc.substr( rsrc.find( ':' ) + 1 );
     }
 
     // std::cout << command << " " << proto << " " << domain << " " << rsrc << std::endl;
 
-    OCI::Registry::Client client( domain );
+    OCI::Registry::Client client1( domain );
+    //OCI::Registry::Client client2( other_domain, username, password );
+    //OCI::Extensions::Dir dir( "<path>" );
 
     // So according to the API doc this is how to handle the API, all buried in the implementation
     // 1. attempt operation
@@ -80,10 +83,15 @@ int main( int argc, char ** argv ) {
     // 4. parse auth responce for token
     // 5. retry operation
     // 6. review response
-    client.inspect( rsrc ); // there is no arg arg parsing ATM to determine what to do
-    
-    auto manifest_list = client.manifest< OCI::Schema2::ManifestList >( rsrc, target );
-    client.pull( manifest_list );
+    //client1.inspect( rsrc ); // there is no arg parsing ATM to determine what to do
+
+    auto tagList = client1.tagList( rsrc );
+
+    std::cout << tagList.name << std::endl;
+    for ( auto tag: tagList.tags )
+      std::cout << tag << std::endl;
+
+    OCI::Copy( rsrc, target, client1, client1 );
   }
 
   return EXIT_SUCCESS;

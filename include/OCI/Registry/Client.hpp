@@ -3,6 +3,8 @@
 #include <OCI/Schema2.hpp>
 #include <OCI/Tags.hpp>
 #include <OCI/Registry/Error.hpp>
+#include <OCI/Extensions/Buffer.hpp>
+#include <future>
 #include <string>
 #include <vector>
 #include <iostream> // Will want to remove this at somepoint
@@ -15,20 +17,24 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
   namespace Registry {
     class Client {
     public:
+      using SHA256 = std::string; // kinda preemptive, incase this becomes a real type
+    public:
       Client( std::string const & domain );
       Client( std::string const & domain, std::string const & username, std::string const & password );
+      Client( const Client& other );
       ~Client();
 
       void auth( std::string rsrc );
 
       void inspect( std::string rsrc );
 
-      template< class Schema_t >
+      template< class Schema_t > // Schema_t is an object that has attributes name and mediaType and an overloaded from_json
       Schema_t manifest( std::string rsrc, std::string target );
 
+      // For each pull the question is, to where? for any operation like this there should be a from -> to
       void pull( Schema1::ImageManifest im );
       void pull( Schema2::ManifestList ml ); // multi-arch/platform pull
-      void pull( Schema2::ImageManifest im ); // single schema v2 pull
+      void pull( Schema2::ImageManifest im ); // single schema v2 pull -> does this even make since
 
       void push( Schema1::ImageManifest im );
       void push( Schema2::ManifestList ml );
@@ -36,11 +42,16 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       Tags tagList( std::string rsrc );
 
       bool pingResource( std::string rsrc );
-//      bool ping();
     protected:
+      bool blobExists( SHA256 sha );
+
+      template< typename Func >
+      void fetchBlob( SHA256 sha, Func call_back ); // To where
+
       httplib::Headers defaultHeaders(); 
       httplib::SSLClient  _cli;
     private:
+      std::string   _domain;
       std::string   _token;
       std::string   _username;
       std::string   _password;
@@ -51,7 +62,24 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
 // IMPLEMENTATION
 // OCI::Registry::Client
-OCI::Registry::Client::Client( std::string const & domain ) : _cli( domain, 443 ) {
+OCI::Registry::Client::Client( std::string const & domain ) : _cli( domain, 443 ), _domain( domain ) {
+  _cli.set_follow_location( true );
+}
+
+OCI::Registry::Client::Client(  std::string const & domain,
+                                std::string const & username,
+                                std::string const & password ) : _cli( domain, 443 ),
+                                                                 _domain( domain ),
+                                                                 _username( username ),
+                                                                 _password( password ) {
+  _cli.set_follow_location( true );
+}
+
+OCI::Registry::Client::Client( const Client& other ) :  _cli( other._domain, 443 ), 
+                                                        _domain( other._domain ),
+                                                        _token( other._token ),
+                                                        _username( other._username ),
+                                                        _password( other._password ) {
   _cli.set_follow_location( true );
 }
 
@@ -69,6 +97,11 @@ void OCI::Registry::Client::auth( std::string rsrc ) {
   } else if ( res->status == 404 ) {
     std::cerr << "/v2/" << rsrc << std::endl;
     std::cerr << rsrc << " " << res->body << std::endl;
+    std::abort();
+  }
+
+  if ( res->status == 302 ) {
+    std::cerr << "Auto redirect not enabled: file a bug" << std::endl;
     std::abort();
   }
 
@@ -241,12 +274,12 @@ OCI::Tags OCI::Registry::Client::tagList( std::string rsrc ) {
     if ( res == nullptr ) {
       std::abort();
     }
+  }
 
-    if ( res->status == 200 ) {
-      retVal = nlohmann::json::parse( res->body ).get< Tags >();
-    } else {
-      std::cerr << res->body << std::endl;
-    }
+  if ( res->status == 200 ) {
+    retVal = nlohmann::json::parse( res->body ).get< Tags >();
+  } else {
+    std::cerr << res->body << std::endl;
   }
 
   return retVal;
@@ -254,11 +287,14 @@ OCI::Tags OCI::Registry::Client::tagList( std::string rsrc ) {
 
 void OCI::Registry::Client::pull( Schema2::ManifestList ml ) {
   using namespace std::string_literals;
+
   for ( auto const& im: ml.manifests ) {
     auto image_manifest = manifest< Schema2::ImageManifest >( ml.name, im.digest );
 
     for ( auto const& iml: image_manifest.layers ) {
       _cli.Get( ( "/v2/"s + ml.name + "/blobs/"s + iml.digest ).c_str(), [](long long len, long long total) {
+          // TODO: its possible to hide the cursor, since we are rewriting, it would be cleaner to do so
+          // TODO: printf is not proper for this, there are issues with it, this was just pull as an example
           printf("%lld / %lld bytes => %d%% complete\r",
             len, total,
             (int)(len*100/total));

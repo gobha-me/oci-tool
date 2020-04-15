@@ -5,10 +5,9 @@
 #include <iostream>
 
 namespace OCI::Schema2 {
- // https://docs.docker.com/registry/spec/api/
- // Manifestv2, Schema2 implementation, https://docs.docker.com/registry/spec/manifest-v2-2/
- // Accept: application/vnd.docker.distribution.manifest.list.v2+json
-  struct ManifestList {
+  // https://docs.docker.com/registry/spec/api/
+  // Manifestv2, Schema2 implementation, https://docs.docker.com/registry/spec/manifest-v2-2/
+  struct ManifestList {  // Accept: application/vnd.docker.distribution.manifest.list.v2+json
     struct Manifest {
       std::string     mediaType;
       std::uintmax_t  size;
@@ -35,6 +34,7 @@ namespace OCI::Schema2 {
       std::string                 mediaType;
       std::uintmax_t              size;
       std::string                 digest;
+
       std::vector< std::string >  urls;
     };
 

@@ -3,7 +3,7 @@
 #include <OCI/Schema2.hpp>
 #include <filesystem>
 
-namespace OCI {
+namespace OCI::Extensions {
   class Dir {
     public:
       Dir( std::string const & directory ); // this would be the base path
@@ -26,12 +26,12 @@ namespace OCI {
     private:
       std::filesystem::directory_entry _directory;
   };
-}
+} // namespace OCI::Extensions
 
 // IMPLEMENTATION
 // OCI::Dir
-OCI::Dir::Dir( std::string const& directory ) : _directory( directory ) {
+OCI::Extensions::Dir::Dir( std::string const& directory ) : _directory( directory ) {
   if ( not _directory.exists() )
     std::filesystem::create_directories( _directory );
 }
-OCI::Dir::~Dir() = default;
+OCI::Extensions::Dir::~Dir() = default;
