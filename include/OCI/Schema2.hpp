@@ -34,7 +34,6 @@ namespace OCI::Schema2 {
       std::string                 mediaType;
       std::uintmax_t              size;
       std::string                 digest;
-
       std::vector< std::string >  urls;
     };
 
