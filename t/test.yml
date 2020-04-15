@@ -1,0 +1,20 @@
+docker.io:
+  images:
+    fedora:
+    redis:
+quay.io:
+  images:
+    openshift-release-dev/ocp-release:
+      - 4.3.11-x86_64
+      - 4.3.12-x86_64
+      - 4.4.0-rc.5-x86_64
+      - 4.4.0-rc.6-x86_64
+      - 4.4.0-rc.7-x86_64
+registry.access.redhat.com:
+  images:
+    ubi7/ubi:
+registry.redhat.io:
+  username:
+  password:
+  images:
+    ubi7/ubi:
