@@ -6,6 +6,7 @@
 namespace OCI::Extensions {
   class Dir {
     public:
+      Dir();
       Dir( std::string const & directory ); // this would be the base path
       ~Dir();
 
@@ -30,6 +31,7 @@ namespace OCI::Extensions {
 
 // IMPLEMENTATION
 // OCI::Dir
+OCI::Extensions::Dir::Dir() {}
 OCI::Extensions::Dir::Dir( std::string const& directory ) : _directory( directory ) {
   if ( not _directory.exists() )
     std::filesystem::create_directories( _directory );

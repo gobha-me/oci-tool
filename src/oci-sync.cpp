@@ -1,35 +1,42 @@
 #include <iostream>
+#include <variant>
 #include <OCI/Registry/Client.hpp>
 #include <OCI/Extensions/Dir.hpp>
 #include <OCI/Copy.hpp>
+#include <Yaml.hpp>
 
 // This spawned from the need of doing a multi arch sync, which requires a multi arch copy
 //  and learn how REST interfaces can be implemented, so going the 'hard' route was a personal choice
+
+//void Sync( const std::string& rsrc, std::vector< std::string > tags, OCI::Registry::Client src, OCI::Extensions::Dir dest ) {
+//  for ( auto tag: tags )
+//    OCI::Copy( rsrc, tag, src, dest );
+//}
 
 int main( int argc, char ** argv ) {
   using namespace std::string_literals;
   // simply we start with requiring at least two options, the command and the uri
   if ( argc < 2 ) return EXIT_FAILURE;
 
-  auto command    = std::string( argv[1] );
-  auto uri        = std::string( argv[2] );
+  // Trying to aviod RTTI and a Base class for classes sake, but it maybe unavoidable
+  OCI::Registry::Client source;
+  OCI::Extensions::Dir destination;
+
+  auto yaml       = std::string( argv[1] ); // SRC(s), good for now, but would like to extend to a "DirTree" to a Registry, so this would also require a proto
+  auto uri        = std::string( argv[2] ); // Destination
   auto proto_itr  = uri.find( ":" );
-  std::string proto, location;
+  std::string proto, location; // proto is equal to docker or dir
 
   if ( proto_itr != std::string::npos ) {
     proto     = uri.substr( 0, proto_itr );
     location  = uri.substr( proto_itr + 1 );
   }
 
-  if ( proto == "docker" ) { // TODO: need search domains, on input without a domain domain == rsrc
+  if ( proto == "dir" ) {
+    destination = OCI::Extensions::Dir( location );
+  } else if ( proto == "docker" ) {
     location = location.substr( 2 ); // the // is not needed for this http client library
     auto domain = location.substr( 0, location.find( '/' ) );
-    auto rsrc   = location.substr( location.find( '/') + 1 );
-    auto target = "latest"s;
-
-    // if domain not provided use /etc/containers/registries.conf - INI? This process turns into a loop?
-    if ( domain == rsrc ) { // domain was not provided
-    }
 
     // in uri docker will translate to https
     // if docker.io use registry-1.docker.io as the site doesn't redirect
@@ -38,21 +45,44 @@ int main( int argc, char ** argv ) {
       domain = "registry-1.docker.io";
     }
 
-    if ( rsrc.find( '/' ) == std::string::npos )
-      rsrc = "library/" + rsrc; // set to default namespace if non provided
+    //destination = std::move( OCI::Registry::Client( domain ) );
+  }
 
-    if ( rsrc.find( ':' ) != std::string::npos ) {
-      rsrc    = rsrc.substr( 0, rsrc.find( ':' ) );
-      target  = rsrc.substr( rsrc.find( ':' ) + 1 );
+  Yaml::Node root_node;
+  Yaml::Parse( root_node, yaml.c_str() ); // c-string for filename, std::string for a string to parse
+
+  for ( auto source_node = root_node.Begin(); source_node != root_node.End(); source_node++ ) {
+    auto domain       = (*source_node).first;
+    auto images_node  = (*source_node).second[ "images" ];
+    auto username     = (*source_node).second[ "username" ].As< std::string >();
+    auto password     = (*source_node).second[ "password" ].As< std::string >();
+
+    if ( domain == "docker.io" ) {
+      domain = "registry-1.docker.io";
     }
 
-    // std::cout << command << " " << proto << " " << domain << " " << rsrc << std::endl;
+    source = OCI::Registry::Client( domain, username, password );
 
-    OCI::Registry::Client client1( domain );
-    //OCI::Extensions::Dir dir( "<path>" );
+    for ( auto image_node = images_node.Begin(); image_node != images_node.End(); image_node++ ) {
+      auto resource = (*image_node).first;
 
-    OCI::Sync( rsrc, client1, client1 );
+      if ( resource.find( '/' ) == std::string::npos )
+        resource = "library/" + resource; // set to default namespace if non provided
+
+      if ( (*image_node).second.IsSequence() ) {
+        std::vector< std::string > tags;
+
+        for ( auto tag_node = (*image_node).second.Begin(); tag_node != (*image_node).second.End(); tag_node++ ) {
+          tags.push_back( (*tag_node).second.As< std::string >() );
+        }
+
+        OCI::Sync( resource, tags, source, destination );
+      } else {
+        OCI::Sync( resource, source, destination );
+      }
+    }
   }
+
 
   return EXIT_SUCCESS;
 }

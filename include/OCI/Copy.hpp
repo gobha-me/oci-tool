@@ -18,6 +18,9 @@ namespace OCI {
 
   template< class SRC, class DEST >
   void Sync( const std::string& rsrc, SRC src, DEST dest );
+
+  template< class SRC, class DEST >
+  void Sync( const std::string& rsrc, std::vector< std::string > tags, SRC src, DEST dest );
 } // namespace OCI
 
 
@@ -73,4 +76,10 @@ void OCI::Sync( const std::string& rsrc, SRC src, DEST dest ) {
 
   for ( auto tag: tagList.tags )
     Copy( tagList.name, tag, src, dest );
+}
+
+template< class SRC, class DEST >
+void OCI::Sync( const std::string& rsrc, std::vector< std::string > tags, SRC src, DEST dest ) {
+  for ( auto tag: tags )
+    Copy( rsrc, tag, src, dest );
 }

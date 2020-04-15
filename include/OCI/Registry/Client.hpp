@@ -19,9 +19,9 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
     public:
       using SHA256 = std::string; // kinda preemptive, incase this becomes a real type
     public:
+      Client();
       Client( std::string const & domain );
       Client( std::string const & domain, std::string const & username, std::string const & password );
-      Client( const Client& other );
       ~Client();
 
       void auth( std::string rsrc );
@@ -49,7 +49,7 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       void fetchBlob( SHA256 sha, Func call_back ); // To where
 
       httplib::Headers defaultHeaders(); 
-      httplib::SSLClient  _cli;
+      std::shared_ptr< httplib::SSLClient >  _cli;
     private:
       std::string   _domain;
       std::string   _token;
@@ -62,34 +62,30 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
 // IMPLEMENTATION
 // OCI::Registry::Client
-OCI::Registry::Client::Client( std::string const & domain ) : _cli( domain, 443 ), _domain( domain ) {
-  _cli.set_follow_location( true );
+OCI::Registry::Client::Client() : _cli( nullptr ) {}
+OCI::Registry::Client::Client(  std::string const & domain ) : 
+                                _cli( std::make_shared< httplib::SSLClient >( domain, 443 ) ),
+                                _domain( domain ) {
+  _cli->set_follow_location( true );
 }
 
 OCI::Registry::Client::Client(  std::string const & domain,
                                 std::string const & username,
-                                std::string const & password ) : _cli( domain, 443 ),
-                                                                 _domain( domain ),
-                                                                 _username( username ),
-                                                                 _password( password ) {
-  _cli.set_follow_location( true );
-}
-
-OCI::Registry::Client::Client( const Client& other ) :  _cli( other._domain, 443 ), 
-                                                        _domain( other._domain ),
-                                                        _token( other._token ),
-                                                        _username( other._username ),
-                                                        _password( other._password ) {
-  _cli.set_follow_location( true );
+                                std::string const & password ) : 
+                                _cli( std::make_shared< httplib::SSLClient >( domain, 443 ) ),
+                                _domain( domain ),
+                                _username( username ),
+                                _password( password ) {
+  _cli->set_follow_location( true );
 }
 
 OCI::Registry::Client::~Client() = default;
 
 void OCI::Registry::Client::auth( std::string rsrc ) {
   if ( not _username.empty() and not _password.empty() )
-    _cli.set_basic_auth( _username.c_str(), _password.c_str() );
+    _cli->set_basic_auth( _username.c_str(), _password.c_str() );
 
-  auto res = _cli.Get( std::string( "/v2/" + rsrc ).c_str(), defaultHeaders() );
+  auto res = _cli->Get( std::string( "/v2/" + rsrc ).c_str(), defaultHeaders() );
 
   if ( res == nullptr ) { // need to handle timeouts a little more gracefully
     std::abort(); // Need to figure out how this API is going to handle errors
@@ -231,7 +227,7 @@ Schema_t OCI::Registry::Client::manifest( std::string rsrc, std::string target )
   auto headers = defaultHeaders();
   headers.emplace( "Accept", retVal.mediaType );
 
-  auto res = _cli.Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
+  auto res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
 
   if ( res == nullptr ) {
     std::abort();
@@ -242,7 +238,7 @@ Schema_t OCI::Registry::Client::manifest( std::string rsrc, std::string target )
     headers = defaultHeaders();
     headers.emplace( "Accept", retVal.mediaType );
 
-    res = _cli.Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
+    res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
 
     if ( res == nullptr ) {
       std::abort();
@@ -264,12 +260,12 @@ Schema_t OCI::Registry::Client::manifest( std::string rsrc, std::string target )
 OCI::Tags OCI::Registry::Client::tagList( std::string rsrc ) {
   Tags retVal;
 
-  auto res = _cli.Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
+  auto res = _cli->Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
 
   if ( res->status != 200 ) {
     auth( rsrc + "/tags/list" );
 
-    res = _cli.Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
+    res = _cli->Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
 
     if ( res == nullptr ) {
       std::abort();
@@ -292,7 +288,7 @@ void OCI::Registry::Client::pull( Schema2::ManifestList ml ) {
     auto image_manifest = manifest< Schema2::ImageManifest >( ml.name, im.digest );
 
     for ( auto const& iml: image_manifest.layers ) {
-      _cli.Get( ( "/v2/"s + ml.name + "/blobs/"s + iml.digest ).c_str(), [](long long len, long long total) {
+      _cli->Get( ( "/v2/"s + ml.name + "/blobs/"s + iml.digest ).c_str(), [](long long len, long long total) {
           // TODO: its possible to hide the cursor, since we are rewriting, it would be cleaner to do so
           // TODO: printf is not proper for this, there are issues with it, this was just pull as an example
           printf("%lld / %lld bytes => %d%% complete\r",
@@ -309,7 +305,7 @@ bool OCI::Registry::Client::pingResource( std::string rsrc ) {
   bool retVal = false;
 
   if ( _token.empty() ) {
-    auto res  = _cli.Get( std::string( "/v2/" + rsrc ).c_str(), defaultHeaders() );
+    auto res  = _cli->Get( std::string( "/v2/" + rsrc ).c_str(), defaultHeaders() );
     retVal    = res->status == 200;
   }
 
