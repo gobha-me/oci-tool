@@ -6,9 +6,16 @@
 namespace OCI::Extensions {
   class Dir {
     public:
+      using SHA256 = std::string; // kinda preemptive, incase this becomes a real type
+    public:
       Dir();
       Dir( std::string const & directory ); // this would be the base path
       ~Dir();
+
+      template< typename Func >
+      void fetchBlob( SHA256 sha, Func call_back ); // To where
+
+      bool hasBlob( SHA256 sha );
 
       void inspect( std::string rsrc );
 

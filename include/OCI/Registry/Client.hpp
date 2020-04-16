@@ -26,7 +26,12 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
       void auth( std::string rsrc );
 
-      void inspect( std::string rsrc );
+      template< typename Func >
+      void fetchBlob( SHA256 sha, Func call_back ); // To where
+
+      bool hasBlob( SHA256 sha );
+
+      void inspect( std::string rsrc, std::string target );
 
       template< class Schema_t > // Schema_t is an object that has attributes name and mediaType and an overloaded from_json
       Schema_t manifest( std::string rsrc, std::string target );
@@ -43,10 +48,6 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
       bool pingResource( std::string rsrc );
     protected:
-      bool blobExists( SHA256 sha );
-
-      template< typename Func >
-      void fetchBlob( SHA256 sha, Func call_back ); // To where
 
       httplib::Headers defaultHeaders(); 
       std::shared_ptr< httplib::SSLClient >  _cli;
@@ -145,18 +146,11 @@ httplib::Headers OCI::Registry::Client::defaultHeaders() {
   };
 }
 
-void OCI::Registry::Client::inspect( std::string base_rsrc ) {
+void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target ) {
   using namespace std::string_literals;
 
-  auto target = "latest"s; // Target can be tag or sha256 string
   auto rsrc   = base_rsrc;
-
-  if ( base_rsrc.find( ':' ) != std::string::npos ) {
-    target = base_rsrc.substr( base_rsrc.find( ':' ) + 1 );
-    rsrc   = base_rsrc.substr( 0, base_rsrc.find( ':' ) );
-  }
-
-  auto tags         = tagList( rsrc );
+  auto tags   = tagList( rsrc );
 
   auto manifestList = manifest< Schema2::ManifestList >( rsrc, target );
 

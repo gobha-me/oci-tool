@@ -40,9 +40,14 @@ void OCI::Copy( const std::string& rsrc, const std::string& target, SRC src, DES
 
 template< class SRC, class DEST >
 void OCI::Copy( Schema1::ImageManifest image_manifest, SRC src, DEST dest ) {
-  (void)image_manifest;
   (void)src;
-  (void)dest;
+
+  for ( auto layer: image_manifest.fsLayers ) {
+    if ( layer.first == "blobSum" ) {
+      if ( not dest.hasBlob( layer.second ) ) {
+      }
+    }
+  }
 }
 
 template< class SRC, class DEST >
@@ -58,13 +63,14 @@ void OCI::Copy( const Schema2::ManifestList& manifest_list, SRC src, DEST dest )
 
 template< class SRC, class DEST >
 void OCI::Copy( Schema2::ImageManifest image_manifest, SRC src, DEST dest ) {
-  (void)image_manifest;
   (void)src;
-  (void)dest;
 
   std::cout << image_manifest.name << std::endl;
   for ( auto layer: image_manifest.layers ) {
     std::cout << layer.digest << std::endl;
+    if ( not dest.hasBlob( layer.digest ) ) {
+      // if not copy blob from src to dest
+    }
   }
 
   // When the above is finished post ImageManifest to DEST
