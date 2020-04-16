@@ -23,9 +23,9 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
       void auth( std::string rsrc );
 
-      void fetchBlob( SHA256 sha, std::function<void()>& call_back ); // To where
+      void fetchBlob( const std::string& rsrc, SHA256 sha, std::function<void()>& call_back ); // To where
 
-      bool hasBlob( SHA256 sha );
+      bool hasBlob( const std::string& rsrc, SHA256 sha );
 
       void inspect( std::string rsrc, std::string target );
 
@@ -151,19 +151,32 @@ httplib::Headers OCI::Registry::Client::defaultHeaders() {
   };
 }
 
-void OCI::Registry::Client::fetchBlob( SHA256 sha, std::function< void() >& call_back ) {
+void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void() >& call_back ) {
+  (void)rsrc;
   (void)sha;
   (void)call_back;
 
   std::cout << "OCI::Registry::Client::fetchBlob is not implemented!" << std::endl;
 }
 
-bool OCI::Registry::Client::hasBlob( SHA256 sha ) {
-  (void)sha;
+bool OCI::Registry::Client::hasBlob( const std::string& rsrc, SHA256 sha ) {
+  auto res = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
 
-  std::cout << "OCI::Registry::Client::hasBlob is not implemented!" << std::endl;
+  if ( res->status == 401 ) {
+    auth( rsrc + "/blobs/" + sha ); // auth modifies the headers, so should auth return headers???
 
-  return true;
+    res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + sha ).c_str(), defaultHeaders() );
+
+    if ( res == nullptr ) {
+      std::abort();
+    }
+  }
+
+  if ( res->status != 200 ) {
+    std::cerr << rsrc << ":" << sha << " Status: " << res->status << " Body: " << res->body << std::endl;
+  }
+
+  return res->status == 200;
 }
 
 void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target ) {
@@ -305,7 +318,7 @@ std::shared_ptr< httplib::Response> OCI::Registry::Client::manifest( const std::
     std::abort();
   }
 
-  if ( res->status == 401 ) { // TODO: Should find the reason instead of assuming
+  if ( res->status == 401 ) {
     auth( resource + "/manifests/" + target ); // auth modifies the headers, so should auth return headers???
     headers = defaultHeaders();
     headers.emplace( "Accept", mediaType );

@@ -14,9 +14,9 @@ namespace OCI::Extensions {
       Dir( std::string const & directory ); // this would be the base path
       ~Dir();
 
-      void fetchBlob( SHA256 sha, std::function< void() >& call_back ); // To where
+      void fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void() >& call_back ); // To where
 
-      bool hasBlob( SHA256 sha );
+      bool hasBlob( const std::string& rsrc, SHA256 sha );
 
       void inspect( std::string rsrc );
 
@@ -41,12 +41,14 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) : _directory( director
 }
 OCI::Extensions::Dir::~Dir() = default;
 
-void OCI::Extensions::Dir::fetchBlob( SHA256 sha, std::function< void() >& call_back ) {
+void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void() >& call_back ) {
+  (void)rsrc;
   (void)sha;
   (void)call_back;
 }
 
-bool OCI::Extensions::Dir::hasBlob( SHA256 sha ) {
+bool OCI::Extensions::Dir::hasBlob( const std::string& rsrc, SHA256 sha ) {
+  (void)rsrc;
   (void)sha;
   return false;
 }

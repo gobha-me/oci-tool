@@ -2,16 +2,11 @@
 #include <variant>
 #include <OCI/Registry/Client.hpp>
 #include <OCI/Extensions/Dir.hpp>
-#include <OCI/Copy.hpp>
+#include <OCI/Sync.hpp>
 #include <Yaml.hpp>
 
 // This spawned from the need of doing a multi arch sync, which requires a multi arch copy
 //  and learn how REST interfaces can be implemented, so going the 'hard' route was a personal choice
-
-//void Sync( const std::string& rsrc, std::vector< std::string > tags, OCI::Registry::Client src, OCI::Extensions::Dir dest ) {
-//  for ( auto tag: tags )
-//    OCI::Copy( rsrc, tag, src, dest );
-//}
 
 int main( int argc, char ** argv ) {
   using namespace std::string_literals;
@@ -25,7 +20,12 @@ int main( int argc, char ** argv ) {
   auto proto_itr  = uri.find( ":" );
   std::string proto, location; // proto is equal to docker or dir
 
-  if ( proto_itr != std::string::npos ) {
+  if ( proto_itr == std::string::npos ) {
+    std::cerr << "improperly formated destination string" << std::endl;
+    std::cerr << "<proto>:<uri>" << std::endl;
+
+    return EXIT_FAILURE;
+  } else {
     proto     = uri.substr( 0, proto_itr );
     location  = uri.substr( proto_itr + 1 );
   }

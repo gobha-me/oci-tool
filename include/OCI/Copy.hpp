@@ -13,10 +13,6 @@ namespace OCI {
   void Copy( const Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OCI::Base::Client* dest );
 
   void Copy( Schema2::ImageManifest image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest );
-
-  void Sync( const std::string& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest );
-
-  void Sync( const std::string& rsrc, std::vector< std::string > tags, OCI::Base::Client* src, OCI::Base::Client* dest );
 } // namespace OCI
 
 
@@ -38,7 +34,8 @@ void OCI::Copy( Schema1::ImageManifest image_manifest, OCI::Base::Client* src, O
 
   for ( auto layer: image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
-      if ( not dest->hasBlob( layer.second ) ) {
+      if ( not dest->hasBlob( image_manifest.name, layer.second ) ) {
+        std::cout << "Destintaion doesn't have layer" << std::endl;
       }
     }
   }
@@ -48,6 +45,7 @@ void OCI::Copy( const Schema2::ManifestList& manifest_list, OCI::Base::Client* s
   for ( auto manifest_: manifest_list.manifests ) {
     Schema2::ImageManifest image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest_.digest );
 
+    std::cout << image_manifest.name << " " << manifest_.digest << std::endl;
     Copy( image_manifest, src, dest );
   }
   
@@ -57,25 +55,12 @@ void OCI::Copy( const Schema2::ManifestList& manifest_list, OCI::Base::Client* s
 void OCI::Copy( Schema2::ImageManifest image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   (void)src;
 
-  std::cout << image_manifest.name << std::endl;
   for ( auto layer: image_manifest.layers ) {
     std::cout << layer.digest << std::endl;
-    if ( not dest->hasBlob( layer.digest ) ) {
-      // if not copy blob from src to dest
+    if ( not dest->hasBlob( image_manifest.name, layer.digest ) ) {
+      std::cout << "Destintaion doesn't have layer" << std::endl;
     }
   }
 
   // When the above is finished post ImageManifest to OCI::Base::Client*
-}
-
-void OCI::Sync( const std::string& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  auto tagList = src->tagList( rsrc );
-
-  for ( auto tag: tagList.tags )
-    Copy( tagList.name, tag, src, dest );
-}
-
-void OCI::Sync( const std::string& rsrc, std::vector< std::string > tags, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  for ( auto tag: tags )
-    Copy( rsrc, tag, src, dest );
 }

@@ -11,9 +11,9 @@ namespace OCI::Base {
     using SHA256 = std::string; // kinda preemptive, incase this becomes a real type
   public:
     virtual ~Client() = default;
-    virtual void fetchBlob( SHA256 sha, std::function<void()>& call_back ) = 0;
+    virtual void fetchBlob( const std::string& rsrc, SHA256 sha, std::function<void()>& call_back ) = 0;
 
-    virtual bool hasBlob( SHA256 sha ) = 0;
+    virtual bool hasBlob( const std::string& rsrc, SHA256 sha ) = 0;
 
     virtual void manifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) = 0;
     virtual void manifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) = 0;
