@@ -1,0 +1,5 @@
+registry.redhat.io:
+  username: fake
+  password: bogus
+  images:
+    ubi7/ubi:

@@ -14,8 +14,3 @@ quay.io:
 registry.access.redhat.com:
   images:
     ubi7/ubi:
-registry.redhat.io:
-  username: fake
-  password: bogus
-  images:
-    ubi7/ubi:
