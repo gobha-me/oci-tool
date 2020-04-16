@@ -1,9 +1,8 @@
 #pragma once
-#include <OCI/Schema1.hpp>
-#include <OCI/Schema2.hpp>
+#include <OCI/Base/Client.hpp>
 #include <OCI/Tags.hpp>
 #include <OCI/Registry/Error.hpp>
-#include <OCI/Extensions/Buffer.hpp>
+#include <OCI/Manifest.hpp>
 #include <future>
 #include <string>
 #include <vector>
@@ -15,9 +14,7 @@
 
 namespace OCI { // https://docs.docker.com/registry/spec/api/
   namespace Registry {
-    class Client {
-    public:
-      using SHA256 = std::string; // kinda preemptive, incase this becomes a real type
+    class Client : public Base::Client {
     public:
       Client();
       Client( std::string const & domain );
@@ -26,15 +23,16 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
       void auth( std::string rsrc );
 
-      template< typename Func >
-      void fetchBlob( SHA256 sha, Func call_back ); // To where
+      void fetchBlob( SHA256 sha, std::function<void()>& call_back ); // To where
 
       bool hasBlob( SHA256 sha );
 
       void inspect( std::string rsrc, std::string target );
 
-      template< class Schema_t > // Schema_t is an object that has attributes name and mediaType and an overloaded from_json
-      Schema_t manifest( std::string rsrc, std::string target );
+      void manifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target );
+      void manifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target );
+      void manifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target );
+      void manifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target );
 
       // For each pull the question is, to where? for any operation like this there should be a from -> to
       void pull( Schema1::ImageManifest im );
@@ -44,18 +42,19 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       void push( Schema1::ImageManifest im );
       void push( Schema2::ManifestList ml );
 
-      Tags tagList( std::string rsrc );
+      Tags tagList( const std::string& rsrc );
 
       bool pingResource( std::string rsrc );
     protected:
-
       httplib::Headers defaultHeaders(); 
+      std::shared_ptr< httplib::Response > manifest( const std::string &mediaType, const std::string& resource, const std::string& target );
+
       std::shared_ptr< httplib::SSLClient >  _cli;
     private:
-      std::string   _domain;
-      std::string   _token;
-      std::string   _username;
-      std::string   _password;
+      std::string _domain;
+      std::string _token;
+      std::string _username;
+      std::string _password;
     };
   } // namespace Registry
 } // namespace oci
@@ -86,7 +85,7 @@ void OCI::Registry::Client::auth( std::string rsrc ) {
   if ( not _username.empty() and not _password.empty() )
     _cli->set_basic_auth( _username.c_str(), _password.c_str() );
 
-  auto res = _cli->Get( std::string( "/v2/" + rsrc ).c_str(), defaultHeaders() );
+  auto res = _cli->Get( std::string( "/v2/" + rsrc ).c_str() );
 
   if ( res == nullptr ) { // need to handle timeouts a little more gracefully
     std::abort(); // Need to figure out how this API is going to handle errors
@@ -133,9 +132,15 @@ void OCI::Registry::Client::auth( std::string rsrc ) {
         // And I keep adding to the technical debt
       }
 
-      //std::cout << nlohmann::json::parse( result->body ).dump( 2 ) << std::endl;
+      // std::cout << nlohmann::json::parse( result->body ).dump( 2 ) << std::endl;
 
-      _token = nlohmann::json::parse( result->body ).at( "token" );
+      auto j = nlohmann::json::parse( result->body );
+
+      if ( j.find( "token" ) == j.end() ) {
+        std::cerr << "Auth Failed: " << j.dump( 2 ) << std::endl;
+      } else {
+        _token = j.at( "token" );
+      }
     }
   }
 }
@@ -146,18 +151,34 @@ httplib::Headers OCI::Registry::Client::defaultHeaders() {
   };
 }
 
+void OCI::Registry::Client::fetchBlob( SHA256 sha, std::function< void() >& call_back ) {
+  (void)sha;
+  (void)call_back;
+
+  std::cout << "OCI::Registry::Client::fetchBlob is not implemented!" << std::endl;
+}
+
+bool OCI::Registry::Client::hasBlob( SHA256 sha ) {
+  (void)sha;
+
+  std::cout << "OCI::Registry::Client::hasBlob is not implemented!" << std::endl;
+
+  return true;
+}
+
 void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target ) {
   using namespace std::string_literals;
 
   auto rsrc   = base_rsrc;
   auto tags   = tagList( rsrc );
 
-  auto manifestList = manifest< Schema2::ManifestList >( rsrc, target );
+  auto manifestList = OCI::Manifest< Schema2::ManifestList >( this, rsrc, target );
 
   if ( manifestList.schemaVersion == 1 ) { // Fall back to Schema1
-      auto image_manifest = manifest< Schema1::ImageManifest >( rsrc, target );
+      auto image_manifest = OCI::Manifest< Schema1::ImageManifest >( this, rsrc, target );
   } else if ( manifestList.schemaVersion == 2 ) {
     // need to do more than this, doing this instead of to_json for the moment
+    // want a "combined" struct for this data and a to_json for it so the output can be "pretty printed"
     std::cout << "name: " << manifestList.name << "\n";
     std::cout << "schemaVersion: " << manifestList.schemaVersion << "\n";
     std::cout << "mediaType: " << manifestList.mediaType << "\n";
@@ -187,7 +208,7 @@ void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target )
         std::cout << "    feature: " << feature << "\n";
 
       std::cout << "    ImageManifest: {\n";
-      auto image_manifest = manifest< Schema2::ImageManifest >( rsrc, target );
+      auto image_manifest = OCI::Manifest< Schema2::ImageManifest >( this, rsrc, target );
       std::cout << "      schemaVersion: " << image_manifest.schemaVersion << "\n";
       std::cout << "      mediaType: " << image_manifest.mediaType << "\n";
       std::cout << "      config: { \n";
@@ -215,43 +236,93 @@ void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target )
   }
 }
 
-template< class Schema_t >
-Schema_t OCI::Registry::Client::manifest( std::string rsrc, std::string target ) {
-  Schema_t retVal;
-  auto headers = defaultHeaders();
-  headers.emplace( "Accept", retVal.mediaType );
+void OCI::Registry::Client::manifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+  auto res = manifest( im.mediaType, rsrc, target );
 
-  auto res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
+  if ( res->status == 200 ) {
+    nlohmann::json::parse( res->body ).get_to( im );
+
+    if ( im.name.empty() )
+      im.name = rsrc;
+  } else {
+    std::cerr << res->body << std::endl;
+  }
+}
+
+void OCI::Registry::Client::manifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
+  auto res = manifest( sim.mediaType, rsrc, target );
+
+  if ( res->status == 200 ) {
+    nlohmann::json::parse( res->body ).get_to( sim );
+
+    if ( sim.name.empty() )
+      sim.name = rsrc;
+  } else {
+    std::cerr << res->body << std::endl;
+  }
+}
+
+void OCI::Registry::Client::manifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
+  auto res = manifest( ml.mediaType, rsrc, target );
+
+  if ( res->status == 200 ) {
+    nlohmann::json::parse( res->body ).get_to( ml );
+
+    if ( ml.name.empty() )
+      ml.name = rsrc;
+  } else {
+    std::cerr << res->body << std::endl;
+  }
+}
+
+void OCI::Registry::Client::manifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+  auto res = manifest( im.mediaType, rsrc, target );
+
+  if ( res->status == 200 ) {
+    try {
+      nlohmann::json::parse( res->body ).get_to( im );
+
+      if ( im.name.empty() )
+        im.name = rsrc;
+    } catch ( nlohmann::detail::out_of_range & err ) {
+      std::cerr << "Status: " << res->status << " Body: " << res->body << std::endl;
+      std::cerr << err.what() << std::endl;
+
+      throw;
+    }
+  } else {
+    std::cerr << res->body << std::endl;
+  }
+}
+
+std::shared_ptr< httplib::Response> OCI::Registry::Client::manifest( const std::string& mediaType, const std::string& resource, const std::string& target ) {
+  auto headers = defaultHeaders();
+  headers.emplace( "Accept", mediaType );
+
+  auto res = _cli->Get( std::string( "/v2/" + resource + "/manifests/" + target ).c_str(), headers );
 
   if ( res == nullptr ) {
     std::abort();
   }
 
-  if ( res->status != 200 ) { // TODO: Should find the reason instead of assuming
-    auth( rsrc + "/manifests/" + target ); // auth modifies the headers, so should auth return headers???
+  if ( res->status == 401 ) { // TODO: Should find the reason instead of assuming
+    auth( resource + "/manifests/" + target ); // auth modifies the headers, so should auth return headers???
     headers = defaultHeaders();
-    headers.emplace( "Accept", retVal.mediaType );
+    headers.emplace( "Accept", mediaType );
 
-    res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + target ).c_str(), headers );
+    res = _cli->Get( std::string( "/v2/" + resource + "/manifests/" + target ).c_str(), headers );
 
     if ( res == nullptr ) {
       std::abort();
     }
+  } else if ( res->status != 200 ) {
+    std::cerr << "Err other than unauthorized attempting to get '" << resource << "'! Status: " << res->status << std::endl;
   }
 
-  if ( res->status == 200 ) {
-    retVal = nlohmann::json::parse( res->body ).get< Schema_t >();
-
-    if ( retVal.name.empty() )
-      retVal.name = rsrc;
-  } else {
-    std::cerr << res->body << std::endl;
-  }
-
-  return retVal;
+  return res;
 }
 
-OCI::Tags OCI::Registry::Client::tagList( std::string rsrc ) {
+OCI::Tags OCI::Registry::Client::tagList( const std::string& rsrc ) {
   Tags retVal;
 
   auto res = _cli->Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
@@ -276,23 +347,24 @@ OCI::Tags OCI::Registry::Client::tagList( std::string rsrc ) {
 }
 
 void OCI::Registry::Client::pull( Schema2::ManifestList ml ) {
-  using namespace std::string_literals;
-
-  for ( auto const& im: ml.manifests ) {
-    auto image_manifest = manifest< Schema2::ImageManifest >( ml.name, im.digest );
-
-    for ( auto const& iml: image_manifest.layers ) {
-      _cli->Get( ( "/v2/"s + ml.name + "/blobs/"s + iml.digest ).c_str(), [](long long len, long long total) {
-          // TODO: its possible to hide the cursor, since we are rewriting, it would be cleaner to do so
-          // TODO: printf is not proper for this, there are issues with it, this was just pull as an example
-          printf("%lld / %lld bytes => %d%% complete\r",
-            len, total,
-            (int)(len*100/total));
-          return true; // return 'false' if you want to cancel the request.
-        } );
-      std::cout << std::endl;
-    }
-  }
+  (void)ml;
+//  using namespace std::string_literals;
+//
+//  for ( auto const& im: ml.manifests ) {
+//    auto image_manifest = OCI::manifest< Schema2::ImageManifest >( this, ml.name, im.digest );
+//
+//    for ( auto const& iml: image_manifest.layers ) {
+//      _cli->Get( ( "/v2/"s + ml.name + "/blobs/"s + iml.digest ).c_str(), [](long long len, long long total) {
+//          // TODO: its possible to hide the cursor, since we are rewriting, it would be cleaner to do so
+//          // TODO: printf is not proper for this, there are issues with it, this was just pull as an example
+//          printf("%lld / %lld bytes => %d%% complete\r",
+//            len, total,
+//            (int)(len*100/total));
+//          return true; // return 'false' if you want to cancel the request.
+//        } );
+//      std::cout << std::endl;
+//    }
+//  }
 }
 
 bool OCI::Registry::Client::pingResource( std::string rsrc ) {
@@ -305,8 +377,3 @@ bool OCI::Registry::Client::pingResource( std::string rsrc ) {
 
   return retVal;
 }
-//
-//bool OCI::Registry::Client::ping() {
-//  auto res = _cli.Get( "/v2/", defaultHeaders() );
-//  return res->status == 200;
-//}

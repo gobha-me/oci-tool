@@ -1,36 +1,31 @@
 #pragma once
 #include <string>
+#include <OCI/Base/Client.hpp>
 #include <OCI/Schema1.hpp>
 #include <OCI/Schema2.hpp>
+#include <OCI/Manifest.hpp>
 
 namespace OCI {
-  template< class SRC, class DEST >
-  void Copy( const std::string& rsrc, const std::string& target, SRC src, DEST dest );
+  void Copy( const std::string& rsrc, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest );
 
-  template< class SRC, class DEST >
-  void Copy( Schema1::ImageManifest image_manifest, SRC src, DEST dest );
+  void Copy( Schema1::ImageManifest image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest );
 
-  template< class SRC, class DEST >
-  void Copy( const Schema2::ManifestList& manifest_list, SRC src, DEST dest );
+  void Copy( const Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OCI::Base::Client* dest );
 
-  template< class SRC, class DEST >
-  void Copy( Schema2::ImageManifest image_manifest, SRC src, DEST dest );
+  void Copy( Schema2::ImageManifest image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest );
 
-  template< class SRC, class DEST >
-  void Sync( const std::string& rsrc, SRC src, DEST dest );
+  void Sync( const std::string& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest );
 
-  template< class SRC, class DEST >
-  void Sync( const std::string& rsrc, std::vector< std::string > tags, SRC src, DEST dest );
+  void Sync( const std::string& rsrc, std::vector< std::string > tags, OCI::Base::Client* src, OCI::Base::Client* dest );
 } // namespace OCI
 
 
 // Implementatiion
-template< class SRC, class DEST >
-void OCI::Copy( const std::string& rsrc, const std::string& target, SRC src, DEST dest ) {
-  Schema2::ManifestList manifest_list = src.template manifest< Schema2::ManifestList >( rsrc, target );
+void OCI::Copy( const std::string& rsrc, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  Schema2::ManifestList manifest_list = Manifest< Schema2::ManifestList >( src, rsrc, target );
 
   if ( manifest_list.schemaVersion == 1 ) { // Fall back to Schema1
-    Schema1::ImageManifest image_manifest = src.template manifest< Schema1::ImageManifest >( rsrc, target );
+    Schema1::ImageManifest image_manifest = Manifest< Schema1::ImageManifest >( src, rsrc, target );
 
     Copy( image_manifest, src, dest );
   } else {
@@ -38,54 +33,49 @@ void OCI::Copy( const std::string& rsrc, const std::string& target, SRC src, DES
   }
 }
 
-template< class SRC, class DEST >
-void OCI::Copy( Schema1::ImageManifest image_manifest, SRC src, DEST dest ) {
+void OCI::Copy( Schema1::ImageManifest image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   (void)src;
 
   for ( auto layer: image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
-      if ( not dest.hasBlob( layer.second ) ) {
+      if ( not dest->hasBlob( layer.second ) ) {
       }
     }
   }
 }
 
-template< class SRC, class DEST >
-void OCI::Copy( const Schema2::ManifestList& manifest_list, SRC src, DEST dest ) {
+void OCI::Copy( const Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   for ( auto manifest_: manifest_list.manifests ) {
-    Schema2::ImageManifest image_manifest = src.template manifest< Schema2::ImageManifest >( manifest_list.name, manifest_.digest );
+    Schema2::ImageManifest image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest_.digest );
 
     Copy( image_manifest, src, dest );
   }
   
-  // When the above is finished post ManifestList to DEST
+  // When the above is finished post ManifestList to OCI::Base::Client*
 }
 
-template< class SRC, class DEST >
-void OCI::Copy( Schema2::ImageManifest image_manifest, SRC src, DEST dest ) {
+void OCI::Copy( Schema2::ImageManifest image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   (void)src;
 
   std::cout << image_manifest.name << std::endl;
   for ( auto layer: image_manifest.layers ) {
     std::cout << layer.digest << std::endl;
-    if ( not dest.hasBlob( layer.digest ) ) {
+    if ( not dest->hasBlob( layer.digest ) ) {
       // if not copy blob from src to dest
     }
   }
 
-  // When the above is finished post ImageManifest to DEST
+  // When the above is finished post ImageManifest to OCI::Base::Client*
 }
 
-template< class SRC, class DEST >
-void OCI::Sync( const std::string& rsrc, SRC src, DEST dest ) {
-  auto tagList = src.tagList( rsrc );
+void OCI::Sync( const std::string& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  auto tagList = src->tagList( rsrc );
 
   for ( auto tag: tagList.tags )
     Copy( tagList.name, tag, src, dest );
 }
 
-template< class SRC, class DEST >
-void OCI::Sync( const std::string& rsrc, std::vector< std::string > tags, SRC src, DEST dest ) {
+void OCI::Sync( const std::string& rsrc, std::vector< std::string > tags, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   for ( auto tag: tags )
     Copy( rsrc, tag, src, dest );
 }

@@ -106,7 +106,9 @@ void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList::Manifest& mlm
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest& im ) {
   j.at( "schemaVersion" ).get_to( im.schemaVersion );
-  j.at( "mediaType" ).get_to( im.mediaType );
+
+  if ( j.find( "mediaType" ) != j.end() )
+    j.at( "mediaType" ).get_to( im.mediaType );
 
   if ( j.find( "config" ) != j.end() ) {
     j.at( "config" ).at( "mediaType" ).get_to( im.config.mediaType );

@@ -18,9 +18,7 @@ int main( int argc, char ** argv ) {
   // simply we start with requiring at least two options, the command and the uri
   if ( argc < 2 ) return EXIT_FAILURE;
 
-  // Trying to aviod RTTI and a Base class for classes sake, but it maybe unavoidable
-  OCI::Registry::Client source;
-  OCI::Extensions::Dir destination;
+  std::shared_ptr< OCI::Base::Client > source, destination;
 
   auto yaml       = std::string( argv[1] ); // SRC(s), good for now, but would like to extend to a "DirTree" to a Registry, so this would also require a proto
   auto uri        = std::string( argv[2] ); // Destination
@@ -33,7 +31,7 @@ int main( int argc, char ** argv ) {
   }
 
   if ( proto == "dir" ) {
-    destination = OCI::Extensions::Dir( location );
+    destination = std::make_shared< OCI::Extensions::Dir >( location );
   } else if ( proto == "docker" ) {
     location = location.substr( 2 ); // the // is not needed for this http client library
     auto domain = location.substr( 0, location.find( '/' ) );
@@ -45,11 +43,11 @@ int main( int argc, char ** argv ) {
       domain = "registry-1.docker.io";
     }
 
-    //destination = std::move( OCI::Registry::Client( domain ) );
+    destination = std::make_shared< OCI::Registry::Client >( domain  );
   }
 
-  Yaml::Node root_node;
-  Yaml::Parse( root_node, yaml.c_str() ); // c-string for filename, std::string for a string to parse
+  Yaml::Node root_node; // need a new Yaml parser, this one doesn't follow C++ Iterator standards, which breaks range loops and the STL algorithms
+  Yaml::Parse( root_node, yaml.c_str() ); // c-string for filename, std::string for a string to parse, WTF
 
   for ( auto source_node = root_node.Begin(); source_node != root_node.End(); source_node++ ) {
     auto domain       = (*source_node).first;
@@ -61,7 +59,7 @@ int main( int argc, char ** argv ) {
       domain = "registry-1.docker.io";
     }
 
-    source = OCI::Registry::Client( domain, username, password );
+    source = std::make_shared< OCI::Registry::Client >( domain, username, password );
 
     for ( auto image_node = images_node.Begin(); image_node != images_node.End(); image_node++ ) {
       auto resource = (*image_node).first;
@@ -76,9 +74,9 @@ int main( int argc, char ** argv ) {
           tags.push_back( (*tag_node).second.As< std::string >() );
         }
 
-        OCI::Sync( resource, tags, source, destination );
+        OCI::Sync( resource, tags, source.get(), destination.get() );
       } else {
-        OCI::Sync( resource, source, destination );
+        OCI::Sync( resource, source.get(), destination.get() );
       }
     }
   }
