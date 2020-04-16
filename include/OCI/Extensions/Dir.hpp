@@ -14,7 +14,7 @@ namespace OCI::Extensions {
       Dir( std::string const & directory ); // this would be the base path
       ~Dir();
 
-      void fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void() >& call_back ); // To where
+      void fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void(const char *, uint64_t ) >& call_back ); // To where
 
       bool hasBlob( const std::string& rsrc, SHA256 sha );
 
@@ -24,6 +24,8 @@ namespace OCI::Extensions {
       void manifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target );
       void manifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target );
       void manifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target );
+
+      void putBlob( const std::string& rsrc, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size );
 
       Tags tagList( const std::string& rsrc );
     protected:
@@ -41,11 +43,11 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) : _directory( director
 }
 OCI::Extensions::Dir::~Dir() = default;
 
-void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void() >& call_back ) {
+void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void(const char *, uint64_t ) >& call_back ) {
   (void)rsrc;
   (void)sha;
 
-  call_back();
+  call_back( "hello world", 12 );
 }
 
 bool OCI::Extensions::Dir::hasBlob( const std::string& rsrc, SHA256 sha ) {
@@ -74,6 +76,14 @@ void OCI::Extensions::Dir::manifest( Schema2::ImageManifest& im, const std::stri
   (void)im;
   (void)rsrc;
   (void)target;
+}
+
+void OCI::Extensions::Dir::putBlob( const std::string& rsrc, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+  (void)rsrc;
+  (void)target;
+  (void)total_size;
+  (void)blob_part;
+  (void)blob_part_size;
 }
 
 OCI::Tags OCI::Extensions::Dir::tagList( const std::string& rsrc ) {

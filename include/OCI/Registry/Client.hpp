@@ -23,7 +23,7 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
 
       void auth( std::string rsrc );
 
-      void fetchBlob( const std::string& rsrc, SHA256 sha, std::function<void()>& call_back ); // To where
+      void fetchBlob( const std::string& rsrc, SHA256 sha, std::function<void(const char *, uint64_t )>& call_back ); // To where
 
       bool hasBlob( const std::string& rsrc, SHA256 sha );
 
@@ -34,13 +34,7 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       void manifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target );
       void manifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target );
 
-      // For each pull the question is, to where? for any operation like this there should be a from -> to
-      void pull( Schema1::ImageManifest im );
-      void pull( Schema2::ManifestList ml ); // multi-arch/platform pull
-      void pull( Schema2::ImageManifest im ); // single schema v2 pull -> does this even make since
-
-      void push( Schema1::ImageManifest im );
-      void push( Schema2::ManifestList ml );
+      void putBlob( const std::string& rsrc, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size );
 
       Tags tagList( const std::string& rsrc );
 
@@ -151,7 +145,7 @@ httplib::Headers OCI::Registry::Client::defaultHeaders() {
   };
 }
 
-void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void() >& call_back ) {
+void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void(const char *, uint64_t ) >& call_back ) {
   (void)rsrc;
   (void)sha;
   (void)call_back;
@@ -335,6 +329,14 @@ std::shared_ptr< httplib::Response> OCI::Registry::Client::manifest( const std::
   return res;
 }
 
+void OCI::Registry::Client::putBlob( const std::string& rsrc, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+  (void)rsrc;
+  (void)target;
+  (void)total_size;
+  (void)blob_part;
+  (void)blob_part_size;
+}
+
 OCI::Tags OCI::Registry::Client::tagList( const std::string& rsrc ) {
   Tags retVal;
 
@@ -357,27 +359,6 @@ OCI::Tags OCI::Registry::Client::tagList( const std::string& rsrc ) {
   }
 
   return retVal;
-}
-
-void OCI::Registry::Client::pull( Schema2::ManifestList ml ) {
-  (void)ml;
-//  using namespace std::string_literals;
-//
-//  for ( auto const& im: ml.manifests ) {
-//    auto image_manifest = OCI::manifest< Schema2::ImageManifest >( this, ml.name, im.digest );
-//
-//    for ( auto const& iml: image_manifest.layers ) {
-//      _cli->Get( ( "/v2/"s + ml.name + "/blobs/"s + iml.digest ).c_str(), [](long long len, long long total) {
-//          // TODO: its possible to hide the cursor, since we are rewriting, it would be cleaner to do so
-//          // TODO: printf is not proper for this, there are issues with it, this was just pull as an example
-//          printf("%lld / %lld bytes => %d%% complete\r",
-//            len, total,
-//            (int)(len*100/total));
-//          return true; // return 'false' if you want to cancel the request.
-//        } );
-//      std::cout << std::endl;
-//    }
-//  }
 }
 
 bool OCI::Registry::Client::pingResource( std::string rsrc ) {

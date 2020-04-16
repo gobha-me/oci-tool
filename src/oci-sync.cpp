@@ -1,5 +1,4 @@
 #include <iostream>
-#include <variant>
 #include <OCI/Registry/Client.hpp>
 #include <OCI/Extensions/Dir.hpp>
 #include <OCI/Sync.hpp>
@@ -80,7 +79,6 @@ int main( int argc, char ** argv ) {
       }
     }
   }
-
 
   return EXIT_SUCCESS;
 }
