@@ -44,12 +44,14 @@ OCI::Extensions::Dir::~Dir() = default;
 void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void() >& call_back ) {
   (void)rsrc;
   (void)sha;
-  (void)call_back;
+
+  call_back();
 }
 
 bool OCI::Extensions::Dir::hasBlob( const std::string& rsrc, SHA256 sha ) {
   (void)rsrc;
   (void)sha;
+
   return false;
 }
 
