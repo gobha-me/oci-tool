@@ -1,9 +1,9 @@
 #pragma once
-#include <string>
-#include <vector>
-#include <utility>
-#include <nlohmann/json.hpp> // https://github.com/nlohmann/json
 #include <iostream>
+#include <nlohmann/json.hpp> // https://github.com/nlohmann/json
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace OCI { // https://docs.docker.com/registry/spec/api/
   namespace Schema1 {
@@ -34,25 +34,3 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
     void from_json( const nlohmann::json& j, SignedImageManifest::Signature& sims );
   } // namespace Schema1
 } // namespace OCI
-
-
-void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::ImageManifest& im ) {
-  (void)j;
-  (void)im;
-
-  std::cout << "Construct OCI::Schema1::Manifest" << std::endl;
-}
-
-void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::SignedImageManifest& sim ) {
-  (void)j;
-  (void)sim;
-
-  std::cout << "Construct OCI::Schema1::SignedManifest" << std::endl;
-}
-
-void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::SignedImageManifest::Signature& sims ) {
-  (void)j;
-  (void)sims;
-
-  std::cout << "Construct OCI::Schema1::SignedManifest::Signature" << std::endl;
-}

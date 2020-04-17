@@ -1,33 +1,40 @@
-#include <iostream>
-#include <OCI/Registry/Client.hpp>
 #include <OCI/Extensions/Dir.hpp>
+#include <OCI/Registry/Client.hpp>
 #include <OCI/Sync.hpp>
 #include <Yaml.hpp>
+#include <iostream>
 
 // This spawned from the need of doing a multi arch sync, which requires a multi arch copy
 //  and learn how REST interfaces can be implemented, so going the 'hard' route was a personal choice
+// SRC(s), good for now, but would like to extend to a "DirTree" to a Registry, so this would also require a proto
 
-int main( int argc, char ** argv ) {
+auto main( int argc, char ** argv ) -> int {
   using namespace std::string_literals;
+
   // simply we start with requiring at least two options, the command and the uri
-  if ( argc < 2 ) return EXIT_FAILURE;
+  if ( argc < 2 ) {
+    return EXIT_FAILURE;
+  }
 
-  std::shared_ptr< OCI::Base::Client > source, destination;
+  std::shared_ptr< OCI::Base::Client > source;
+  std::shared_ptr< OCI::Base::Client > destination;
+  std::string yaml( argv[1] ); // NOLINT
+  std::string uri( argv[2] ); // NOLINT
+  std::string proto; // proto is equal to docker or dir
+  std::string location;
 
-  auto yaml       = std::string( argv[1] ); // SRC(s), good for now, but would like to extend to a "DirTree" to a Registry, so this would also require a proto
-  auto uri        = std::string( argv[2] ); // Destination
-  auto proto_itr  = uri.find( ":" );
-  std::string proto, location; // proto is equal to docker or dir
+  auto proto_itr  = uri.find( ':' );
 
   if ( proto_itr == std::string::npos ) {
     std::cerr << "improperly formated destination string" << std::endl;
     std::cerr << "<proto>:<uri>" << std::endl;
 
     return EXIT_FAILURE;
-  } else {
-    proto     = uri.substr( 0, proto_itr );
-    location  = uri.substr( proto_itr + 1 );
   }
+
+  proto     = uri.substr( 0, proto_itr );
+  location  = uri.substr( proto_itr + 1 );
+  
 
   if ( proto == "dir" ) {
     destination = std::make_shared< OCI::Extensions::Dir >( location );
@@ -63,8 +70,9 @@ int main( int argc, char ** argv ) {
     for ( auto image_node = images_node.Begin(); image_node != images_node.End(); image_node++ ) {
       auto resource = (*image_node).first;
 
-      if ( resource.find( '/' ) == std::string::npos )
-        resource = "library/" + resource; // set to default namespace if non provided
+      if ( resource.find( '/' ) == std::string::npos ) {
+        resource.insert( 0, "library/" ); // set to default namespace if non provided
+      }
 
       if ( (*image_node).second.IsSequence() ) {
         std::vector< std::string > tags;
