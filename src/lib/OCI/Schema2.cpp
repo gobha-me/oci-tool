@@ -1,6 +1,6 @@
 #include <OCI/Schema2.hpp>
 
-bool OCI::Schema2::operator==( const ImageManifest& im1, const ImageManifest& im2 ) {
+auto OCI::Schema2::operator==( const ImageManifest& im1, const ImageManifest& im2 ) -> bool {
   bool retVal = true;
 
   for ( auto const& layer: im1.layers ) {
@@ -17,15 +17,16 @@ bool OCI::Schema2::operator==( const ImageManifest& im1, const ImageManifest& im
   return retVal;
 }
 
-bool OCI::Schema2::operator!=( const ImageManifest& im1, const ImageManifest& im2 ) {
+auto OCI::Schema2::operator!=( const ImageManifest& im1, const ImageManifest& im2 ) -> bool {
   return not ( im1 == im2 );
 }
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ManifestList& ml ) {
   j.at( "schemaVersion" ).get_to( ml.schemaVersion );
 
-  if ( j.find( "manifests" ) != j.end() )
+  if ( j.find( "manifests" ) != j.end() ) {
     ml.manifests = j.at( "manifests" ).get< std::vector< ManifestList::Manifest > >();
+  }
 }
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ManifestList::Manifest& mlm ) {
@@ -35,17 +36,21 @@ void OCI::Schema2::from_json( const nlohmann::json& j, ManifestList::Manifest& m
   j.at( "platform" ).at( "architecture" ).get_to( mlm.platform.architecture );
   j.at( "platform" ).at( "os" ).get_to( mlm.platform.os );
 
-  if ( j.at( "platform" ).find( "os.version" ) != j.at( "platform" ).end() )
+  if ( j.at( "platform" ).find( "os.version" ) != j.at( "platform" ).end() ) {
     j.at( "platform" ).at( "os.version" ).get_to( mlm.platform.os_version );
+  }
 
-  if ( j.at( "platform" ).find( "os.features" ) != j.at( "platform" ).end() )
+  if ( j.at( "platform" ).find( "os.features" ) != j.at( "platform" ).end() ) {
     j.at( "platform" ).at( "os.features" ).get_to( mlm.platform.os_features );
+  }
 
-  if ( j.at( "platform" ).find( "variant" ) != j.at( "platform" ).end() )
+  if ( j.at( "platform" ).find( "variant" ) != j.at( "platform" ).end() ) {
     j.at( "platform" ).at( "variant" ).get_to( mlm.platform.variant );
+  }
 
-  if ( j.at( "platform" ).find( "features" ) != j.at( "platform" ).end() )
+  if ( j.at( "platform" ).find( "features" ) != j.at( "platform" ).end() ) {
     j.at( "platform" ).at( "features" ).get_to( mlm.platform.features );
+  }
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList& ml ) {
@@ -65,8 +70,9 @@ void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList::Manifest& mlm
 void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest& im ) {
   j.at( "schemaVersion" ).get_to( im.schemaVersion );
 
-  if ( j.find( "mediaType" ) != j.end() )
+  if ( j.find( "mediaType" ) != j.end() ) {
     j.at( "mediaType" ).get_to( im.mediaType );
+  }
 
   if ( j.find( "config" ) != j.end() ) {
     j.at( "config" ).at( "mediaType" ).get_to( im.config.mediaType );
@@ -74,8 +80,9 @@ void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest& im ) {
     j.at( "config" ).at( "digest" ).get_to( im.config.digest );
   }
 
-  if ( j.find( "layers" ) != j.end() ) 
+  if ( j.find( "layers" ) != j.end() ) {
     im.layers = j.at( "layers" ).get< std::vector< ImageManifest::Layer > >();
+  }
 }
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest::Layer& iml ) {
@@ -83,16 +90,21 @@ void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest::Layer& iml
   j.at( "size" ).get_to( iml.size );
   j.at( "digest" ).get_to( iml.digest );
 
-  if ( j.find( "urls" ) != j.end() )
+  if ( j.find( "urls" ) != j.end() ) {
     j.at( "urls" ).get_to( iml.digest );
+  }
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const ImageManifest& im ) {
   (void)j;
   (void)im;
+
+  std::cout << "OCI::Schema2::to_json ImageManifest not implemented" << std::endl;
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const  ImageManifest::Layer& iml ) {
   (void)j;
   (void)iml;
+
+  std::cout << "OCI::Schema2::to_json ImageManifest::Layer not implemented" << std::endl;
 }

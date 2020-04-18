@@ -20,25 +20,26 @@ enum class HTTP_CODE {
 };
 
 OCI::Registry::Client::Client() : _cli( nullptr ) {}
-OCI::Registry::Client::Client(  std::string const & domain ) : 
+OCI::Registry::Client::Client(  std::string const& domain ) : 
                                 _cli( std::make_shared< httplib::SSLClient >( domain, SSL_PORT ) ),
                                 _domain( domain ) {
   _cli->set_follow_location( true );
 }
 
-OCI::Registry::Client::Client(  std::string const & domain,
-                                std::string const & username,
-                                std::string const & password ) : 
+OCI::Registry::Client::Client(  std::string const& domain,
+                                std::string username,
+                                std::string password ) : 
                                 _cli( std::make_shared< httplib::SSLClient >( domain, SSL_PORT ) ),
                                 _domain( domain ),
-                                _username( username ),
-                                _password( password ) {
+                                _username( std::move( username ) ),
+                                _password( std::move( password ) ) {
   _cli->set_follow_location( true );
 }
 
-void OCI::Registry::Client::auth( std::string rsrc ) {
-  if ( not _username.empty() and not _password.empty() )
+void OCI::Registry::Client::auth( std::string const& rsrc ) {
+  if ( not _username.empty() and not _password.empty() ) {
     _cli->set_basic_auth( _username.c_str(), _password.c_str() );
+  }
 
   auto res = _cli->Get( std::string( "/v2/" + rsrc ).c_str() );
 
@@ -51,7 +52,7 @@ void OCI::Registry::Client::auth( std::string rsrc ) {
     std::abort();
   }
 
-  if ( res->status == 302 ) {
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Found ) {
     std::cerr << "Auto redirect not enabled: file a bug" << std::endl;
     std::abort();
   }
@@ -100,7 +101,7 @@ void OCI::Registry::Client::auth( std::string rsrc ) {
   }
 }
 
-httplib::Headers OCI::Registry::Client::defaultHeaders() {
+auto OCI::Registry::Client::defaultHeaders() -> httplib::Headers {
   return {
     { "Authorization", "Bearer " + _token }
   };
@@ -114,7 +115,7 @@ void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std:
   std::cout << "OCI::Registry::Client::fetchBlob is not implemented!" << std::endl;
 }
 
-bool OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) {
+auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
   auto const& rsrc  = im.name;
   auto res          = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
 
@@ -155,7 +156,7 @@ void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im, const std
   std::cout << "OCI::Registry::Client::putBlob Schema2::ImageManifest not Not_Implemented" << std::endl;
 }
 
-bool OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) {
+auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) -> bool {
   auto const& rsrc  = im.name;
   auto res          = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
 
@@ -176,12 +177,10 @@ bool OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, SHA256 sh
   return HTTP_CODE( res->status ) == HTTP_CODE::OK;
 }
 
-void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target ) {
+void OCI::Registry::Client::inspect( std::string const& rsrc, std::string const& target ) {
   using namespace std::string_literals;
 
-  auto rsrc   = base_rsrc;
-  auto tags   = tagList( rsrc );
-
+  auto tags         = tagList( rsrc );
   auto manifestList = OCI::Manifest< Schema2::ManifestList >( this, rsrc, target );
 
   if ( manifestList.schemaVersion == 1 ) { // NOLINT Fall back to Schema1
@@ -193,10 +192,14 @@ void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target )
     std::cout << "schemaVersion: " << manifestList.schemaVersion << "\n";
     std::cout << "mediaType: " << manifestList.mediaType << "\n";
     std::cout << "tags: [" << "\n";
-    for ( auto const& tag: tags.tags )
+
+    for ( auto const& tag: tags.tags ) {
       std::cout << "  " << tag << "\n";
+    }
+
     std::cout << "]" << "\n";
     std::cout << "manifests: [\n";
+
     for ( auto const & manifest_item: manifestList.manifests ) {
       std::cout << "  {\n";
       std::cout << "    mediaType: " << manifest_item.mediaType << "\n";
@@ -205,17 +208,21 @@ void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target )
       std::cout << "    architecture: " << manifest_item.platform.architecture << "\n";
       std::cout << "    os: " << manifest_item.platform.os << "\n";
 
-      if ( not manifest_item.platform.os_version.empty() )
+      if ( not manifest_item.platform.os_version.empty() ) {
         std::cout << "    os.version: " << manifest_item.platform.os_version << "\n";
+      }
 
-      for ( auto const & os_feature: manifest_item.platform.os_features )
+      for ( auto const & os_feature: manifest_item.platform.os_features ) {
         std::cout << "    os.feature: " << os_feature << "\n";
+      }
 
-      if ( not manifest_item.platform.variant.empty() )
+      if ( not manifest_item.platform.variant.empty() ) {
         std::cout << "    variant: " << manifest_item.platform.variant << "\n";
+      }
 
-      for ( auto const & feature: manifest_item.platform.features )
+      for ( auto const & feature: manifest_item.platform.features ) {
         std::cout << "    feature: " << feature << "\n";
+      }
 
       std::cout << "    ImageManifest: {\n";
       auto image_manifest = OCI::Manifest< Schema2::ImageManifest >( this, rsrc, target );
@@ -232,8 +239,11 @@ void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target )
         std::cout << "          size: " << layer.size << "\n";
         std::cout << "          digest: " << layer.digest << "\n";
         std::cout << "          urls: {\n";
-        for ( auto const& url: layer.urls )
+
+        for ( auto const& url: layer.urls ) {
           std::cout << "            url: " << url << "\n";
+        }
+
         std::cout << "          }\n";
       }
 
@@ -315,7 +325,7 @@ void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std
   }
 }
 
-std::shared_ptr< httplib::Response> OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& resource, const std::string& target ) {
+auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response> {
   auto headers = defaultHeaders();
   headers.emplace( "Accept", mediaType );
 
@@ -374,7 +384,7 @@ void OCI::Registry::Client::putManifest( const Schema2::ImageManifest& im, const
   std::cout << "OCI::Registry::Client::putManifest Schema2::ImageManifest is not implemented" << std::endl;
 }
 
-OCI::Tags OCI::Registry::Client::tagList( const std::string& rsrc ) {
+auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
   Tags retVal;
 
   auto res = _cli->Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
@@ -398,7 +408,7 @@ OCI::Tags OCI::Registry::Client::tagList( const std::string& rsrc ) {
   return retVal;
 }
 
-bool OCI::Registry::Client::pingResource( std::string rsrc ) {
+auto OCI::Registry::Client::pingResource( std::string const& rsrc ) -> bool {
   bool retVal = false;
 
   if ( _token.empty() ) {

@@ -48,20 +48,15 @@ void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string&
     for ( auto const& layer: image_manifest.layers ) {
       if ( not dest->hasBlob( image_manifest, layer.digest ) ) {
         std::function< void( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) {
-          (void)data;
-          (void)data_length;
-          std::cout << "Destintaion doesn't have layer: " << layer.digest << std::endl;
-          std::cout << "Size: " << layer.size << std::endl;
-
           dest->putBlob( image_manifest, target, layer.size, data, data_length );
         };
 
         src->fetchBlob( image_manifest.name, layer.digest, call_back );
       }
     }
-  }
 
-  if ( true ) { // FIXME: define success criteria for above
-    dest->putManifest( image_manifest, image_manifest.name, target );
+    //if ( true ) { // FIXME: define success criteria for above, or do we just do it?
+      dest->putManifest( image_manifest, image_manifest.name, target );
+    //}
   }
 }

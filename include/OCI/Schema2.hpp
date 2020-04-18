@@ -10,7 +10,7 @@ namespace OCI::Schema2 {
   struct ManifestList {  // Accept: application/vnd.docker.distribution.manifest.list.v2+json
     struct Manifest {
       std::string     mediaType;
-      std::uintmax_t  size;
+      std::uintmax_t  size = 0;
       std::string     digest;
 
       struct {
@@ -23,7 +23,7 @@ namespace OCI::Schema2 {
       } platform;
     };
 
-    std::uint16_t           schemaVersion;
+    std::uint16_t           schemaVersion = 0;
     std::string             mediaType = "application/vnd.docker.distribution.manifest.list.v2+json";
     std::vector< Manifest > manifests;
     std::string             name; // <namespace>/<repo>
@@ -33,25 +33,25 @@ namespace OCI::Schema2 {
   struct ImageManifest { // Accept: application/vnd.docker.distribution.manifest.v2+json
     struct Layer {
       std::string                 mediaType;
-      std::uintmax_t              size;
+      std::uintmax_t              size = 0;
       std::string                 digest;
       std::vector< std::string >  urls;
     };
 
     std::string     name; // <namespace>/<repo>
     std::string     origDomain;
-    std::uint16_t   schemaVersion;
+    std::uint16_t   schemaVersion = 0;
     std::string     mediaType = "application/vnd.docker.distribution.manifest.v2+json";
     struct {
       std::string     mediaType;
-      std::uintmax_t  size;
+      std::uintmax_t  size = 0;
       std::string     digest;
     } config;
     std::vector< Layer > layers;
   };
 
-  bool operator==( const ImageManifest& im1, const ImageManifest& im2 );
-  bool operator!=( const ImageManifest& im1, const ImageManifest& im2 );
+  auto operator==( const ImageManifest& im1, const ImageManifest& im2 ) -> bool;
+  auto operator!=( const ImageManifest& im1, const ImageManifest& im2 ) -> bool;
 
   void from_json( const nlohmann::json& j, ManifestList& ml );
   void from_json( const nlohmann::json& j, ManifestList::Manifest& mlm );
