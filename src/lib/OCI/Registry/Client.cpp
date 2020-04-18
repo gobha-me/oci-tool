@@ -114,8 +114,50 @@ void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std:
   std::cout << "OCI::Registry::Client::fetchBlob is not implemented!" << std::endl;
 }
 
-bool OCI::Registry::Client::hasBlob( const std::string& rsrc, SHA256 sha ) {
-  auto res = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
+bool OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) {
+  auto const& rsrc  = im.name;
+  auto res          = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
+
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Not_Found ) {
+    auth( rsrc + "/blobs/" + sha ); // auth modifies the headers, so should auth return headers???
+
+    res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + sha ).c_str(), defaultHeaders() );
+
+    if ( res == nullptr ) {
+      std::abort();
+    }
+  }
+
+  if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
+    std::cerr << rsrc << ":" << sha << " Status: " << res->status << " Body: " << res->body << std::endl;
+  }
+
+  return HTTP_CODE( res->status ) == HTTP_CODE::OK;
+}
+
+void OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+  (void)im;
+  (void)target;
+  (void)total_size;
+  (void)blob_part;
+  (void)blob_part_size;
+
+  std::cout << "OCI::Registry::Client::putBlob Schema1::ImageManifest not Not_Implemented" << std::endl;
+}
+
+void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+  (void)im;
+  (void)target;
+  (void)total_size;
+  (void)blob_part;
+  (void)blob_part_size;
+
+  std::cout << "OCI::Registry::Client::putBlob Schema2::ImageManifest not Not_Implemented" << std::endl;
+}
+
+bool OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) {
+  auto const& rsrc  = im.name;
+  auto res          = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Not_Found ) {
     auth( rsrc + "/blobs/" + sha ); // auth modifies the headers, so should auth return headers???
@@ -204,54 +246,64 @@ void OCI::Registry::Client::inspect( std::string base_rsrc, std::string target )
   }
 }
 
-void OCI::Registry::Client::manifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  auto res = manifest( im.mediaType, rsrc, target );
+void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+  auto res = fetchManifest( im.mediaType, rsrc, target );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     nlohmann::json::parse( res->body ).get_to( im );
 
-    if ( im.name.empty() )
+    if ( im.name.empty() ) {
       im.name = rsrc;
+    }
+
+    im.origDomain = _domain; // This is just for sync from a Registry to a Directory
   } else {
     std::cerr << res->body << std::endl;
   }
 }
 
-void OCI::Registry::Client::manifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
-  auto res = manifest( sim.mediaType, rsrc, target );
+void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
+  auto res = fetchManifest( sim.mediaType, rsrc, target );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     nlohmann::json::parse( res->body ).get_to( sim );
 
-    if ( sim.name.empty() )
+    if ( sim.name.empty() ) {
       sim.name = rsrc;
+    }
+
+    sim.origDomain = _domain; // This is just for sync from a Registry to a Directory
   } else {
     std::cerr << res->body << std::endl;
   }
 }
 
-void OCI::Registry::Client::manifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
-  auto res = manifest( ml.mediaType, rsrc, target );
+void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
+  auto res = fetchManifest( ml.mediaType, rsrc, target );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     nlohmann::json::parse( res->body ).get_to( ml );
 
-    if ( ml.name.empty() )
+    if ( ml.name.empty() ) {
       ml.name = rsrc;
+    }
   } else {
     std::cerr << res->body << std::endl;
   }
 }
 
-void OCI::Registry::Client::manifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  auto res = manifest( im.mediaType, rsrc, target );
+void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+  auto res = fetchManifest( im.mediaType, rsrc, target );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     try {
       nlohmann::json::parse( res->body ).get_to( im );
 
-      if ( im.name.empty() )
+      if ( im.name.empty() ) {
         im.name = rsrc;
+      }
+
+      im.origDomain = _domain; // This is just for sync from a Registry to a Directory
     } catch ( nlohmann::detail::out_of_range & err ) {
       std::cerr << "Status: " << res->status << " Body: " << res->body << std::endl;
       std::cerr << err.what() << std::endl;
@@ -263,7 +315,7 @@ void OCI::Registry::Client::manifest( Schema2::ImageManifest& im, const std::str
   }
 }
 
-std::shared_ptr< httplib::Response> OCI::Registry::Client::manifest( const std::string& mediaType, const std::string& resource, const std::string& target ) {
+std::shared_ptr< httplib::Response> OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& resource, const std::string& target ) {
   auto headers = defaultHeaders();
   headers.emplace( "Accept", mediaType );
 
@@ -290,12 +342,36 @@ std::shared_ptr< httplib::Response> OCI::Registry::Client::manifest( const std::
   return res;
 }
 
-void OCI::Registry::Client::putBlob( const std::string& rsrc, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+void OCI::Registry::Client::putManifest( const Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+  (void)im;
   (void)rsrc;
   (void)target;
-  (void)total_size;
-  (void)blob_part;
-  (void)blob_part_size;
+
+  std::cout << "OCI::Registry::Client::putManifest Schema1::ImageManifest is not implemented" << std::endl;
+}
+
+void OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
+  (void)sim;
+  (void)rsrc;
+  (void)target;
+
+  std::cout << "OCI::Registry::Client::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+}
+
+void OCI::Registry::Client::putManifest( const Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
+  (void)ml;
+  (void)rsrc;
+  (void)target;
+
+  std::cout << "OCI::Registry::Client::putManifest Schema2::ManifestList is not implemented" << std::endl;
+}
+
+void OCI::Registry::Client::putManifest( const Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+  (void)im;
+  (void)rsrc;
+  (void)target;
+
+  std::cout << "OCI::Registry::Client::putManifest Schema2::ImageManifest is not implemented" << std::endl;
 }
 
 OCI::Tags OCI::Registry::Client::tagList( const std::string& rsrc ) {

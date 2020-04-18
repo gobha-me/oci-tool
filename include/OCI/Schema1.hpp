@@ -10,6 +10,7 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
     struct ImageManifest {
       std::string mediaType = "application/vnd.docker.distribution.manifest.v1+json"; // not part of the json object, this is part of the interface
       std::string name;
+      std::string origDomain;
       std::string tag;
       std::string architecture;
       std::string schemaVersion;

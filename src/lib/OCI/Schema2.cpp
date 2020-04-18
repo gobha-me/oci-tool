@@ -1,5 +1,26 @@
 #include <OCI/Schema2.hpp>
 
+bool OCI::Schema2::operator==( const ImageManifest& im1, const ImageManifest& im2 ) {
+  bool retVal = true;
+
+  for ( auto const& layer: im1.layers ) {
+    auto im2_itr = std::find_if( im2.layers.begin(), im2.layers.end(), [layer]( const ImageManifest::Layer& x ) {
+        return layer.digest == x.digest;
+      } );
+
+    if ( im2_itr == im2.layers.end() ) {
+      retVal = false;
+      break;
+    }
+  }
+
+  return retVal;
+}
+
+bool OCI::Schema2::operator!=( const ImageManifest& im1, const ImageManifest& im2 ) {
+  return not ( im1 == im2 );
+}
+
 void OCI::Schema2::from_json( const nlohmann::json& j, ManifestList& ml ) {
   j.at( "schemaVersion" ).get_to( ml.schemaVersion );
 

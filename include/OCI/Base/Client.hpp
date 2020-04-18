@@ -13,14 +13,21 @@ namespace OCI::Base {
     virtual ~Client() = default;
     virtual void fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void( const char *, uint64_t )>& call_back ) = 0;
 
-    virtual auto hasBlob( const std::string& rsrc, SHA256 sha ) -> bool = 0;
+    virtual auto hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool = 0;
+    virtual auto hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) -> bool = 0;
 
-    virtual void manifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) = 0;
-    virtual void manifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) = 0;
-    virtual void manifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) = 0;
-    virtual void manifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) = 0;
+    virtual void putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) = 0;
+    virtual void putBlob( const Schema2::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) = 0;
 
-    virtual void putBlob( const std::string& rsrc, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) = 0;
+    virtual void fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) = 0;
+    virtual void fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) = 0;
+    virtual void fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) = 0;
+    virtual void fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) = 0;
+
+    virtual void putManifest( const Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) = 0;
+    virtual void putManifest( const Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) = 0;
+    virtual void putManifest( const Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) = 0;
+    virtual void putManifest( const Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) = 0;
 
     virtual auto tagList( const std::string& rsrc ) -> Tags = 0;
   protected:

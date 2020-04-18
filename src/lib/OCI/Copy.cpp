@@ -6,50 +6,62 @@ void OCI::Copy( const std::string& rsrc, const std::string& target, OCI::Base::C
   if ( manifest_list.schemaVersion == 1 ) { // Fall back to Schema1
     auto image_manifest = Manifest< Schema1::ImageManifest >( src, rsrc, target );
 
-    Copy( image_manifest, src, dest );
+    Copy( image_manifest, target, src, dest );
   } else {
-    Copy( manifest_list, src, dest );
+    Copy( manifest_list, target, src, dest );
   }
 }
 
-void OCI::Copy( const Schema1::ImageManifest& image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+void OCI::Copy( const Schema1::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   (void)src;
+  (void)target;
 
   for ( auto const& layer: image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
-      if ( not dest->hasBlob( image_manifest.name, layer.second ) ) {
+      if ( not dest->hasBlob( image_manifest, layer.second ) ) {
         std::cout << "Destintaion doesn't have layer" << std::endl;
       }
     }
   }
+
+  std::cout << "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" << std::endl;
 }
 
-void OCI::Copy( const Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  for ( auto const& manifest_: manifest_list.manifests ) {
-    auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest_.digest );
+void OCI::Copy( const Schema2::ManifestList& manifest_list, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  (void)target;
+  for ( auto const& manifest: manifest_list.manifests ) {
+    auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest.digest );
 
-    std::cout << image_manifest.name << " " << manifest_.digest << std::endl;
-    Copy( image_manifest, src, dest );
+    //std::cout << image_manifest.name << " " << manifest.digest << std::endl;
+    Copy( image_manifest, manifest.digest, src, dest );
   }
   
-  // When the above is finished post ManifestList to OCI::Base::Client*
+  // When the above is finished post ManifestList <target> to OCI::Base::Client*
+
+  std::cout << "Test is successful and Post Schema2::ManifestList to OCI::Base::Client::putManifest" << std::endl;
 }
 
-void OCI::Copy( const Schema2::ImageManifest& image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  (void)src;
+void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.name, target );
 
-  for ( auto const& layer: image_manifest.layers ) {
-    if ( not dest->hasBlob( image_manifest.name, layer.digest ) ) {
-      std::function< void( const char *, uint64_t ) > call_back = [&](const char *data, uint64_t data_length){
-        (void)data;
-        (void)data_length;
-        std::cout << "Destintaion doesn't have layer: " << layer.digest << std::endl;
-        std::cout << "Size: " << layer.size << std::endl;
-      };
+  if ( image_manifest != dest_image_manifest ) {
+    for ( auto const& layer: image_manifest.layers ) {
+      if ( not dest->hasBlob( image_manifest, layer.digest ) ) {
+        std::function< void( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) {
+          (void)data;
+          (void)data_length;
+          std::cout << "Destintaion doesn't have layer: " << layer.digest << std::endl;
+          std::cout << "Size: " << layer.size << std::endl;
 
-      src->fetchBlob( image_manifest.name, layer.digest, call_back );
+          dest->putBlob( image_manifest, target, layer.size, data, data_length );
+        };
+
+        src->fetchBlob( image_manifest.name, layer.digest, call_back );
+      }
     }
   }
 
-  // When the above is finished post ImageManifest to OCI::Base::Client*
+  if ( true ) { // FIXME: define success criteria for above
+    dest->putManifest( image_manifest, image_manifest.name, target );
+  }
 }

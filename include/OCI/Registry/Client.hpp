@@ -24,23 +24,30 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     void fetchBlob( const std::string& rsrc, SHA256 sha, std::function<void(const char *, uint64_t )>& call_back ) override; // To where
 
-    auto hasBlob( const std::string& rsrc, SHA256 sha ) -> bool override;
+    auto hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool override;
+    auto hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) -> bool override;
+
+    void putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
+    void putBlob( const Schema2::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
 
     void inspect( std::string rsrc, std::string target );
 
-    void manifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) override;
-    void manifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) override;
-    void manifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) override;
-    void manifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) override;
+    void fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) override;
+    void fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) override;
+    void fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) override;
+    void fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) override;
 
-    void putBlob( const std::string& rsrc, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
+    void putManifest( const Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) override;
+    void putManifest( const Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) override;
+    void putManifest( const Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) override;
+    void putManifest( const Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) override;
 
     auto tagList( const std::string& rsrc ) -> Tags override;
 
     auto pingResource( std::string rsrc ) -> bool;
   protected:
     auto defaultHeaders() -> httplib::Headers; 
-    auto manifest( const std::string &mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response >;
+    auto fetchManifest( const std::string &mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response >;
   private:
     std::shared_ptr< httplib::SSLClient >  _cli;
     std::string _domain;

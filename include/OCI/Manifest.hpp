@@ -11,7 +11,7 @@ template< class Schema_t >
 auto OCI::Manifest( OCI::Base::Client* client, const std::string& rsrc, const std::string& target ) -> Schema_t {
   Schema_t retVal;
 
-  client->manifest( retVal, rsrc, target );
+  client->fetchManifest( retVal, rsrc, target );
 
   return retVal;
 }
