@@ -38,13 +38,13 @@ int main( int argc, char ** argv ) {
       domain = "registry-1.docker.io";
     }
 
+    if ( rsrc.find( ':' ) != std::string::npos ) {
+      target  = rsrc.substr( rsrc.find( ':' ) + 1 );
+      rsrc    = rsrc.substr( 0, rsrc.find( ':' ) );
+    }
+
     if ( rsrc.find( '/' ) == std::string::npos )
       rsrc = "library/" + rsrc; // set to default namespace if non provided
-
-    if ( rsrc.find( ':' ) != std::string::npos ) {
-      rsrc    = rsrc.substr( 0, rsrc.find( ':' ) );
-      target  = rsrc.substr( rsrc.find( ':' ) + 1 );
-    }
 
     OCI::Registry::Client client( domain );
     client.inspect( rsrc, target );

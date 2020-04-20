@@ -1,5 +1,6 @@
 #include <OCI/Registry/Client.hpp>
-constexpr auto SSL_PORT = 443;
+#include <sstream>
+constexpr std::uint16_t SSL_PORT = 443;
 
 enum class HTTP_CODE {
   OK              = 200,
@@ -36,19 +37,19 @@ OCI::Registry::Client::Client(  std::string const& domain,
   _cli->set_follow_location( true );
 }
 
-void OCI::Registry::Client::auth( std::string const& rsrc ) {
+void OCI::Registry::Client::auth( std::string const& uri ) {
   if ( not _username.empty() and not _password.empty() ) {
     _cli->set_basic_auth( _username.c_str(), _password.c_str() );
   }
 
-  auto res = _cli->Get( std::string( "/v2/" + rsrc ).c_str() );
+  auto res = _cli->Get( std::string( "/v2/" + uri ).c_str() );
 
   if ( res == nullptr ) { // need to handle timeouts a little more gracefully
     std::abort(); // Need to figure out how this API is going to handle errors
     // And I keep adding to the technical debt
   } else if ( HTTP_CODE( res->status ) == HTTP_CODE::Not_Found ) {
-    std::cerr << "/v2/" << rsrc << std::endl;
-    std::cerr << rsrc << " " << res->body << std::endl;
+    std::cerr << "/v2/" << uri << std::endl;
+    std::cerr << uri << " " << res->body << std::endl;
     std::abort();
   }
 
@@ -95,7 +96,7 @@ void OCI::Registry::Client::auth( std::string const& rsrc ) {
       if ( j.find( "token" ) == j.end() ) {
         std::cerr << "Auth Failed: " << j.dump( 2 ) << std::endl;
       } else {
-        _token = j.at( "token" );
+        j.get_to( _ctr );
       }
     }
   }
@@ -103,16 +104,20 @@ void OCI::Registry::Client::auth( std::string const& rsrc ) {
 
 auto OCI::Registry::Client::defaultHeaders() -> httplib::Headers {
   return {
-    { "Authorization", "Bearer " + _token }
+    { "Authorization", "Bearer " + _ctr.token }
   };
 }
 
-void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void(const char *, uint64_t ) >& call_back ) {
-  (void)rsrc;
-  (void)sha;
-  (void)call_back;
+void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
+  auto res = _cli->Get( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str() );
 
-  std::cout << "OCI::Registry::Client::fetchBlob is not implemented!" << std::endl;
+  if ( res != nullptr ) {
+    if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+      auth( rsrc + "/blobs/" + sha );
+    }
+
+    res = _cli->Get( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), call_back );
+  }
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
@@ -146,9 +151,15 @@ void OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im, const std
   std::cout << "OCI::Registry::Client::putBlob Schema1::ImageManifest not Not_Implemented" << std::endl;
 }
 
-void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im,
+                                     const std::string& target,
+                                     const SHA256& blob_sha,
+                                     std::uintmax_t total_size,
+                                     const char * blob_part,
+                                     uint64_t blob_part_size ) {
   (void)im;
   (void)target;
+  (void)blob_sha;
   (void)total_size;
   (void)blob_part;
   (void)blob_part_size;
@@ -259,69 +270,82 @@ void OCI::Registry::Client::inspect( std::string const& rsrc, std::string const&
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
   auto res = fetchManifest( im.mediaType, rsrc, target );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-    nlohmann::json::parse( res->body ).get_to( im );
-
-    if ( im.name.empty() ) {
-      im.name = rsrc;
-    }
-
-    im.origDomain = _domain; // This is just for sync from a Registry to a Directory
-  } else {
-    std::cerr << res->body << std::endl;
-  }
-}
-
-void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
-  auto res = fetchManifest( sim.mediaType, rsrc, target );
-
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-    nlohmann::json::parse( res->body ).get_to( sim );
-
-    if ( sim.name.empty() ) {
-      sim.name = rsrc;
-    }
-
-    sim.origDomain = _domain; // This is just for sync from a Registry to a Directory
-  } else {
-    std::cerr << res->body << std::endl;
-  }
-}
-
-void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
-  auto res = fetchManifest( ml.mediaType, rsrc, target );
-
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-    nlohmann::json::parse( res->body ).get_to( ml );
-
-    if ( ml.name.empty() ) {
-      ml.name = rsrc;
-    }
-  } else {
-    std::cerr << res->body << std::endl;
-  }
-}
-
-void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  auto res = fetchManifest( im.mediaType, rsrc, target );
-
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-    try {
+  if ( res != nullptr ) {
+    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
       nlohmann::json::parse( res->body ).get_to( im );
 
       if ( im.name.empty() ) {
         im.name = rsrc;
       }
 
-      im.origDomain = _domain; // This is just for sync from a Registry to a Directory
-    } catch ( nlohmann::detail::out_of_range & err ) {
-      std::cerr << "Status: " << res->status << " Body: " << res->body << std::endl;
-      std::cerr << err.what() << std::endl;
-
-      throw;
+      im.originDomain = _domain; // This is just for sync from a Registry to a Directory
+    } else {
+      std::cerr << res->body << std::endl;
     }
-  } else {
-    std::cerr << res->body << std::endl;
+  }
+}
+
+void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
+  auto res = fetchManifest( sim.mediaType, rsrc, target );
+
+  if ( res != nullptr ) {
+    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
+      nlohmann::json::parse( res->body ).get_to( sim );
+
+      if ( sim.name.empty() ) {
+        sim.name = rsrc;
+      }
+
+      sim.originDomain = _domain; // This is just for sync from a Registry to a Directory
+    } else {
+      std::cerr << res->body << std::endl;
+    }
+  }
+}
+
+void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
+  auto res = fetchManifest( ml.mediaType, rsrc, target );
+  _requested_target = target;
+
+  if ( res != nullptr ) {
+    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
+      nlohmann::json::parse( res->body ).get_to( ml );
+
+      if ( ml.name.empty() ) {
+        ml.name = rsrc;
+      }
+
+      ml.originDomain    = _domain;
+      ml.requestedTarget = _requested_target;
+    } else {
+      std::cerr << res->body << std::endl;
+    }
+  }
+}
+
+void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+  auto res = fetchManifest( im.mediaType, rsrc, target );
+
+  if ( res != nullptr ) {
+    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
+      try {
+        nlohmann::json::parse( res->body ).get_to( im );
+
+        if ( im.name.empty() ) {
+          im.name = rsrc;
+        }
+
+        im.originDomain    = _domain; // This is just for sync from a Registry to a Directory
+        im.requestedTarget = _requested_target;
+      } catch ( nlohmann::detail::out_of_range & err ) {
+        std::cerr << "Status: " << res->status << " Body: " << res->body << std::endl;
+        std::cerr << err.what() << std::endl;
+
+        throw;
+      }
+    } else {
+      std::cerr << res->body << std::endl;
+    }
   }
 }
 
@@ -331,22 +355,20 @@ auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const s
 
   auto res = _cli->Get( std::string( "/v2/" + resource + "/manifests/" + target ).c_str(), headers );
 
-  if ( res == nullptr ) {
-    std::abort();
-  }
+  if ( res != nullptr ) {
+    if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+      auth( resource + "/manifests/" + target ); // auth modifies the headers, so should auth return headers???
+      headers = defaultHeaders();
+      headers.emplace( "Accept", mediaType );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( resource + "/manifests/" + target ); // auth modifies the headers, so should auth return headers???
-    headers = defaultHeaders();
-    headers.emplace( "Accept", mediaType );
+      res = _cli->Get( std::string( "/v2/" + resource + "/manifests/" + target ).c_str(), headers );
 
-    res = _cli->Get( std::string( "/v2/" + resource + "/manifests/" + target ).c_str(), headers );
-
-    if ( res == nullptr ) {
-      std::abort();
+      if ( res == nullptr ) {
+        std::abort();
+      }
+    } else if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
+      std::cerr << "Err other than unauthorized attempting to get '" << resource << ":" << target << "'! Status: " << res->status << std::endl;
     }
-  } else if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-    std::cerr << "Err other than unauthorized attempting to get '" << resource << "'! Status: " << res->status << std::endl;
   }
 
   return res;
@@ -411,10 +433,40 @@ auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
 auto OCI::Registry::Client::pingResource( std::string const& rsrc ) -> bool {
   bool retVal = false;
 
-  if ( _token.empty() ) {
+  if ( _ctr.token.empty() ) {
     auto res  = _cli->Get( std::string( "/v2/" + rsrc ).c_str(), defaultHeaders() );
     retVal    = HTTP_CODE( res->status ) == HTTP_CODE::OK;
   }
 
   return retVal;
+}
+
+
+void OCI::Registry::from_json( nlohmann::json const& j, Client::TokenResponse& ctr ) {
+  if ( j.find( "token" ) != j.end() ) {
+    j.at( "token" ).get_to( ctr.token );
+  }
+
+  if ( ctr.token.empty() and j.find( "access_token" ) != j.end() ) {
+    j.at( "access_token" ).get_to( ctr.token );
+  }
+
+  if ( j.find( "expires_in" ) != j.end() ) {
+    ctr.expires_in = std::chrono::seconds( j.at( "expires_in" ).get<int>() );
+  } else {
+    ctr.expires_in = std::chrono::seconds( 60 ); // NOLINT default value
+  }
+
+  if ( j.find( "issued_at" ) != j.end() ) {
+    std::tm tm = {};
+    std::stringstream ss( j.at( "issued_at" ).get< std::string >() );
+    std::get_time( &tm, "%Y-%m-%dT%H:%M:%S" ); // EXAMPLE 2020-04-20T11:52:16.177118311Z
+    ctr.issued_at = std::chrono::system_clock::from_time_t( std::mktime( &tm ) );
+  } else {
+    ctr.issued_at = std::chrono::system_clock::now();
+  }
+
+  if ( j.find( "refresh_token" ) != j.end() ) {
+    j.at( "refresh_token" ).get_to( ctr.refresh_token );
+  }
 }

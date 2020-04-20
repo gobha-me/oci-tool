@@ -1,4 +1,5 @@
 #include <OCI/Extensions/Dir.hpp>
+#include <filesystem>
 #include <iostream>
 
 OCI::Extensions::Dir::Dir() = default;
@@ -8,7 +9,7 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) : _directory( director
   }
 }
 
-void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< void(const char *, uint64_t ) >& call_back ) {
+void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
   (void)rsrc;
   (void)sha;
 
@@ -45,14 +46,24 @@ void OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std:
   std::cout << "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" << std::endl;
 }
 
-void OCI::Extensions::Dir::putBlob( const Schema2::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+void OCI::Extensions::Dir::putBlob( const Schema2::ImageManifest& im,
+                                    const std::string& target,
+                                    const SHA256& blob_sha,
+                                    std::uintmax_t total_size,
+                                    const char * blob_part,
+                                    uint64_t blob_part_size ) {
   (void)im;
   (void)target;
   (void)total_size;
   (void)blob_part;
   (void)blob_part_size;
 
+  if ( im.requestedTarget.empty() ) {
+    std::abort();
+  }
+
   std::cout << "OCI::Extensions::Dir::putBlob Schema2::ImageManifest is not implemented" << std::endl;
+  std::cout << im.originDomain << "/" << im.name << ":" << im.requestedTarget << "/" << target << " " << total_size << " " << blob_part_size << std::endl;
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {

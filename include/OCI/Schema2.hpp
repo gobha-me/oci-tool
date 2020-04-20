@@ -27,7 +27,8 @@ namespace OCI::Schema2 {
     std::string             mediaType = "application/vnd.docker.distribution.manifest.list.v2+json";
     std::vector< Manifest > manifests;
     std::string             name; // <namespace>/<repo>
-    std::string             origDomain;
+    std::string             originDomain; // local extension
+    std::string             requestedTarget; // local extension
   };
 
   struct ImageManifest { // Accept: application/vnd.docker.distribution.manifest.v2+json
@@ -39,7 +40,8 @@ namespace OCI::Schema2 {
     };
 
     std::string     name; // <namespace>/<repo>
-    std::string     origDomain;
+    std::string     originDomain; // local extension
+    std::string     requestedTarget; // local extension
     std::uint16_t   schemaVersion = 0;
     std::string     mediaType = "application/vnd.docker.distribution.manifest.v2+json";
     struct {

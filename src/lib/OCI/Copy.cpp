@@ -47,8 +47,11 @@ void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string&
   if ( image_manifest != dest_image_manifest ) {
     for ( auto const& layer: image_manifest.layers ) {
       if ( not dest->hasBlob( image_manifest, layer.digest ) ) {
-        std::function< void( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) {
-          dest->putBlob( image_manifest, target, layer.size, data, data_length );
+        std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
+          // FIXME: putBlob should return a bool
+          dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
+
+          return true;
         };
 
         src->fetchBlob( image_manifest.name, layer.digest, call_back );
