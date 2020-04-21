@@ -37,11 +37,9 @@ OCI::Registry::Client::Client(  std::string const& domain,
   _cli->set_follow_location( true );
 }
 
-void OCI::Registry::Client::auth( httplib::Headers const& headers ) {
-  if ( not _username.empty() and not _password.empty() ) {
-    _cli->set_basic_auth( _username.c_str(), _password.c_str() );
-  }
-
+// registry.redhat.io does not provide the scope in the Header, so have to generate it and
+//   pass it in as an argument, thank you RH, way to be the lowest common denominator
+void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string const& scope ) {
   auto www_auth   = headers.find( "Www-Authenticate" );
 
   if ( www_auth != headers.end() ) {
@@ -50,7 +48,9 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers ) {
     auto coma       = auth_hint.find( ',' );
     auto ncoma      = auth_hint.find( ',', coma + 1 );
 
-    std::cout << "|" << auth_type << "|" << " |" << auth_hint << "|" << std::endl;
+    std::string location;
+
+    //std::cout << "|" << auth_type << "|" << " |" << auth_hint << "|" << std::endl;
 
     auto realm      = auth_hint.substr( 0, coma );
          realm      = realm.substr( realm.find( '"' ) + 1, realm.length() - ( realm.find( '"' ) + 2 ) );
@@ -59,12 +59,15 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers ) {
          realm      = realm.substr( 0, realm.find( '/') );
     auto service    = auth_hint.substr( coma + 1, ncoma - coma - 1 );
          service    = service.substr( service.find( '"' ) + 1, service.length() - ( service.find( '"' ) + 2 ) );
-    auto scope      = auth_hint.substr( ncoma + 1 );
-         scope      = scope.substr( scope.find( '"' ) + 1, scope.length() - ( scope.find( '"' ) + 2 ) );
 
     httplib::SSLClient client( realm, SSL_PORT );
 
-    auto location = endpoint + "?service=" + service + "&scope=" + scope;
+    if ( not _username.empty() and not _password.empty() ) {
+      client.set_basic_auth( _username.c_str(), _password.c_str() );
+    }
+
+    location  += endpoint + "?service=" + service + "&scope=" + scope;
+
     auto result   = client.Get( location.c_str() );
 
     std::cerr << "OCI::Registry::Client::auth " << _domain << std::endl;
@@ -78,6 +81,8 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers ) {
     } else {
       j.get_to( _ctr );
     }
+  } else {
+    std::cerr << "OCI::Registry::Client::auth not given header 'Www-Authenticate'" << std::endl;
   }
 }
 
@@ -94,7 +99,7 @@ void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std:
 
   if ( res != nullptr ) {
     if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-      auth( res->headers );
+      auth( res->headers, "repository:" + rsrc + ":pull" );
 
       res = _cli->Get( location.c_str(), defaultHeaders() );
     }
@@ -120,7 +125,7 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sh
   auto res          = _cli->Head( location.c_str(), defaultHeaders() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers ); // auth modifies the headers, so should auth return headers???
+    auth( res->headers, "repository:" + rsrc + ":pull" ); // auth modifies the headers, so should auth return headers???
 
     res = _cli->Head( location.c_str(), defaultHeaders() );
   }
@@ -147,7 +152,7 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std
   auto res          = _cli->Head( location.c_str(), defaultHeaders() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers ); // auth modifies the headers, so should auth return headers???
+    auth( res->headers, "repository:" + rsrc + ":pull" ); // auth modifies the headers, so should auth return headers???
 
     res = _cli->Head( location.c_str(), defaultHeaders() );
   }
@@ -354,10 +359,10 @@ void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std
   }
 }
 
-auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response> {
+auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& rsrc, const std::string& target ) -> std::shared_ptr< httplib::Response> {
   std::shared_ptr< httplib::Response > res = nullptr;
   auto headers                             = defaultHeaders();
-  auto location                            = "/v2/" + resource + "/manifests/" + target;
+  auto location                            = "/v2/" + rsrc + "/manifests/" + target;
 
   headers.emplace( "Accept", mediaType );
 
@@ -366,7 +371,7 @@ auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const s
   }
 
   if ( res == nullptr or HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers ); // auth modifies the headers, so should auth return headers???
+    auth( res->headers, "repository:" + rsrc + ":pull" ); // auth modifies the headers, so should auth return headers???
     headers = defaultHeaders();
     headers.emplace( "Accept", mediaType );
 
@@ -418,7 +423,7 @@ auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
   auto res = _cli->Get( location.c_str(), defaultHeaders() );
 
   if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-    auth( res->headers );
+    auth( res->headers, "repository:" + rsrc + ":pull" );
 
     res = _cli->Get( location.c_str(), defaultHeaders() );
   }

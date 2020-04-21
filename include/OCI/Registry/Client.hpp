@@ -29,7 +29,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     Client( std::string const& domain, std::string username, std::string password );
     ~Client() override = default;
 
-    void auth( httplib::Headers const& headers );
+    void auth( httplib::Headers const& headers, std::string const& scope );
 
     void fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) override; // To where
 
