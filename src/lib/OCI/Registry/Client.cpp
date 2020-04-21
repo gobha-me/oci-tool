@@ -20,6 +20,17 @@ enum class HTTP_CODE {
   Service_Unavail = 503,
 };
 
+auto splitLocation( std::string location ) -> std::tuple< std::string, std::string > { // this should have a third, assuming https proto across the board
+  std::string domain;
+  std::string uri;
+
+  location = location.substr( location.find( '/' ) + 2 ); // strip http:// or https://
+  domain   = location.substr( 0, location.find( '/' ) );
+  uri      = location.substr( location.find( '/' ) );
+
+  return { domain, uri };
+}
+
 OCI::Registry::Client::Client() : _cli( nullptr ) {}
 OCI::Registry::Client::Client(  std::string const& domain ) : 
                                 _cli( std::make_shared< httplib::SSLClient >( domain, SSL_PORT ) ),
@@ -38,7 +49,7 @@ OCI::Registry::Client::Client(  std::string const& domain,
 }
 
 // registry.redhat.io does not provide the scope in the Header, so have to generate it and
-//   pass it in as an argument, thank you RH, way to be the lowest common denominator
+//   pass it in as an argument
 void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string const& scope ) {
   auto www_auth   = headers.find( "Www-Authenticate" );
 
@@ -70,10 +81,6 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string c
 
     auto result   = client.Get( location.c_str() );
 
-    std::cerr << "OCI::Registry::Client::auth " << _domain << std::endl;
-    std::cerr << "  Www-Authenticate: " << realm << location << std::endl;
-    std::cerr << "  Status: " << result->status << " Body: " << result->body << std::endl;
-
     auto j = nlohmann::json::parse( result->body );
 
     if ( j.find( "token" ) == j.end() ) {
@@ -86,59 +93,80 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string c
   }
 }
 
-auto OCI::Registry::Client::defaultHeaders() -> httplib::Headers {
-  return {
-    { "Authorization", "Bearer " + _ctr.token }
-  };
+auto OCI::Registry::Client::authHeaders() -> httplib::Headers {
+  if ( _ctr.token.empty() ) { // TODO: add test for if valid, based on _ctr.expires_in and _ctr.issued_at
+    return {};
+  } else {
+    return {
+      { "Authorization", "Bearer " + _ctr.token } // only return this if token is valid
+    };
+  }
 }
 
 void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
   _cli->set_follow_location( false );
+  auto client = _cli;
+
   auto location = std::string( "/v2/" + rsrc + "/blobs/" + sha );
-  auto res = _cli->Get( location.c_str(), defaultHeaders() );
+  auto res      = client->Head( location.c_str(), authHeaders() );
 
-  if ( res != nullptr ) {
-    if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-      auth( res->headers, "repository:" + rsrc + ":pull" );
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+    auth( res->headers, "repository:" + rsrc + ":pull" );
 
-      res = _cli->Get( location.c_str(), defaultHeaders() );
-    }
+    res = client->Head( location.c_str(), authHeaders() );
+  }
 
-    if ( res->has_header( "Location" ) ) {
-      auto location = res->get_header_value( "Location" );
-    }
+  if ( res->has_header( "Location" ) ) {
+    std::string domain;
+    
+    std::tie( domain, location ) = splitLocation( res->get_header_value( "Location" ) );
 
-    res = _cli->Get( location.c_str(), defaultHeaders(), call_back );
-
-    if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-      std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
-      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+    if ( domain != _domain ) {
+      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
     }
   }
+
+  res = client->Get( location.c_str(), authHeaders(), call_back );
+
+  if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
+    std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
+    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+  }
+
   _cli->set_follow_location( true );
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
   _cli->set_follow_location( false );
-  auto const& rsrc  = im.name;
-  auto location     = "/v2/" + rsrc + "/blobs/" + sha;
-  auto res          = _cli->Head( location.c_str(), defaultHeaders() );
+  auto client = _cli;
+
+  auto location     = "/v2/" + im.name + "/blobs/" + sha;
+  auto res          = _cli->Head( location.c_str(), authHeaders() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers, "repository:" + rsrc + ":pull" ); // auth modifies the headers, so should auth return headers???
+    auth( res->headers, "repository:" + im.name + ":pull" ); // auth modifies the headers, so should auth return headers???
 
-    res = _cli->Head( location.c_str(), defaultHeaders() );
+    res = client->Head( location.c_str(), authHeaders() );
   }
 
   if ( res->has_header( "Location" ) ) {
-    auto location = res->get_header_value( "Location" );
+    std::string domain;
 
-    res = _cli->Head( location.c_str(), defaultHeaders() );
+    std::tie( domain, location ) = splitLocation( res->get_header_value( "Location" ) );
+
+    if ( domain != _domain ) {
+      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+    }
+
+    res = client->Head( location.c_str(), authHeaders() );
   }
 
   if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
     std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
     std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+    for ( auto const& header : res->headers ) {
+      std::cerr << header.first << " -> " << header.second << std::endl;
+    }
   }
   _cli->set_follow_location( true );
 
@@ -147,25 +175,34 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sh
 
 auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool {
   _cli->set_follow_location( false );
-  auto const& rsrc  = im.name;
-  auto location     = "/v2/" + rsrc + "/blobs/" + sha;
-  auto res          = _cli->Head( location.c_str(), defaultHeaders() );
+  auto client   = _cli;
+  auto location = "/v2/" + im.name + "/blobs/" + sha;
+  auto res      = client->Head( location.c_str(), authHeaders() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers, "repository:" + rsrc + ":pull" ); // auth modifies the headers, so should auth return headers???
+    auth( res->headers, "repository:" + im.name + ":pull" ); // auth modifies the headers, so should auth return headers???
 
-    res = _cli->Head( location.c_str(), defaultHeaders() );
+    res = client->Head( location.c_str(), authHeaders() );
   }
 
   if ( res->has_header( "Location" ) ) {
-    auto location = res->get_header_value( "Location" );
+    std::string domain;
 
-    res = _cli->Head( location.c_str(), defaultHeaders() );
+    std::tie( domain, location ) = splitLocation( res->get_header_value( "Location" ) );
+
+    if ( domain != _domain ) {
+      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+    }
   }
+
+  res = client->Head( location.c_str(), authHeaders() );
 
   if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
     std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
     std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+    for ( auto const& header : res->headers ) {
+      std::cerr << header.first << " -> " << header.second << std::endl;
+    }
   }
   _cli->set_follow_location( true );
 
@@ -360,19 +397,16 @@ void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std
 }
 
 auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& rsrc, const std::string& target ) -> std::shared_ptr< httplib::Response> {
-  std::shared_ptr< httplib::Response > res = nullptr;
-  auto headers                             = defaultHeaders();
-  auto location                            = "/v2/" + rsrc + "/manifests/" + target;
+  auto location = "/v2/" + rsrc + "/manifests/" + target;
+  auto headers  = authHeaders();
 
-  headers.emplace( "Accept", mediaType );
+   headers.emplace( "Accept", mediaType );
 
-  if ( not _ctr.token.empty() ) {
-    res = _cli->Get( location.c_str(), headers );
-  }
+  auto res = _cli->Get( location.c_str(), headers );
 
-  if ( res == nullptr or HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
     auth( res->headers, "repository:" + rsrc + ":pull" ); // auth modifies the headers, so should auth return headers???
-    headers = defaultHeaders();
+    headers = authHeaders();
     headers.emplace( "Accept", mediaType );
 
     res = _cli->Get( location.c_str(), headers );
@@ -420,12 +454,12 @@ auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
   Tags retVal;
 
   auto location = "/v2/" + rsrc + "/tags/list";
-  auto res = _cli->Get( location.c_str(), defaultHeaders() );
+  auto res = _cli->Get( location.c_str(), authHeaders() );
 
-  if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
     auth( res->headers, "repository:" + rsrc + ":pull" );
 
-    res = _cli->Get( location.c_str(), defaultHeaders() );
+    res = _cli->Get( location.c_str(), authHeaders() );
   }
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
@@ -439,14 +473,15 @@ auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
 }
 
 auto OCI::Registry::Client::pingResource( std::string const& rsrc ) -> bool {
-  bool retVal = false;
+  auto const location = "/v2/" + rsrc;
+  auto res            = _cli->Get( location.c_str(), authHeaders() );
 
-  if ( _ctr.token.empty() ) {
-    auto res  = _cli->Get( std::string( "/v2/" + rsrc ).c_str(), defaultHeaders() );
-    retVal    = HTTP_CODE( res->status ) == HTTP_CODE::OK;
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+    auth( res->headers, "repository:" + rsrc + ":pull" );
+    res  = _cli->Get( location.c_str(), authHeaders() );
   }
 
-  return retVal;
+  return HTTP_CODE( res->status ) == HTTP_CODE::OK;
 }
 
 

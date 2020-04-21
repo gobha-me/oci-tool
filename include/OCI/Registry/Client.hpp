@@ -55,7 +55,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     auto pingResource( std::string const& rsrc ) -> bool;
   protected:
-    auto defaultHeaders() -> httplib::Headers; 
+    auto authHeaders() -> httplib::Headers; 
     auto authExpired() -> bool;
     auto fetchManifest( const std::string &mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response >;
   private:
