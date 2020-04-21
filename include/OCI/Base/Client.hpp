@@ -14,7 +14,7 @@ namespace OCI::Base {
     virtual void fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool( const char *, uint64_t )>& call_back ) = 0;
 
     virtual auto hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool = 0;
-    virtual auto hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) -> bool = 0;
+    virtual auto hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool = 0;
 
     virtual void putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) = 0;
     virtual void putBlob( const Schema2::ImageManifest& im, const std::string& target, const SHA256& blob_sha, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) = 0;

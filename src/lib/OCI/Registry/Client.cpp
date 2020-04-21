@@ -37,67 +37,46 @@ OCI::Registry::Client::Client(  std::string const& domain,
   _cli->set_follow_location( true );
 }
 
-void OCI::Registry::Client::auth( std::string const& uri ) {
+void OCI::Registry::Client::auth( httplib::Headers const& headers ) {
   if ( not _username.empty() and not _password.empty() ) {
     _cli->set_basic_auth( _username.c_str(), _password.c_str() );
   }
 
-  auto res = _cli->Get( std::string( "/v2/" + uri ).c_str() );
+  auto www_auth   = headers.find( "Www-Authenticate" );
 
-  if ( res == nullptr ) { // need to handle timeouts a little more gracefully
-    std::abort(); // Need to figure out how this API is going to handle errors
-    // And I keep adding to the technical debt
-  } else if ( HTTP_CODE( res->status ) == HTTP_CODE::Not_Found ) {
-    std::cerr << "/v2/" << uri << std::endl;
-    std::cerr << uri << " " << res->body << std::endl;
-    std::abort();
-  }
+  if ( www_auth != headers.end() ) {
+    auto auth_type  = www_auth->second.substr( 0, www_auth->second.find( ' ' ) );
+    auto auth_hint  = www_auth->second.substr( www_auth->second.find( ' ' ) + 1 );
+    auto coma       = auth_hint.find( ',' );
+    auto ncoma      = auth_hint.find( ',', coma + 1 );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Found ) {
-    std::cerr << "Auto redirect not enabled: file a bug" << std::endl;
-    std::abort();
-  }
+    std::cout << "|" << auth_type << "|" << " |" << auth_hint << "|" << std::endl;
 
-  if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) { // This hot mess just to get the auth endpoint
-    auto errors     = nlohmann::json::parse( res->body ).at( "errors" ).get< std::vector< Error > >();
-    auto www_auth   = res->headers.find( "Www-Authenticate" );
+    auto realm      = auth_hint.substr( 0, coma );
+         realm      = realm.substr( realm.find( '"' ) + 1, realm.length() - ( realm.find( '"' ) + 2 ) );
+         realm      = realm.substr( realm.find( '/' ) + 2 ); // remove proto
+    auto endpoint   = realm.substr( realm.find( '/' ) );
+         realm      = realm.substr( 0, realm.find( '/') );
+    auto service    = auth_hint.substr( coma + 1, ncoma - coma - 1 );
+         service    = service.substr( service.find( '"' ) + 1, service.length() - ( service.find( '"' ) + 2 ) );
+    auto scope      = auth_hint.substr( ncoma + 1 );
+         scope      = scope.substr( scope.find( '"' ) + 1, scope.length() - ( scope.find( '"' ) + 2 ) );
 
-    if ( www_auth != res->headers.end() ) {
-      auto auth_type  = www_auth->second.substr( 0, www_auth->second.find( ' ' ) );
-      auto auth_hint  = www_auth->second.substr( www_auth->second.find( ' ' ) + 1 );
-      auto coma       = auth_hint.find( ',' );
-      auto ncoma      = auth_hint.find( ',', coma + 1 );
+    httplib::SSLClient client( realm, SSL_PORT );
 
-      //std::cout << "|" << auth_type << "|" << " |" << auth_hint << "|" << std::endl;
+    auto location = endpoint + "?service=" + service + "&scope=" + scope;
+    auto result   = client.Get( location.c_str() );
 
-      auto realm      = auth_hint.substr( 0, coma );
-           realm      = realm.substr( realm.find( '"' ) + 1, realm.length() - ( realm.find( '"' ) + 2 ) );
-           realm      = realm.substr( realm.find( '/' ) + 2 ); // remove proto
-      auto endpoint   = realm.substr( realm.find( '/' ) );
-           realm      = realm.substr( 0, realm.find( '/') );
-      auto service    = auth_hint.substr( coma + 1, ncoma - coma - 1 );
-           service    = service.substr( service.find( '"' ) + 1, service.length() - ( service.find( '"' ) + 2 ) );
-      auto scope      = auth_hint.substr( ncoma + 1 );
-           scope      = scope.substr( scope.find( '"' ) + 1, scope.length() - ( scope.find( '"' ) + 2 ) );
+    std::cerr << "OCI::Registry::Client::auth " << _domain << std::endl;
+    std::cerr << "  Www-Authenticate: " << realm << location << std::endl;
+    std::cerr << "  Status: " << result->status << " Body: " << result->body << std::endl;
 
-      //std::cout << realm << endpoint << "?service=" << service << "&scope=" << scope << std::endl;
-      httplib::SSLClient client( realm, SSL_PORT );
-      auto result = client.Get( ( endpoint + "?service=" + service + "&scope=" + scope ).c_str() );
+    auto j = nlohmann::json::parse( result->body );
 
-      if ( result == nullptr ) {
-        std::abort(); // Need to figure out how this API is going to handle errors
-        // And I keep adding to the technical debt
-      }
-
-      // std::cout << nlohmann::json::parse( result->body ).dump( 2 ) << std::endl;
-
-      auto j = nlohmann::json::parse( result->body );
-
-      if ( j.find( "token" ) == j.end() ) {
-        std::cerr << "Auth Failed: " << j.dump( 2 ) << std::endl;
-      } else {
-        j.get_to( _ctr );
-      }
+    if ( j.find( "token" ) == j.end() ) {
+      std::cerr << "Auth Failed: " << j.dump( 2 ) << std::endl;
+    } else {
+      j.get_to( _ctr );
     }
   }
 }
@@ -109,36 +88,83 @@ auto OCI::Registry::Client::defaultHeaders() -> httplib::Headers {
 }
 
 void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
-  auto res = _cli->Get( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str() );
+  _cli->set_follow_location( false );
+  auto location = std::string( "/v2/" + rsrc + "/blobs/" + sha );
+  auto res = _cli->Get( location.c_str(), defaultHeaders() );
 
   if ( res != nullptr ) {
     if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-      auth( rsrc + "/blobs/" + sha );
+      auth( res->headers );
+
+      res = _cli->Get( location.c_str(), defaultHeaders() );
     }
 
-    res = _cli->Get( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), call_back );
+    if ( res->has_header( "Location" ) ) {
+      auto location = res->get_header_value( "Location" );
+    }
+
+    res = _cli->Get( location.c_str(), defaultHeaders(), call_back );
+
+    if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
+      std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
+      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+    }
   }
+  _cli->set_follow_location( true );
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
+  _cli->set_follow_location( false );
   auto const& rsrc  = im.name;
-  auto res          = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
+  auto location     = "/v2/" + rsrc + "/blobs/" + sha;
+  auto res          = _cli->Head( location.c_str(), defaultHeaders() );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Not_Found ) {
-    auth( rsrc + "/blobs/" + sha ); // auth modifies the headers, so should auth return headers???
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+    auth( res->headers ); // auth modifies the headers, so should auth return headers???
 
-    res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + sha ).c_str(), defaultHeaders() );
-
-    if ( res == nullptr ) {
-      std::abort();
-    }
+    res = _cli->Head( location.c_str(), defaultHeaders() );
   }
 
-  if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-    std::cerr << rsrc << ":" << sha << " Status: " << res->status << " Body: " << res->body << std::endl;
+  if ( res->has_header( "Location" ) ) {
+    auto location = res->get_header_value( "Location" );
+
+    res = _cli->Head( location.c_str(), defaultHeaders() );
   }
 
-  return HTTP_CODE( res->status ) == HTTP_CODE::OK;
+  if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
+    std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
+    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+  }
+  _cli->set_follow_location( true );
+
+  return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
+}
+
+auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool {
+  _cli->set_follow_location( false );
+  auto const& rsrc  = im.name;
+  auto location     = "/v2/" + rsrc + "/blobs/" + sha;
+  auto res          = _cli->Head( location.c_str(), defaultHeaders() );
+
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+    auth( res->headers ); // auth modifies the headers, so should auth return headers???
+
+    res = _cli->Head( location.c_str(), defaultHeaders() );
+  }
+
+  if ( res->has_header( "Location" ) ) {
+    auto location = res->get_header_value( "Location" );
+
+    res = _cli->Head( location.c_str(), defaultHeaders() );
+  }
+
+  if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
+    std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
+    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+  }
+  _cli->set_follow_location( true );
+
+  return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
 }
 
 void OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
@@ -165,27 +191,6 @@ void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im,
   (void)blob_part_size;
 
   std::cout << "OCI::Registry::Client::putBlob Schema2::ImageManifest not Not_Implemented" << std::endl;
-}
-
-auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) -> bool {
-  auto const& rsrc  = im.name;
-  auto res          = _cli->Head( std::string( "/v2/" + rsrc + "/blobs/" + sha ).c_str(), defaultHeaders() );
-
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Not_Found ) {
-    auth( rsrc + "/blobs/" + sha ); // auth modifies the headers, so should auth return headers???
-
-    res = _cli->Get( std::string( "/v2/" + rsrc + "/manifests/" + sha ).c_str(), defaultHeaders() );
-
-    if ( res == nullptr ) {
-      std::abort();
-    }
-  }
-
-  if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-    std::cerr << rsrc << ":" << sha << " Status: " << res->status << " Body: " << res->body << std::endl;
-  }
-
-  return HTTP_CODE( res->status ) == HTTP_CODE::OK;
 }
 
 void OCI::Registry::Client::inspect( std::string const& rsrc, std::string const& target ) {
@@ -280,7 +285,7 @@ void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std
 
       im.originDomain = _domain; // This is just for sync from a Registry to a Directory
     } else {
-      std::cerr << res->body << std::endl;
+      std::cerr << "OCI::Registry::Client::fetchManifest Schema1::ImageManifest " << rsrc << " " << target << " " << res->body << std::endl;
     }
   }
 }
@@ -298,7 +303,7 @@ void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, co
 
       sim.originDomain = _domain; // This is just for sync from a Registry to a Directory
     } else {
-      std::cerr << res->body << std::endl;
+      std::cerr << "OCI::Registry::Client::fetchManifest Schema1::SignedImageManifest " << rsrc << " " << target << " " << res->body << std::endl;
     }
   }
 }
@@ -318,7 +323,7 @@ void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std:
       ml.originDomain    = _domain;
       ml.requestedTarget = _requested_target;
     } else {
-      std::cerr << res->body << std::endl;
+      std::cerr << "OCI::Registry::Client::fetchManifest Schema2::ManifestList " << rsrc << " " << target << " " << res->body << std::endl;
     }
   }
 }
@@ -344,31 +349,31 @@ void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std
         throw;
       }
     } else {
-      std::cerr << res->body << std::endl;
+      std::cerr << "OCI::Registry::Client::fetchManifest Schema2::ImageManifest " << rsrc << " " << target << " " << res->body << std::endl;
     }
   }
 }
 
 auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response> {
-  auto headers = defaultHeaders();
+  std::shared_ptr< httplib::Response > res = nullptr;
+  auto headers                             = defaultHeaders();
+  auto location                            = "/v2/" + resource + "/manifests/" + target;
+
   headers.emplace( "Accept", mediaType );
 
-  auto res = _cli->Get( std::string( "/v2/" + resource + "/manifests/" + target ).c_str(), headers );
+  if ( not _ctr.token.empty() ) {
+    res = _cli->Get( location.c_str(), headers );
+  }
 
-  if ( res != nullptr ) {
-    if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-      auth( resource + "/manifests/" + target ); // auth modifies the headers, so should auth return headers???
-      headers = defaultHeaders();
-      headers.emplace( "Accept", mediaType );
+  if ( res == nullptr or HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+    auth( res->headers ); // auth modifies the headers, so should auth return headers???
+    headers = defaultHeaders();
+    headers.emplace( "Accept", mediaType );
 
-      res = _cli->Get( std::string( "/v2/" + resource + "/manifests/" + target ).c_str(), headers );
-
-      if ( res == nullptr ) {
-        std::abort();
-      }
-    } else if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-      std::cerr << "Err other than unauthorized attempting to get '" << resource << ":" << target << "'! Status: " << res->status << std::endl;
-    }
+    res = _cli->Get( location.c_str(), headers );
+  } else if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
+    std::cerr << "OCI::Registry::Client::fetchManifest " << location << std::endl;
+    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
   }
 
   return res;
@@ -409,22 +414,20 @@ void OCI::Registry::Client::putManifest( const Schema2::ImageManifest& im, const
 auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
   Tags retVal;
 
-  auto res = _cli->Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
+  auto location = "/v2/" + rsrc + "/tags/list";
+  auto res = _cli->Get( location.c_str(), defaultHeaders() );
 
   if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-    auth( rsrc + "/tags/list" );
+    auth( res->headers );
 
-    res = _cli->Get( std::string( "/v2/" + rsrc + "/tags/list" ).c_str(), defaultHeaders() );
-
-    if ( res == nullptr ) {
-      std::abort();
-    }
+    res = _cli->Get( location.c_str(), defaultHeaders() );
   }
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     retVal = nlohmann::json::parse( res->body ).get< Tags >();
   } else {
-    std::cerr << res->body << std::endl;
+    std::cerr << "OCI::Registry::Client::tagList " << location << std::endl;
+    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
   }
 
   return retVal;

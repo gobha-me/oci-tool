@@ -1,0 +1,3 @@
+registry.access.redhat.com:
+  images:
+    ubi7/ubi:

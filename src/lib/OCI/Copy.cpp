@@ -39,6 +39,7 @@ void OCI::Copy( const Schema2::ManifestList& manifest_list, const std::string& t
   // When the above is finished post ManifestList <target> to OCI::Base::Client*
 
   std::cout << "Test is successful and Post Schema2::ManifestList to OCI::Base::Client::putManifest" << std::endl;
+  dest->putManifest( manifest_list, manifest_list.name, target ); // TODO: manifest list contains everything, simplify call
 }
 
 void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
@@ -46,15 +47,19 @@ void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string&
 
   if ( image_manifest != dest_image_manifest ) {
     for ( auto const& layer: image_manifest.layers ) {
-      if ( not dest->hasBlob( image_manifest, layer.digest ) ) {
+      if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {
+        uint64_t data_sent = 0;
         std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
           // FIXME: putBlob should return a bool
+          data_sent += data_length;
           dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
 
           return true;
         };
 
         src->fetchBlob( image_manifest.name, layer.digest, call_back );
+      } else {
+        std::cout << layer.digest << " already exists" << std::endl;
       }
     }
 

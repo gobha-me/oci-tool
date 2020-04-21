@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#define CPPHTTPLIB_OPENSSL_SUPPORT = 1 //NOLINT(cppcoreguidelines-macro-usage)
+#define CPPHTTPLIB_OPENSSL_SUPPORT = 1 //NOLINT(cppcoreguidelines-macro-usage) - required for httplib
 #include <httplib.h> // https://github.com/yhirose/cpp-httplib
 
 namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
@@ -29,12 +29,12 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     Client( std::string const& domain, std::string username, std::string password );
     ~Client() override = default;
 
-    void auth( std::string const& uri );
+    void auth( httplib::Headers const& headers );
 
     void fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) override; // To where
 
     auto hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool override;
-    auto hasBlob( const Schema2::ImageManifest& im, SHA256 sha ) -> bool override;
+    auto hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool override;
 
     void putBlob( const Schema1::ImageManifest& im, std::string const& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
     void putBlob( const Schema2::ImageManifest& im, std::string const& target, const SHA256& blob_sha, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
