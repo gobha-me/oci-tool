@@ -54,17 +54,27 @@ void OCI::Schema2::from_json( const nlohmann::json& j, ManifestList::Manifest& m
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList& ml ) {
-  (void)j;
-  (void)ml;
-
-  std::cout << "Construct Json from OCI::Schema2::ManifestList" << std::endl;
+  j = nlohmann::json{
+      { "schemaVersion", ml.schemaVersion },
+      { "mediaType", ml.mediaType },
+      { "manifests", ml.manifests }
+  };
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList::Manifest& mlm ) {
-  (void)j;
-  (void)mlm;
-
-  std::cout << "Construct Json from OCI::Schema2::ManifestList::Manifest" << std::endl;
+  j = nlohmann::json{
+      { "mediaType", mlm.mediaType },
+      { "size", mlm.size },
+      { "digest", mlm.digest },
+      { "platform",
+        { "architecture", mlm.platform.architecture },
+        { "os", mlm.platform.os },
+        { "os.version", mlm.platform.os_version },
+        { "os.features", mlm.platform.os_features },
+        { "variant", mlm.platform.variant },
+        { "features", mlm.platform.features }
+      }
+  };
 }
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest& im ) {
@@ -96,15 +106,23 @@ void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest::Layer& iml
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const ImageManifest& im ) {
-  (void)j;
-  (void)im;
-
-  std::cout << "OCI::Schema2::to_json ImageManifest not implemented" << std::endl;
+  j = nlohmann::json{
+      { "schemaVersion", im.schemaVersion },
+      { "mediaType", im.mediaType },
+      { "config",
+        { "mediaType", im.config.mediaType },
+        { "size", im.config.size },
+        { "digest", im.config.digest }
+      },
+      { "layers", im.layers }
+  };
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const  ImageManifest::Layer& iml ) {
-  (void)j;
-  (void)iml;
-
-  std::cout << "OCI::Schema2::to_json ImageManifest::Layer not implemented" << std::endl;
+  j = nlohmann::json{
+      { "mediaType", iml.mediaType },
+      { "size", iml.size },
+      { "digest", iml.digest },
+      { "urls", iml.digest }
+  };
 }

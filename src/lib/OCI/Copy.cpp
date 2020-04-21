@@ -39,7 +39,7 @@ void OCI::Copy( const Schema2::ManifestList& manifest_list, const std::string& t
   // When the above is finished post ManifestList <target> to OCI::Base::Client*
 
   std::cout << "Test is successful and Post Schema2::ManifestList to OCI::Base::Client::putManifest" << std::endl;
-  dest->putManifest( manifest_list, manifest_list.name, target ); // TODO: manifest list contains everything, simplify call
+  dest->putManifest( manifest_list, target );
 }
 
 void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
@@ -63,8 +63,6 @@ void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string&
       }
     }
 
-    //if ( true ) { // FIXME: define success criteria for above, or do we just do it?
-      dest->putManifest( image_manifest, image_manifest.name, target );
-    //}
+    dest->putManifest( image_manifest, target ); // putManifest defines this
   }
 }

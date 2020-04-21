@@ -95,39 +95,61 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, const std:
   std::cout << "OCI::Extensions::Dir::fetchManifest Schema2::ImageManifest is not implemented" << std::endl;
 }
 
-void OCI::Extensions::Dir::putManifest( const Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+void OCI::Extensions::Dir::putManifest( const Schema1::ImageManifest& im, const std::string& target ) {
   (void)im;
-  (void)rsrc;
   (void)target;
 
   std::cout << "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented" << std::endl;
 }
 
-void OCI::Extensions::Dir::putManifest( const Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
+void OCI::Extensions::Dir::putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) {
   (void)sim;
-  (void)rsrc;
   (void)target;
 
   std::cout << "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
 }
 
-void OCI::Extensions::Dir::putManifest( const Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
-  (void)ml;
-  (void)rsrc;
-  (void)target;
+void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::string const& target ) {
+  auto manifest_list_dir_path = std::filesystem::directory_entry( _directory.path() / ml.originDomain / ( ml.name + ":" + ml.requestedTarget ) );
+  auto manifest_list_path     = manifest_list_dir_path.path() / "ManifestList.json";
+  auto version_path           = manifest_list_dir_path.path() / "Version";
 
-  std::cout << "OCI::Extensions::Dir::putManifest Schema2::ManifestList is not implemented" << std::endl;
+  nlohmann::json manifest_list_json = ml;
+
+  bool complete = true;
+
+  for ( auto const& im : ml.manifests ) {
+    auto im_path = manifest_list_dir_path.path() / im.digest / "ImageManifest.json";
+
+    if ( not std::filesystem::exists( im_path ) ) {
+      complete = false;
+      break;
+    }
+  }
+
+  if ( complete ) {
+    std::ofstream manifest_list( manifest_list_path ); 
+    std::ofstream version( version_path );
+
+    manifest_list << manifest_list_json.dump( 2 );
+    version       << ml.schemaVersion;
+  }
 }
 
-void OCI::Extensions::Dir::putManifest( const Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  (void)im;
-  (void)rsrc;
-  (void)target;
+void OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::string const& target ) {
+  auto image_dir_path      = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
+  auto image_manifest_path = image_dir_path.path() / "ImageManifest.json";
 
-  std::cout << "OCI::Extensions::Dir::putManifest Schema2::ImageManifest is not implemented" << std::endl;
+  nlohmann::json image_manifest_json = im;
+
+  //TODO: validate each blob prior to write (existance and sha256 is correct)
+  //        remove bad file here???
+  std::ofstream image_manifest( image_manifest_path );
+
+  image_manifest << image_manifest_json.dump( 2 );
 }
 
-auto OCI::Extensions::Dir::tagList( const std::string& rsrc ) -> OCI::Tags {
+auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {
   OCI::Tags retVal;
   (void)rsrc;
 

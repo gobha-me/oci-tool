@@ -418,33 +418,29 @@ auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const s
   return res;
 }
 
-void OCI::Registry::Client::putManifest( const Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+void OCI::Registry::Client::putManifest( const Schema1::ImageManifest& im, const std::string& target ) {
   (void)im;
-  (void)rsrc;
   (void)target;
 
   std::cout << "OCI::Registry::Client::putManifest Schema1::ImageManifest is not implemented" << std::endl;
 }
 
-void OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
+void OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) {
   (void)sim;
-  (void)rsrc;
   (void)target;
 
   std::cout << "OCI::Registry::Client::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
 }
 
-void OCI::Registry::Client::putManifest( const Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
+void OCI::Registry::Client::putManifest( const Schema2::ManifestList& ml, const std::string& target ) {
   (void)ml;
-  (void)rsrc;
   (void)target;
 
   std::cout << "OCI::Registry::Client::putManifest Schema2::ManifestList is not implemented" << std::endl;
 }
 
-void OCI::Registry::Client::putManifest( const Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+void OCI::Registry::Client::putManifest( const Schema2::ImageManifest& im, const std::string& target ) {
   (void)im;
-  (void)rsrc;
   (void)target;
 
   std::cout << "OCI::Registry::Client::putManifest Schema2::ImageManifest is not implemented" << std::endl;

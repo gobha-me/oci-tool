@@ -46,10 +46,10 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     void fetchManifest( Schema2::ManifestList& ml,         std::string const& rsrc, std::string const& target ) override;
     void fetchManifest( Schema2::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
 
-    void putManifest( const Schema1::ImageManifest& im,        const std::string& rsrc, const std::string& target ) override;
-    void putManifest( const Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) override;
-    void putManifest( const Schema2::ManifestList& ml,         const std::string& rsrc, const std::string& target ) override;
-    void putManifest( const Schema2::ImageManifest& im,        const std::string& rsrc, const std::string& target ) override;
+    void putManifest( const Schema1::ImageManifest& im,        const std::string& target ) override;
+    void putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) override;
+    void putManifest( const Schema2::ManifestList& ml,         const std::string& target ) override;
+    void putManifest( const Schema2::ImageManifest& im,        const std::string& target ) override;
 
     auto tagList( std::string const& rsrc ) -> Tags override;
 
