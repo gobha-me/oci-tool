@@ -1,11 +1,14 @@
 #include <OCI/Extensions/Dir.hpp>
+#include <botan/hash.h>
+#include <botan/hex.h>
 #include <filesystem>
 #include <iostream>
 #include <fstream>
 
 OCI::Extensions::Dir::Dir() = default;
 OCI::Extensions::Dir::Dir( std::string const& directory ) : _directory( directory ) {
-  if ( not _directory.exists() ) { // TODO: do we create, this 'root/base' dir or fail if it doesn't exist?
+  if ( not _directory.exists() ) {
+    std::cerr << _directory.path() << " does not exist." << std::endl;
     std::abort();
   }
 }
@@ -29,10 +32,34 @@ auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha
 }
 
 auto OCI::Extensions::Dir::hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool {
+  bool retVal     = false;
   auto image_path = _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target / sha;
 
-  // exists is not quite enough, it should also match its digest to be true
-  return std::filesystem::exists( image_path );
+  if ( std::filesystem::exists( image_path ) ) {
+    auto sha256( Botan::HashFunction::create( "SHA-256" ) );
+    std::ifstream blob( image_path, std::ios::binary );
+    std::vector< uint8_t > buf( 2048 );
+
+    while ( blob.good() ) {
+      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() );
+      size_t readcount = blob.gcount();
+      sha256->update( buf.data(), readcount );
+    }
+
+    std::string sha256_str = Botan::hex_encode( sha256->final() );
+    std::for_each( sha256_str.begin(), sha256_str.end(), []( char & c ) {
+        c = std::tolower( c );
+      } );
+
+    if ( sha == "sha256:" + sha256_str ) {
+      retVal = true;
+    } else {
+      // remove a failed file, as the write point only appends, and an incomplete or bad file could cause problems
+      std::filesystem::remove( image_path );
+    }
+  }
+
+  return retVal;
 }
 
 void OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
@@ -114,6 +141,7 @@ void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::st
   auto manifest_list_path     = manifest_list_dir_path.path() / "ManifestList.json";
   auto version_path           = manifest_list_dir_path.path() / "Version";
 
+
   nlohmann::json manifest_list_json = ml;
 
   bool complete = true;
@@ -143,10 +171,21 @@ void OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
   nlohmann::json image_manifest_json = im;
 
   //TODO: validate each blob prior to write (existance and sha256 is correct)
-  //        remove bad file here???
-  std::ofstream image_manifest( image_manifest_path );
 
-  image_manifest << image_manifest_json.dump( 2 );
+  bool complete = true;
+
+  for ( auto const& layer : im.layers ) {
+    if ( not hasBlob( im, target, layer.digest ) ) {
+      complete = false;
+      break;
+    }
+  }
+
+  if ( complete ) {
+    std::ofstream image_manifest( image_manifest_path );
+
+    image_manifest << image_manifest_json.dump( 2 );
+  }
 }
 
 auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {

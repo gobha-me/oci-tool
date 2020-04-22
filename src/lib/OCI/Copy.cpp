@@ -28,17 +28,12 @@ void OCI::Copy( const Schema1::ImageManifest& image_manifest, const std::string&
 }
 
 void OCI::Copy( const Schema2::ManifestList& manifest_list, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  (void)target;
   for ( auto const& manifest: manifest_list.manifests ) {
     auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest.digest );
 
-    //std::cout << image_manifest.name << " " << manifest.digest << std::endl;
     Copy( image_manifest, manifest.digest, src, dest );
   }
-  
-  // When the above is finished post ManifestList <target> to OCI::Base::Client*
 
-  std::cout << "Test is successful and Post Schema2::ManifestList to OCI::Base::Client::putManifest" << std::endl;
   dest->putManifest( manifest_list, target );
 }
 
@@ -50,7 +45,7 @@ void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string&
       if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {
         uint64_t data_sent = 0;
         std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
-          // FIXME: putBlob should return a bool
+          // FIXME: putBlob should return a bool, if put blob fails for some reason, need it to bubble to here
           data_sent += data_length;
           dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
 
@@ -58,8 +53,6 @@ void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string&
         };
 
         src->fetchBlob( image_manifest.name, layer.digest, call_back );
-      } else {
-        std::cout << layer.digest << " already exists" << std::endl;
       }
     }
 

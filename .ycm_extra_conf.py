@@ -59,6 +59,8 @@ flags = [
 # For a C project, you would set this to 'c' instead of 'c++'.
 '-I',
 'include',
+'-I',
+'/usr/include/botan-2',
 '-x',
 'c++',
 '-isystem',
