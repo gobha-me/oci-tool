@@ -1,3 +1,8 @@
+### DEPENDACIES
+Attempted to have this only require few dependacies (libraries) and be mostly header only for external stuff.
+This failed with SHA256 digest validation.  If someone knows of a good one, that works I am all ears. until then
+ensure libbotan-2 (dev) is installed.
+
 ### BUILD
 Building is simple, quick and dirty, spent to much time trying to get cmake to work for this simple build.  Will circle back when have the time
 ```
