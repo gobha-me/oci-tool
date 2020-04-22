@@ -1,4 +1,4 @@
 registry.access.redhat.com:
   images:
     ubi7/ubi:
-      7.7-310
+      - 7.7-310

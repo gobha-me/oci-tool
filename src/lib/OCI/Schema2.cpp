@@ -57,24 +57,38 @@ void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList& ml ) {
   j = nlohmann::json{
       { "schemaVersion", ml.schemaVersion },
       { "mediaType", ml.mediaType },
-      { "manifests", ml.manifests }
+      { "manifests", ml.manifests}
   };
+
+  nlohmann::json jm = ml.manifests;
+
+  j[ "manifests" ] = jm;
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList::Manifest& mlm ) {
-  j = nlohmann::json{
-      { "mediaType", mlm.mediaType },
-      { "size", mlm.size },
-      { "digest", mlm.digest },
-      { "platform",
-        { "architecture", mlm.platform.architecture },
-        { "os", mlm.platform.os },
-        { "os.version", mlm.platform.os_version },
-        { "os.features", mlm.platform.os_features },
-        { "variant", mlm.platform.variant },
-        { "features", mlm.platform.features }
-      }
-  };
+  j = nlohmann::json( {} );
+  j[ "mediaType" ] = mlm.mediaType;
+  j[ "size"      ] = mlm.size;
+  j[ "digest"    ] = mlm.digest;
+  j[ "platform"  ] = nlohmann::json( {} );
+  j[ "platform"  ][ "architecture" ] = mlm.platform.architecture;
+  j[ "platform"  ][ "os" ] = mlm.platform.os;
+
+  if ( not mlm.platform.os_version.empty() ) {
+    j[ "platform"  ][ "os.version" ] = mlm.platform.os_version;
+  }
+
+  if ( not mlm.platform.os_version.empty() ) {
+    j[ "platform"  ][ "os.features" ] = mlm.platform.os_features;
+  }
+
+  if ( not mlm.platform.variant.empty() ) {
+    j[ "platform"  ][ "variant" ] = mlm.platform.variant;
+  }
+
+  if ( not mlm.platform.features.empty() ) {
+    j[ "platform"  ][ "features" ] = mlm.platform.features;
+  }
 }
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest& im ) {
@@ -109,11 +123,11 @@ void OCI::Schema2::to_json( nlohmann::json& j, const ImageManifest& im ) {
   j = nlohmann::json{
       { "schemaVersion", im.schemaVersion },
       { "mediaType", im.mediaType },
-      { "config",
+      { "config", {
         { "mediaType", im.config.mediaType },
         { "size", im.config.size },
         { "digest", im.config.digest }
-      },
+      }},
       { "layers", im.layers }
   };
 }
