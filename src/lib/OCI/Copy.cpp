@@ -45,7 +45,7 @@ void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string&
       if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {
         uint64_t data_sent = 0;
         std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
-          // FIXME: putBlob should return a bool, if put blob fails for some reason, need it to bubble to here
+          // FIXME: putBlob should return a bool, if put blob fails for some reason, need it to bubble to here as return value
           data_sent += data_length;
           dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
 

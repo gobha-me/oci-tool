@@ -4,13 +4,55 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <set>
 
 OCI::Extensions::Dir::Dir() = default;
-OCI::Extensions::Dir::Dir( std::string const& directory ) : _directory( directory ) {
-  if ( not _directory.exists() ) {
-    std::cerr << _directory.path() << " does not exist." << std::endl;
+OCI::Extensions::Dir::Dir( std::string const& directory ) {
+  auto dir            = directory;
+  auto trailing_slash = dir.find_last_of( '/' );
+
+  if ( trailing_slash == dir.size() - 1 ) {
+    _directory = std::filesystem::directory_entry( dir.substr( 0, trailing_slash ) );
+  } else {
+    _directory = std::filesystem::directory_entry( dir );
+  }
+
+  if ( not ( _directory.exists() or _directory.is_directory() ) ) {
+    std::cerr << _directory.path() << " does not exist or is not a directory." << std::endl;
     std::abort();
   }
+}
+
+auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
+  Catalog retVal;
+
+  // expecting dir to be root of the tree
+  //  - subtree of namespaces
+  //   - subtree of repo-name:(tag|digest)
+
+  std::set< std::string > repos;
+  
+  for ( auto const& path_part : std::filesystem::recursive_directory_iterator( _directory ) ) {
+    if ( path_part.path().parent_path().compare( _directory.path() ) != 0 ) {
+      if ( path_part.is_directory() ) {
+        auto repo_str = path_part.path().string().substr( _directory.path().string().size() + 1 );
+
+        if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
+          auto tag = repo_str.substr( repo_str.find( ':' ) + 1 );
+          repo_str = repo_str.substr( 0, repo_str.find( ':' ) );
+
+          repos.insert( repo_str );
+          _tags[ repo_str ].tags.push_back( tag );
+        }
+      }
+    }
+  }
+
+  for ( auto const& repo : repos ) {
+    retVal.repositories.push_back( repo );
+  }
+
+  return retVal;
 }
 
 void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
@@ -107,11 +149,23 @@ void OCI::Extensions::Dir::fetchManifest( Schema1::SignedImageManifest& sim, con
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
-  (void)ml;
-  (void)rsrc;
-  (void)target;
+  // Expectation is we are in <base>/<domain> dir with a sub-tree of <repo>:<tags>
+  auto ml_file_path  = _directory.path() / ( rsrc + ":" + target ) / "ManifestList.json";
+  auto ver_file_path = _directory.path() / ( rsrc + ":" + target ) / "Version";
 
-  std::cout << "OCI::Extensions::Dir::fetchManifest Schema2::ManifestList is not implemented" << std::endl;
+  if ( std::filesystem::exists( ver_file_path ) ) {
+    std::ifstream ver_file( ver_file_path );
+    ver_file >> ml.schemaVersion;
+
+    if ( ml.schemaVersion == 2 and std::filesystem::exists( ml_file_path ) ) {
+      nlohmann::json ml_json;
+      std::ifstream ml_file( ml_file_path );
+      ml_file >> ml_json;
+
+      ml_json.get_to( ml );
+    }
+  }
+  // when getting the manifest from disk the origDomain is in the dir name, how to get
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
@@ -159,7 +213,7 @@ void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::st
     std::ofstream manifest_list( manifest_list_path ); 
     std::ofstream version( version_path );
 
-    manifest_list << manifest_list_json.dump( 2 );
+    manifest_list << std::setw( 2 ) << manifest_list_json;
     version       << ml.schemaVersion;
   }
 }
@@ -184,15 +238,20 @@ void OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
   if ( complete ) {
     std::ofstream image_manifest( image_manifest_path );
 
-    image_manifest << image_manifest_json.dump( 2 );
+    image_manifest << std::setw( 2 ) << image_manifest_json;
   }
 }
 
 auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {
-  OCI::Tags retVal;
-  (void)rsrc;
+  Tags retVal;
 
-  std::cout << "OCI::Extensions::Dir::tagList is not implemented" << std::endl;
+  if ( _tags.empty() ) {
+    catalog();
+  }
+
+  if ( _tags.find( rsrc ) != _tags.end() ) {
+    retVal = _tags.at( rsrc );
+  }
 
   return retVal;
 }

@@ -21,6 +21,31 @@ auto OCI::Schema2::operator!=( const ImageManifest& im1, const ImageManifest& im
   return not ( im1 == im2 );
 }
 
+auto OCI::Schema2::operator==( ManifestList const& ml1, ManifestList const& ml2 ) -> bool {
+  bool retVal = true;
+
+  if ( ml1.name == ml2.name ) {
+    for ( auto const& m: ml1.manifests ) {
+      auto ml2_m_itr = std::find_if( ml2.manifests.begin(), ml2.manifests.end(), [m]( ManifestList::Manifest const& x ) {
+          return m.digest == x.digest;
+        } );
+
+      if ( ml2_m_itr == ml2.manifests.end() ) {
+        retVal = false;
+        break;
+      }
+    }
+  } else {
+    retVal = false;
+  }
+
+  return retVal;
+}
+
+auto OCI::Schema2::operator!=( ManifestList const& ml1, ManifestList const& ml2 ) -> bool {
+  return not( ml1 == ml2 );
+}
+
 void OCI::Schema2::from_json( const nlohmann::json& j, ManifestList& ml ) {
   j.at( "schemaVersion" ).get_to( ml.schemaVersion );
 

@@ -52,18 +52,21 @@ namespace OCI::Schema2 {
     std::vector< Layer > layers;
   };
 
-  auto operator==( const ImageManifest& im1, const ImageManifest& im2 ) -> bool;
-  auto operator!=( const ImageManifest& im1, const ImageManifest& im2 ) -> bool;
+  auto operator==( ImageManifest const& im1, ImageManifest const& im2 ) -> bool;
+  auto operator!=( ImageManifest const& im1, ImageManifest const& im2 ) -> bool;
 
-  void from_json( const nlohmann::json& j, ManifestList& ml );
-  void from_json( const nlohmann::json& j, ManifestList::Manifest& mlm );
+  auto operator==( ManifestList const& ml1, ManifestList const& ml2 ) -> bool;
+  auto operator!=( ManifestList const& ml1, ManifestList const& ml2 ) -> bool;
 
-  void to_json( nlohmann::json& j, const ManifestList& ml );
-  void to_json( nlohmann::json& j, const ManifestList::Manifest& mlm );
+  void from_json( nlohmann::json const& j, ManifestList& ml );
+  void from_json( nlohmann::json const& j, ManifestList::Manifest& mlm );
 
-  void from_json( const nlohmann::json& j, ImageManifest& im );
-  void from_json( const nlohmann::json& j, ImageManifest::Layer& iml );
+  void to_json( nlohmann::json& j, ManifestList const& ml );
+  void to_json( nlohmann::json& j, ManifestList::Manifest const& mlm );
 
-  void to_json( nlohmann::json& j, const ImageManifest& im );
-  void to_json( nlohmann::json& j, const ImageManifest::Layer& iml );
+  void from_json( nlohmann::json const& j, ImageManifest& im );
+  void from_json( nlohmann::json const& j, ImageManifest::Layer& iml );
+
+  void to_json( nlohmann::json& j, ImageManifest const& im );
+  void to_json( nlohmann::json& j, ImageManifest::Layer const& iml );
 }// namespace OCI::Schema2

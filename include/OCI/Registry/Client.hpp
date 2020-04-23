@@ -25,11 +25,13 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     };
   public:
     Client();
-    explicit Client( std::string const& domain );
-    Client( std::string const& domain, std::string username, std::string password );
+    explicit Client( std::string const& location );
+    Client( std::string const& location, std::string username, std::string password );
     ~Client() override = default;
 
     void auth( httplib::Headers const& headers, std::string const& scope );
+
+    auto catalog() -> OCI::Catalog override;
 
     void fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) override; // To where
 
@@ -63,7 +65,8 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     std::string _domain;
     std::string _username;
     std::string _password;
-    std::string _requested_target;
+    std::string _resource; // <namespace>/<repo name>
+    std::string _requested_target; // tag or digest
     TokenResponse _ctr;
   };
 

@@ -1,15 +1,25 @@
 #include <OCI/Sync.hpp>
 
-void OCI::Sync( const std::string& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  auto tagList = src->tagList( rsrc );
+void OCI::Sync( OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  auto const& catalog = src->catalog();
 
-  for ( auto const& tag: tagList.tags ) {
-    Copy( tagList.name, tag, src, dest );
+  for ( auto const& repo : catalog.repositories ) {
+    std::cout << repo << std::endl;
+    auto const& tagList = src->tagList( repo );
+
+    Sync( repo, tagList.tags, src, dest );
   }
 }
 
-void OCI::Sync( const std::string& rsrc, const std::vector< std::string >& tags, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+void OCI::Sync( std::string const& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  auto const& tagList = src->tagList( rsrc );
+
+  Sync( rsrc, tagList.tags, src, dest );
+}
+
+void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   for ( auto const& tag: tags ) {
+    std::cout << rsrc << ":" << tag << std::endl;
     Copy( rsrc, tag, src, dest );
   }
 }

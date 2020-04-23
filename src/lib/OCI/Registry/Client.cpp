@@ -32,19 +32,34 @@ auto splitLocation( std::string location ) -> std::tuple< std::string, std::stri
 }
 
 OCI::Registry::Client::Client() : _cli( nullptr ) {}
-OCI::Registry::Client::Client(  std::string const& domain ) : 
-                                _cli( std::make_shared< httplib::SSLClient >( domain, SSL_PORT ) ),
-                                _domain( domain ) {
+OCI::Registry::Client::Client( std::string const& location ) {
+  _resource = location;
+
+  if ( _resource.find( "//" ) != std::string::npos ) {
+    _resource = _resource.substr( 2 ); // strip the // if exists
+  }
+
+  _domain = _resource.substr( 0, _resource.find( '/' ) );
+  
+  // in uri docker will translate to https
+  // if docker.io use registry-1.docker.io as the site doesn't redirect
+  if ( _domain == "docker.io" ) {
+    // either docker.io should work, or they should have a proper redirect implemented
+    _cli = std::make_shared< httplib::SSLClient >( "registry-1.docker.io", SSL_PORT );
+  } else {
+    _cli = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
+  }
+
+
+  std::cout << _domain << std::endl;                                 
   _cli->set_follow_location( true );
 }
 
-OCI::Registry::Client::Client(  std::string const& domain,
-                                std::string username,
-                                std::string password ) : 
-                                _cli( std::make_shared< httplib::SSLClient >( domain, SSL_PORT ) ),
-                                _domain( domain ),
-                                _username( std::move( username ) ),
-                                _password( std::move( password ) ) {
+OCI::Registry::Client::Client( std::string const& location,
+                               std::string username,
+                               std::string password ) : Client( location ) {
+  _username = std::move( username );
+  _password = std::move( password );
   _cli->set_follow_location( true );
 }
 
@@ -101,6 +116,14 @@ auto OCI::Registry::Client::authHeaders() -> httplib::Headers {
       { "Authorization", "Bearer " + _ctr.token } // only return this if token is valid
     };
   }
+}
+
+auto OCI::Registry::Client::catalog() -> OCI::Catalog {
+  Catalog retVal;
+
+  std::cerr << "OCI::Registry::Client::catalog Not implemented" << std::endl;
+
+  return retVal;
 }
 
 void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
@@ -233,85 +256,6 @@ void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im,
   (void)blob_part_size;
 
   std::cout << "OCI::Registry::Client::putBlob Schema2::ImageManifest not Not_Implemented" << std::endl;
-}
-
-void OCI::Registry::Client::inspect( std::string const& rsrc, std::string const& target ) {
-  using namespace std::string_literals;
-
-  auto tags         = tagList( rsrc );
-  auto manifestList = OCI::Manifest< Schema2::ManifestList >( this, rsrc, target );
-
-  if ( manifestList.schemaVersion == 1 ) { // NOLINT Fall back to Schema1
-      auto image_manifest = OCI::Manifest< Schema1::ImageManifest >( this, rsrc, target );
-  } else if ( manifestList.schemaVersion == 2 ) { // NOLINT
-    // need to do more than this, doing this instead of to_json for the moment
-    // want a "combined" struct for this data and a to_json for it so the output can be "pretty printed"
-    std::cout << "name: " << manifestList.name << "\n";
-    std::cout << "schemaVersion: " << manifestList.schemaVersion << "\n";
-    std::cout << "mediaType: " << manifestList.mediaType << "\n";
-    std::cout << "tags: [" << "\n";
-
-    for ( auto const& tag: tags.tags ) {
-      std::cout << "  " << tag << "\n";
-    }
-
-    std::cout << "]" << "\n";
-    std::cout << "manifests: [\n";
-
-    for ( auto const & manifest_item: manifestList.manifests ) {
-      std::cout << "  {\n";
-      std::cout << "    mediaType: " << manifest_item.mediaType << "\n";
-      std::cout << "    size: " << manifest_item.size << "\n";
-      std::cout << "    digest: " << manifest_item.digest << "\n";
-      std::cout << "    architecture: " << manifest_item.platform.architecture << "\n";
-      std::cout << "    os: " << manifest_item.platform.os << "\n";
-
-      if ( not manifest_item.platform.os_version.empty() ) {
-        std::cout << "    os.version: " << manifest_item.platform.os_version << "\n";
-      }
-
-      for ( auto const & os_feature: manifest_item.platform.os_features ) {
-        std::cout << "    os.feature: " << os_feature << "\n";
-      }
-
-      if ( not manifest_item.platform.variant.empty() ) {
-        std::cout << "    variant: " << manifest_item.platform.variant << "\n";
-      }
-
-      for ( auto const & feature: manifest_item.platform.features ) {
-        std::cout << "    feature: " << feature << "\n";
-      }
-
-      std::cout << "    ImageManifest: {\n";
-      auto image_manifest = OCI::Manifest< Schema2::ImageManifest >( this, rsrc, target );
-      std::cout << "      schemaVersion: " << image_manifest.schemaVersion << "\n";
-      std::cout << "      mediaType: " << image_manifest.mediaType << "\n";
-      std::cout << "      config: { \n";
-      std::cout << "        mediaType: " << image_manifest.config.mediaType << "\n";
-      std::cout << "        size: " << image_manifest.config.size << "\n";
-      std::cout << "        digest: " << image_manifest.config.digest << "\n";
-      std::cout << "        layers: {\n";
-
-      for ( auto const& layer: image_manifest.layers ) {
-        std::cout << "          mediaType: " << layer.mediaType << "\n";
-        std::cout << "          size: " << layer.size << "\n";
-        std::cout << "          digest: " << layer.digest << "\n";
-        std::cout << "          urls: {\n";
-
-        for ( auto const& url: layer.urls ) {
-          std::cout << "            url: " << url << "\n";
-        }
-
-        std::cout << "          }\n";
-      }
-
-      std::cout << "        }\n";
-      std::cout << "      }\n";
-      std::cout << "    }\n";
-      std::cout << "  },\n";
-    }
-    std::cout << "]" << std::endl;
-  }
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {

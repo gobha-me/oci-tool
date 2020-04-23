@@ -1,7 +1,7 @@
 #include <iostream>
+#include <OCI/Inspect.hpp>
 #include <OCI/Registry/Client.hpp>
 #include <OCI/Extensions/Dir.hpp>
-#include <OCI/Copy.hpp>
 
 int main( int argc, char ** argv ) {
   using namespace std::string_literals;
@@ -10,7 +10,10 @@ int main( int argc, char ** argv ) {
 
   auto uri        = std::string( argv[1] );
   auto proto_itr  = uri.find( ":" );
-  std::string proto, location;
+
+  std::shared_ptr< OCI::Base::Client > client;
+  std::string proto;
+  std::string location;
 
   if ( proto_itr != std::string::npos ) {
     proto     = uri.substr( 0, proto_itr );
@@ -46,9 +49,11 @@ int main( int argc, char ** argv ) {
     if ( rsrc.find( '/' ) == std::string::npos )
       rsrc = "library/" + rsrc; // set to default namespace if non provided
 
-    OCI::Registry::Client client( domain );
-    client.inspect( rsrc, target );
+    client = std::make_shared< OCI::Registry::Client >( domain );
   }
+
+  // rsrc and target are missing, this is very broken, someone please help
+  OCI::Inspect( rsrc, target, client );
 
   return EXIT_SUCCESS;
 }
