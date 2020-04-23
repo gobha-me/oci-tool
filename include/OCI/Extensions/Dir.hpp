@@ -39,5 +39,7 @@ namespace OCI::Extensions {
     private:
       std::filesystem::directory_entry _directory;
       std::map< std::string, Tags >    _tags;
+      std::map< std::string,
+        std::map< std::string, std::filesystem::directory_entry > > _dir_map;
   };
 } // namespace OCI::Extensions

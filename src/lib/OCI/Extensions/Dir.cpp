@@ -28,7 +28,8 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
 
   // expecting dir to be root of the tree
   //  - subtree of namespaces
-  //   - subtree of repo-name:(tag|digest)
+  //   - subtree of repo-name:(tag|digest) (contents varies based on Schema version)
+  //    - subtree of digest with ImageManifests and blobs (Schemav2 only)
 
   std::set< std::string > repos;
   
@@ -38,11 +39,19 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
         auto repo_str = path_part.path().string().substr( _directory.path().string().size() + 1 );
 
         if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
-          auto tag = repo_str.substr( repo_str.find( ':' ) + 1 );
-          repo_str = repo_str.substr( 0, repo_str.find( ':' ) );
+          auto tag       = repo_str.substr( repo_str.find( ':' ) + 1 );
+          auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
 
-          repos.insert( repo_str );
-          _tags[ repo_str ].tags.push_back( tag );
+          repos.insert( repo_name );
+          _tags[ repo_name ].tags.push_back( tag );
+
+          _dir_map[ repo_name ][ tag ] = path_part;
+        } else {
+          auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
+          auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
+
+          std::cout << "_dir_map[ " << repo_name << " ][ " << target << " ] = " << path_part.path() << std::endl;
+          _dir_map[ repo_name ][ target ] = path_part;
         }
       }
     }
@@ -153,6 +162,11 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, const std::
   auto ml_file_path  = _directory.path() / ( rsrc + ":" + target ) / "ManifestList.json";
   auto ver_file_path = _directory.path() / ( rsrc + ":" + target ) / "Version";
 
+  std::cout << "OCI::Extensions::Dir::fetchManifest Schema2::ManifestList" << std::endl;
+  if ( not _dir_map.empty() ) {
+    std::cout << _dir_map[ rsrc ][ target ].path() << std::endl;
+  }
+
   if ( std::filesystem::exists( ver_file_path ) ) {
     std::ifstream ver_file( ver_file_path );
     ver_file >> ml.schemaVersion;
@@ -163,17 +177,24 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, const std::
       ml_file >> ml_json;
 
       ml_json.get_to( ml );
+
+      ml_json[ "originDomain" ].get_to( ml.originDomain );
+      ml_json[ "requestedTarget" ].get_to( ml.requestedTarget );
+      ml_json[ "name" ].get_to( ml.name );
     }
   }
   // when getting the manifest from disk the origDomain is in the dir name, how to get
 }
 
-void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
+void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, std::string const& rsrc, std::string const& target ) {
   (void)im;
-  (void)rsrc;
-  (void)target;
+  //auto im_file_path  = _directory.path() / ( rsrc + ":" + target ) / "ImageManifest.json";
 
   std::cout << "OCI::Extensions::Dir::fetchManifest Schema2::ImageManifest is not implemented" << std::endl;
+
+  if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( target ) != _dir_map.at( rsrc ).end() ) {
+    std::cout << "_dir_map[ " << rsrc << " ][ " << target << " ] = " << _dir_map[ rsrc ][ target ].path() << std::endl;
+  }
 }
 
 void OCI::Extensions::Dir::putManifest( const Schema1::ImageManifest& im, const std::string& target ) {
@@ -197,6 +218,11 @@ void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::st
 
 
   nlohmann::json manifest_list_json = ml;
+
+  // Output the Extensions for later reads
+  manifest_list_json[ "originDomain" ]    = ml.originDomain;
+  manifest_list_json[ "requestedTarget" ] = ml.requestedTarget;
+  manifest_list_json[ "name" ]            = ml.name;
 
   bool complete = true;
 
@@ -223,6 +249,11 @@ void OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
   auto image_manifest_path = image_dir_path.path() / "ImageManifest.json";
 
   nlohmann::json image_manifest_json = im;
+
+  // Output the Extensions for later reads
+  image_manifest_json[ "originDomain" ]    = im.originDomain;
+  image_manifest_json[ "requestedTarget" ] = im.requestedTarget;
+  image_manifest_json[ "name" ]            = im.name;
 
   //TODO: validate each blob prior to write (existance and sha256 is correct)
 
