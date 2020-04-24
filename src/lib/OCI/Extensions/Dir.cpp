@@ -38,8 +38,7 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
   //  and generate a memory map tree for later use
   for ( auto const& path_part : std::filesystem::recursive_directory_iterator( _directory ) ) {
     if ( path_part.path().parent_path().compare( _directory.path() ) != 0 ) {
-      auto path_part_str = path_part.path().string();
-      auto repo_str = path_part_str.substr( _directory.path().string().size() + 1 );
+      auto repo_str = path_part.path().filename().string();
 
       if ( path_part.is_directory() ) {
         if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
@@ -56,7 +55,7 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
 
           _dir_map[ repo_name ][ target ] = path_part;
         }
-      } else if ( path_part_str.find( "sha" ) != std::string::npos and path_part_str.find( "json" ) == std::string::npos ) {
+      } else if ( repo_str.find( "sha" ) != std::string::npos ) {
         // Blobs
         auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
         auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
