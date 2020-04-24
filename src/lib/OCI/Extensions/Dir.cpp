@@ -33,11 +33,15 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
 
   std::set< std::string > repos;
   
+  // Two fold
+  //  generate a '_catalog' like responce
+  //  and generate a memory map tree for later use
   for ( auto const& path_part : std::filesystem::recursive_directory_iterator( _directory ) ) {
     if ( path_part.path().parent_path().compare( _directory.path() ) != 0 ) {
-      if ( path_part.is_directory() ) {
-        auto repo_str = path_part.path().string().substr( _directory.path().string().size() + 1 );
+      auto path_part_str = path_part.path().string();
+      auto repo_str = path_part_str.substr( _directory.path().string().size() + 1 );
 
+      if ( path_part.is_directory() ) {
         if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
           auto tag       = repo_str.substr( repo_str.find( ':' ) + 1 );
           auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
@@ -50,41 +54,57 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
           auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
           auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
 
-          std::cout << "_dir_map[ " << repo_name << " ][ " << target << " ] = " << path_part.path() << std::endl;
           _dir_map[ repo_name ][ target ] = path_part;
         }
+      } else if ( path_part_str.find( "sha" ) != std::string::npos and path_part_str.find( "json" ) == std::string::npos ) {
+        // Blobs
+        auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
+        auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
+
+        _dir_map[ repo_name ][ target ] = path_part;
       }
     }
   }
 
-  for ( auto const& repo : repos ) {
-    retVal.repositories.push_back( repo );
-  }
+  retVal.repositories.resize( repos.size() );
+  std::copy( repos.begin(), repos.end(), retVal.repositories.begin() );
 
   return retVal;
 }
 
 void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
-  (void)rsrc;
-  (void)sha;
+  if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( sha ) != _dir_map.at( rsrc ).end() ) {
+    auto image_path = _dir_map[ rsrc ][ sha ].path();
 
-  std::cout << "OCI::Extensions::Dir::fetchBlob is not implemented" << std::endl;
+    std::ifstream blob( image_path, std::ios::binary );
+    std::vector< uint8_t > buf( 4096 );
 
-  call_back( "hello world", 12 ); // NOLINT
+    while ( blob.good() ) {
+      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() );
+      size_t readcount = blob.gcount();
+      call_back( reinterpret_cast< const char * >( buf.data() ), readcount );
+    }
+  }
 }
 
 auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
   (void)im;
   (void)sha;
 
-  std::cout << "OCI::Extensions::Dir::hasBlob Schema1::ImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::hasBlob Schema1::ImageManifest is not implemented" << std::endl;
 
   return false;
 }
 
 auto OCI::Extensions::Dir::hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool {
   bool retVal     = false;
-  auto image_path = _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target / sha;
+  std::filesystem::path image_path;
+
+  if ( _dir_map.empty() ) {
+    image_path = _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target / sha;
+  } else if ( _dir_map.find( im.name ) != _dir_map.end() and _dir_map.at( im.name ).find( target ) != _dir_map.at( im.name ).end() ) {
+    image_path = _dir_map[ im.name ][ target ].path() / sha;
+  }
 
   if ( std::filesystem::exists( image_path ) ) {
     auto sha256( Botan::HashFunction::create( "SHA-256" ) );
@@ -120,7 +140,7 @@ void OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std:
   (void)blob_part;
   (void)blob_part_size;
 
-  std::cout << "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" << std::endl;
 }
 
 void OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
@@ -146,7 +166,7 @@ void OCI::Extensions::Dir::fetchManifest( Schema1::ImageManifest& im, const std:
   (void)rsrc;
   (void)target;
 
-  std::cout << "OCI::Extensions::Dir::fetchManifest Schema1::ImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::fetchManifest Schema1::ImageManifest is not implemented" << std::endl;
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
@@ -154,46 +174,50 @@ void OCI::Extensions::Dir::fetchManifest( Schema1::SignedImageManifest& sim, con
   (void)rsrc;
   (void)target;
 
-  std::cout << "OCI::Extensions::Dir::fetchManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::fetchManifest Schema1::SignedImageManifest is not implemented" << std::endl;
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
   // Expectation is we are in <base>/<domain> dir with a sub-tree of <repo>:<tags>
-  auto ml_file_path  = _directory.path() / ( rsrc + ":" + target ) / "ManifestList.json";
-  auto ver_file_path = _directory.path() / ( rsrc + ":" + target ) / "Version";
 
-  std::cout << "OCI::Extensions::Dir::fetchManifest Schema2::ManifestList" << std::endl;
-  if ( not _dir_map.empty() ) {
-    std::cout << _dir_map[ rsrc ][ target ].path() << std::endl;
-  }
+  if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( target ) != _dir_map.at( rsrc ).end() ) {
+    auto ml_file_path  = _dir_map[ rsrc ][ target ].path() / "ManifestList.json";
+    auto ver_file_path = _dir_map[ rsrc ][ target ].path() / "Version";
 
-  if ( std::filesystem::exists( ver_file_path ) ) {
-    std::ifstream ver_file( ver_file_path );
-    ver_file >> ml.schemaVersion;
+    if ( std::filesystem::exists( ver_file_path ) ) {
+      std::ifstream ver_file( ver_file_path );
+      ver_file >> ml.schemaVersion;
 
-    if ( ml.schemaVersion == 2 and std::filesystem::exists( ml_file_path ) ) {
-      nlohmann::json ml_json;
-      std::ifstream ml_file( ml_file_path );
-      ml_file >> ml_json;
+      if ( ml.schemaVersion == 2 and std::filesystem::exists( ml_file_path ) ) {
+        nlohmann::json ml_json;
+        std::ifstream ml_file( ml_file_path );
+        ml_file >> ml_json;
 
-      ml_json.get_to( ml );
+        ml_json.get_to( ml );
 
-      ml_json[ "originDomain" ].get_to( ml.originDomain );
-      ml_json[ "requestedTarget" ].get_to( ml.requestedTarget );
-      ml_json[ "name" ].get_to( ml.name );
+        ml_json[ "originDomain" ].get_to( ml.originDomain );
+        ml_json[ "requestedTarget" ].get_to( ml.requestedTarget );
+        ml_json[ "name" ].get_to( ml.name );
+      }
     }
   }
-  // when getting the manifest from disk the origDomain is in the dir name, how to get
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, std::string const& rsrc, std::string const& target ) {
-  (void)im;
-  //auto im_file_path  = _directory.path() / ( rsrc + ":" + target ) / "ImageManifest.json";
-
-  std::cout << "OCI::Extensions::Dir::fetchManifest Schema2::ImageManifest is not implemented" << std::endl;
-
   if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( target ) != _dir_map.at( rsrc ).end() ) {
-    std::cout << "_dir_map[ " << rsrc << " ][ " << target << " ] = " << _dir_map[ rsrc ][ target ].path() << std::endl;
+    auto im_file_path = _dir_map[ rsrc ][ target ].path() / "ImageManifest.json";
+
+    if ( std::filesystem::exists( im_file_path ) ) {
+      nlohmann::json im_json;
+      std::ifstream im_file( im_file_path );
+      im_file >> im_json;
+
+      im_json.get_to( im );
+
+      im_json[ "originDomain" ].get_to( im.originDomain );
+      im_json[ "requestedTarget" ].get_to( im.requestedTarget );
+      im_json[ "name" ].get_to( im.name );
+    }
   }
 }
 
@@ -201,14 +225,14 @@ void OCI::Extensions::Dir::putManifest( const Schema1::ImageManifest& im, const 
   (void)im;
   (void)target;
 
-  std::cout << "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented" << std::endl;
 }
 
 void OCI::Extensions::Dir::putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) {
   (void)sim;
   (void)target;
 
-  std::cout << "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
 }
 
 void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::string const& target ) {
