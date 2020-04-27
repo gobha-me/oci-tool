@@ -55,13 +55,14 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     auto tagList( std::string const& rsrc ) -> Tags override;
 
+    auto ping() -> bool;
     auto pingResource( std::string const& rsrc ) -> bool;
   protected:
     auto authHeaders() -> httplib::Headers; 
     auto authExpired() -> bool;
     auto fetchManifest( const std::string &mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response >;
   private:
-    std::shared_ptr< httplib::SSLClient >  _cli;
+    std::shared_ptr< httplib::Client > _cli;
     std::string _domain;
     std::string _username;
     std::string _password;

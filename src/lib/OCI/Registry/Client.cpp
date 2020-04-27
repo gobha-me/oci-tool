@@ -1,6 +1,7 @@
 #include <OCI/Registry/Client.hpp>
 #include <sstream>
-constexpr std::uint16_t SSL_PORT = 443;
+constexpr std::uint16_t SSL_PORT    = 443;
+constexpr std::uint16_t DOCKER_PORT = 5000;
 
 enum class HTTP_CODE {
   OK              = 200,
@@ -40,18 +41,26 @@ OCI::Registry::Client::Client( std::string const& location ) {
   }
 
   _domain = _resource.substr( 0, _resource.find( '/' ) );
+  auto domain = _domain;
   
   // in uri docker will translate to https
   // if docker.io use registry-1.docker.io as the site doesn't redirect
   if ( _domain == "docker.io" ) {
     // either docker.io should work, or they should have a proper redirect implemented
-    _cli = std::make_shared< httplib::SSLClient >( "registry-1.docker.io", SSL_PORT );
-  } else {
-    _cli = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
+    domain = "registry-1.docker.io";
   }
 
+  _cli = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
 
-  std::cout << _domain << std::endl;                                 
+  if ( not ping() ) {
+    _cli = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+
+    if ( not ping() ) {
+      std::cerr << domain << " does not respond to the V2 API" << std::endl;
+      _cli = nullptr;
+    }
+  }
+
   _cli->set_follow_location( true );
 }
 
@@ -60,7 +69,6 @@ OCI::Registry::Client::Client( std::string const& location,
                                std::string password ) : Client( location ) {
   _username = std::move( username );
   _password = std::move( password );
-  _cli->set_follow_location( true );
 }
 
 // registry.redhat.io does not provide the scope in the Header, so have to generate it and
@@ -407,6 +415,27 @@ auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
   } else {
     std::cerr << "OCI::Registry::Client::tagList " << location << std::endl;
     std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+  }
+
+  return retVal;
+}
+
+auto OCI::Registry::Client::ping() -> bool {
+  bool retVal = true;
+
+  auto res = _cli->Get( "/v2/" );
+
+  if ( res == nullptr ) {
+    retVal = false;
+  } else {
+    switch ( HTTP_CODE( res->status ) ) {
+      case HTTP_CODE::OK:
+        break;
+      case HTTP_CODE::Unauthorized:
+        break;
+      default:
+        retVal = false;
+    }
   }
 
   return retVal;

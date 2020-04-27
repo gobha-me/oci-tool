@@ -68,7 +68,7 @@ auto main( int argc, char ** argv ) -> int {
 
   if ( src_proto == "yaml" ) {
     Yaml::Node root_node; // need a new Yaml parser, this one doesn't follow C++ Iterator standards, which breaks range loops and the STL algorithms
-    Yaml::Parse( root_node, src_location.c_str() ); // c-string for filename, std::string for a string to parse, WTF
+    Yaml::Parse( root_node, src_location.c_str() ); // c-string for filename, std::string for a string to parse, WTF, should be two different functions
 
     for ( auto source_node = root_node.Begin(); source_node != root_node.End(); source_node++ ) {
       auto domain       = (*source_node).first;
