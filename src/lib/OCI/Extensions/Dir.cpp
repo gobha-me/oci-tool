@@ -8,13 +8,12 @@
 
 OCI::Extensions::Dir::Dir() = default;
 OCI::Extensions::Dir::Dir( std::string const& directory ) {
-  auto dir            = directory;
-  auto trailing_slash = dir.find_last_of( '/' );
+  auto trailing_slash = directory.find_last_of( '/' );
 
-  if ( trailing_slash == dir.size() - 1 ) {
-    _directory = std::filesystem::directory_entry( dir.substr( 0, trailing_slash ) );
+  if ( trailing_slash == directory.size() - 1 ) {
+    _directory = std::filesystem::directory_entry( directory.substr( 0, trailing_slash ) );
   } else {
-    _directory = std::filesystem::directory_entry( dir );
+    _directory = std::filesystem::directory_entry( directory );
   }
 
   if ( not ( _directory.exists() or _directory.is_directory() ) ) {
@@ -32,6 +31,8 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
   //    - subtree of digest with ImageManifests and blobs (Schemav2 only)
 
   std::set< std::string > repos;
+
+  std::cout << "OCI::Extensions::Dir::catalog" << std::endl;
   
   // Two fold
   //  generate a '_catalog' like responce
@@ -41,6 +42,8 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
       auto repo_str = path_part.path().filename().string();
 
       if ( path_part.is_directory() ) {
+        repo_str = path_part.path().string().substr( _directory.path().string().size() + 1 ); // + 1 to remove trailing slash
+
         if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
           auto tag       = repo_str.substr( repo_str.find( ':' ) + 1 );
           auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
@@ -74,14 +77,15 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
 void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
   if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( sha ) != _dir_map.at( rsrc ).end() ) {
     auto image_path = _dir_map[ rsrc ][ sha ].path();
+    constexpr auto BUFFSIZE = 4096;
 
     std::ifstream blob( image_path, std::ios::binary );
-    std::vector< uint8_t > buf( 4096 );
+    std::vector< uint8_t > buf( BUFFSIZE );
 
     while ( blob.good() ) {
-      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() );
+      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() ); // NOLINT
       size_t readcount = blob.gcount();
-      call_back( reinterpret_cast< const char * >( buf.data() ), readcount );
+      call_back( reinterpret_cast< const char * >( buf.data() ), readcount ); // NOLINT
     }
   }
 }
@@ -106,19 +110,20 @@ auto OCI::Extensions::Dir::hasBlob( const Schema2::ImageManifest& im, const std:
   }
 
   if ( std::filesystem::exists( image_path ) ) {
+    constexpr auto BUFFSIZE = 2048;
     auto sha256( Botan::HashFunction::create( "SHA-256" ) );
     std::ifstream blob( image_path, std::ios::binary );
-    std::vector< uint8_t > buf( 2048 );
+    std::vector< uint8_t > buf( BUFFSIZE );
 
     while ( blob.good() ) {
-      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() );
+      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() ); // NOLINT
       size_t readcount = blob.gcount();
       sha256->update( buf.data(), readcount );
     }
 
     std::string sha256_str = Botan::hex_encode( sha256->final() );
     std::for_each( sha256_str.begin(), sha256_str.end(), []( char & c ) {
-        c = std::tolower( c );
+        c = std::tolower( c ); // NOLINT - narrowing waring, but unsigned char for the lambda doesn't build, so which is it
       } );
 
     if ( sha == "sha256:" + sha256_str ) {
@@ -148,6 +153,7 @@ void OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
                                     std::uintmax_t                total_size,
                                     const char*                   blob_part,
                                     uint64_t                      blob_part_size ) {
+  (void)total_size;
   auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
   auto image_path     = image_dir_path.path() / blob_sha;
 
@@ -235,6 +241,7 @@ void OCI::Extensions::Dir::putManifest( const Schema1::SignedImageManifest& sim,
 }
 
 void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::string const& target ) {
+  (void)target;
   auto manifest_list_dir_path = std::filesystem::directory_entry( _directory.path() / ml.originDomain / ( ml.name + ":" + ml.requestedTarget ) );
   auto manifest_list_path     = manifest_list_dir_path.path() / "ManifestList.json";
   auto version_path           = manifest_list_dir_path.path() / "Version";

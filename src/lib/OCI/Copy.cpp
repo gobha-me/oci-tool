@@ -40,6 +40,8 @@ void OCI::Copy( const Schema2::ManifestList& manifest_list, const std::string& t
 void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.name, target );
 
+  std::cerr << image_manifest.name << std::endl;
+
   if ( image_manifest != dest_image_manifest ) { // always returns false for dir destination, do we care?
     for ( auto const& layer: image_manifest.layers ) {
       if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {

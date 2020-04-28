@@ -20,4 +20,5 @@ On the TODO list
 - Picking and implementing an error/logging solution, to throw or not to throw
 - Implement Manifest v2 Schema 1 methods for images that do not have the modern Schema 2 manifests
 - Implement asynchronous copies blobs/manifests
+- Source and Destination is very seperate, this disallows at the moment doing a resume (per the API) on either side
 - Tests????

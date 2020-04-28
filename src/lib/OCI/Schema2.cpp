@@ -117,20 +117,22 @@ void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList::Manifest& mlm
 }
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest& im ) {
-  j.at( "schemaVersion" ).get_to( im.schemaVersion );
+  if ( j.find( "schemaVersion" ) != j.end() ) {
+    j.at( "schemaVersion" ).get_to( im.schemaVersion );
 
-  if ( j.find( "mediaType" ) != j.end() ) {
-    j.at( "mediaType" ).get_to( im.mediaType );
-  }
+    if ( j.find( "mediaType" ) != j.end() ) {
+      j.at( "mediaType" ).get_to( im.mediaType );
+    }
 
-  if ( j.find( "config" ) != j.end() ) {
-    j.at( "config" ).at( "mediaType" ).get_to( im.config.mediaType );
-    j.at( "config" ).at( "size" ).get_to( im.config.size );
-    j.at( "config" ).at( "digest" ).get_to( im.config.digest );
-  }
+    if ( j.find( "config" ) != j.end() ) {
+      j.at( "config" ).at( "mediaType" ).get_to( im.config.mediaType );
+      j.at( "config" ).at( "size" ).get_to( im.config.size );
+      j.at( "config" ).at( "digest" ).get_to( im.config.digest );
+    }
 
-  if ( j.find( "layers" ) != j.end() ) {
-    im.layers = j.at( "layers" ).get< std::vector< ImageManifest::Layer > >();
+    if ( j.find( "layers" ) != j.end() ) {
+      im.layers = j.at( "layers" ).get< std::vector< ImageManifest::Layer > >();
+    }
   }
 }
 

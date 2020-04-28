@@ -1,5 +1,6 @@
 #include <OCI/Registry/Client.hpp>
 #include <sstream>
+
 constexpr std::uint16_t SSL_PORT    = 443;
 constexpr std::uint16_t DOCKER_PORT = 5000;
 
@@ -21,15 +22,17 @@ enum class HTTP_CODE {
   Service_Unavail = 503,
 };
 
-auto splitLocation( std::string location ) -> std::tuple< std::string, std::string > { // this should have a third, assuming https proto across the board
+auto splitLocation( std::string location ) -> std::tuple< std::string, std::string, std::string > { // this should have a third, assuming https proto across the board
+  std::string proto;
   std::string domain;
   std::string uri;
 
+  proto    = location.substr( 0, location.find( ':' ) ); // http or https
   location = location.substr( location.find( '/' ) + 2 ); // strip http:// or https://
   domain   = location.substr( 0, location.find( '/' ) );
   uri      = location.substr( location.find( '/' ) );
 
-  return { domain, uri };
+  return { proto, domain, uri };
 }
 
 OCI::Registry::Client::Client() : _cli( nullptr ) {}
@@ -40,7 +43,12 @@ OCI::Registry::Client::Client( std::string const& location ) {
     _resource = _resource.substr( 2 ); // strip the // if exists
   }
 
-  _domain = _resource.substr( 0, _resource.find( '/' ) );
+  if ( _resource.find( '/' ) != std::string::npos ) {
+    _domain = _resource.substr( 0, _resource.find( '/' ) );
+  } else {
+    _domain = _resource;
+  }
+
   auto domain = _domain;
   
   // in uri docker will translate to https
@@ -56,8 +64,7 @@ OCI::Registry::Client::Client( std::string const& location ) {
     _cli = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
 
     if ( not ping() ) {
-      std::cerr << domain << " does not respond to the V2 API" << std::endl;
-      _cli = nullptr;
+      std::cerr << domain << " does not respond to the V2 API (secure/unsecure)" << std::endl;
     }
   }
 
@@ -116,14 +123,17 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string c
   }
 }
 
-auto OCI::Registry::Client::authHeaders() -> httplib::Headers {
+auto OCI::Registry::Client::authHeaders() const -> httplib::Headers {
+  httplib::Headers retVal{};
+
   if ( _ctr.token.empty() ) { // TODO: add test for if valid, based on _ctr.expires_in and _ctr.issued_at
-    return {};
   } else {
-    return {
+    retVal = httplib::Headers{
       { "Authorization", "Bearer " + _ctr.token } // only return this if token is valid
     };
   }
+
+  return retVal;
 }
 
 auto OCI::Registry::Client::catalog() -> OCI::Catalog {
@@ -148,12 +158,17 @@ void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std:
   }
 
   if ( res->has_header( "Location" ) ) {
+    std::string proto;
     std::string domain;
     
-    std::tie( domain, location ) = splitLocation( res->get_header_value( "Location" ) );
+    std::tie( proto, domain, location ) = splitLocation( res->get_header_value( "Location" ) );
 
     if ( domain != _domain ) {
-      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+      if ( proto == "https" ) {
+        client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+      } else {
+        client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+      }
     }
   }
 
@@ -181,12 +196,17 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sh
   }
 
   if ( res->has_header( "Location" ) ) {
+    std::string proto;
     std::string domain;
 
-    std::tie( domain, location ) = splitLocation( res->get_header_value( "Location" ) );
+    std::tie( proto, domain, location ) = splitLocation( res->get_header_value( "Location" ) );
 
     if ( domain != _domain ) {
-      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+      if ( proto == "https" ) {
+        client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+      } else {
+        client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+      }
     }
 
     res = client->Head( location.c_str(), authHeaders() );
@@ -205,6 +225,8 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sh
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool {
+  (void)target;
+
   _cli->set_follow_location( false );
   auto client   = _cli;
   auto location = "/v2/" + im.name + "/blobs/" + sha;
@@ -217,24 +239,35 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std
   }
 
   if ( res->has_header( "Location" ) ) {
+    std::string proto;
     std::string domain;
 
-    std::tie( domain, location ) = splitLocation( res->get_header_value( "Location" ) );
+    std::tie( proto, domain, location ) = splitLocation( res->get_header_value( "Location" ) );
 
     if ( domain != _domain ) {
-      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+      if ( proto == "https" ) {
+        client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+      } else {
+        client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+      }
     }
   }
 
   res = client->Head( location.c_str(), authHeaders() );
-
-  if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
-    std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
-    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
-    for ( auto const& header : res->headers ) {
-      std::cerr << header.first << " -> " << header.second << std::endl;
-    }
+  
+  switch ( HTTP_CODE( res->status ) ) {
+    case HTTP_CODE::OK:
+    case HTTP_CODE::Found:
+    case HTTP_CODE::Not_Found: // Common if not yet pushed images so it created a lot of noise
+      break;
+    default:
+      std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
+      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+      for ( auto const& header : res->headers ) {
+        std::cerr << header.first << " -> " << header.second << std::endl;
+      }
   }
+
   _cli->set_follow_location( true );
 
   return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
@@ -267,107 +300,83 @@ void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im,
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  auto res = fetchManifest( im.mediaType, rsrc, target );
+  auto json_body = fetchManifest( im.mediaType, rsrc, target );
 
-  if ( res != nullptr ) {
-    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-      nlohmann::json::parse( res->body ).get_to( im );
+  json_body.get_to( im );
 
-      if ( im.name.empty() ) {
-        im.name = rsrc;
-      }
-
-      im.originDomain = _domain; // This is just for sync from a Registry to a Directory
-    } else {
-      std::cerr << "OCI::Registry::Client::fetchManifest Schema1::ImageManifest " << rsrc << " " << target << " " << res->body << std::endl;
-    }
+  if ( im.name.empty() ) {
+    im.name = rsrc;
   }
+
+  im.originDomain = _domain; // This is just for sync from a Registry to a Directory
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
-  auto res = fetchManifest( sim.mediaType, rsrc, target );
+  auto json_body = fetchManifest( sim.mediaType, rsrc, target );
 
-  if ( res != nullptr ) {
-    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-      nlohmann::json::parse( res->body ).get_to( sim );
+  json_body.get_to( sim );
 
-      if ( sim.name.empty() ) {
-        sim.name = rsrc;
-      }
-
-      sim.originDomain = _domain; // This is just for sync from a Registry to a Directory
-    } else {
-      std::cerr << "OCI::Registry::Client::fetchManifest Schema1::SignedImageManifest " << rsrc << " " << target << " " << res->body << std::endl;
-    }
+  if ( sim.name.empty() ) {
+    sim.name = rsrc;
   }
+
+  sim.originDomain = _domain; // This is just for sync from a Registry to a Directory
 }
 
 void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
-  auto res = fetchManifest( ml.mediaType, rsrc, target );
+  auto json_body = fetchManifest( ml.mediaType, rsrc, target );
   _requested_target = target;
 
-  if ( res != nullptr ) {
-    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-      nlohmann::json::parse( res->body ).get_to( ml );
+  json_body.get_to( ml );
 
-      if ( ml.name.empty() ) {
-        ml.name = rsrc;
-      }
-
-      ml.originDomain    = _domain;
-      ml.requestedTarget = _requested_target;
-    } else {
-      std::cerr << "OCI::Registry::Client::fetchManifest Schema2::ManifestList " << rsrc << " " << target << " " << res->body << std::endl;
-    }
+  if ( ml.name.empty() ) {
+    ml.name = rsrc;
   }
+
+  ml.originDomain    = _domain;
+  ml.requestedTarget = _requested_target;
 }
 
 void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  auto res = fetchManifest( im.mediaType, rsrc, target );
+  auto json_body = fetchManifest( im.mediaType, rsrc, target );
 
-  if ( res != nullptr ) {
-    if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
-      try {
-        nlohmann::json::parse( res->body ).get_to( im );
+  json_body.get_to( im );
 
-        if ( im.name.empty() ) {
-          im.name = rsrc;
-        }
-
-        im.originDomain    = _domain; // This is just for sync from a Registry to a Directory
-        im.requestedTarget = _requested_target;
-      } catch ( nlohmann::detail::out_of_range & err ) {
-        std::cerr << "Status: " << res->status << " Body: " << res->body << std::endl;
-        std::cerr << err.what() << std::endl;
-
-        throw;
-      }
-    } else {
-      std::cerr << "OCI::Registry::Client::fetchManifest Schema2::ImageManifest " << rsrc << " " << target << " " << res->body << std::endl;
-    }
+  if ( im.name.empty() ) {
+    im.name = rsrc;
   }
+
+  im.originDomain    = _domain; // This is just for sync from a Registry to a Directory
+  im.requestedTarget = _requested_target;
 }
 
-auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& rsrc, const std::string& target ) -> std::shared_ptr< httplib::Response> {
-  auto location = "/v2/" + rsrc + "/manifests/" + target;
+auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& resource, const std::string& target ) -> nlohmann::json {
+  auto location = "/v2/" + resource + "/manifests/" + target;
   auto headers  = authHeaders();
 
-   headers.emplace( "Accept", mediaType );
+  nlohmann::json retVal;
+
+  headers.emplace( "Accept", mediaType );
 
   auto res = _cli->Get( location.c_str(), headers );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers, "repository:" + rsrc + ":pull" ); // auth modifies the headers, so should auth return headers???
-    headers = authHeaders();
-    headers.emplace( "Accept", mediaType );
+  switch ( HTTP_CODE( res->status ) ) {
+    case HTTP_CODE::Unauthorized:
+      auth( res->headers, "repository:" + resource + ":pull" ); // auth modifies the headers, so should auth return headers???
 
-    res = _cli->Get( location.c_str(), headers );
-  } else if ( HTTP_CODE( res->status ) != HTTP_CODE::OK ) {
-    std::cerr << "OCI::Registry::Client::fetchManifest " << location << std::endl;
-    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+      retVal = fetchManifest( mediaType, resource, target ); // Hopefully this doesn't spiral into an infinite auth loop
+      break;
+    case HTTP_CODE::OK:
+      std::cout << "Changing where the parsing happens to reduce code and where errors can occur" << std::endl;
+      retVal = nlohmann::json::parse( res->body );
+    case HTTP_CODE::Not_Found:
+      break;
+    default:
+      std::cerr << "OCI::Registry::Client::fetchManifest " << location << std::endl;
+      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
   }
 
-  return res;
+  return retVal;
 }
 
 void OCI::Registry::Client::putManifest( const Schema1::ImageManifest& im, const std::string& target ) {
@@ -425,17 +434,23 @@ auto OCI::Registry::Client::ping() -> bool {
 
   auto res = _cli->Get( "/v2/" );
 
-  if ( res == nullptr ) {
+  if ( res == nullptr ) { // Most likely an invalid domain or port
     retVal = false;
   } else {
-    switch ( HTTP_CODE( res->status ) ) {
-      case HTTP_CODE::OK:
-        break;
-      case HTTP_CODE::Unauthorized:
-        break;
-      default:
+    if ( res->has_header( "Docker-Distribution-Api-Version" ) ) {
+      if ( res->get_header_value( "Docker-Distribution-Api-Version" ) != "registry/2.0" ) {
         retVal = false;
+      }
+    } else {
+      retVal = false;
     }
+//    switch ( HTTP_CODE( res->status ) ) {
+//      case HTTP_CODE::OK:
+//      case HTTP_CODE::Unauthorized:
+//        break;
+//      default:
+//        retVal = false;
+//    }
   }
 
   return retVal;

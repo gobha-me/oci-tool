@@ -16,14 +16,6 @@
 namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
   class Client : public Base::Client {
   public:
-    struct TokenResponse {
-      std::string token;
-      //std::string access_token; part of the proto, but supposed to equal token
-      std::chrono::seconds expires_in;
-      std::chrono::system_clock::time_point issued_at;
-      std::string refresh_token;
-    };
-  public:
     Client();
     explicit Client( std::string const& location );
     Client( std::string const& location, std::string username, std::string password );
@@ -48,19 +40,27 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     void fetchManifest( Schema2::ManifestList& ml,         std::string const& rsrc, std::string const& target ) override;
     void fetchManifest( Schema2::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
 
-    void putManifest( const Schema1::ImageManifest& im,        const std::string& target ) override;
-    void putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) override;
-    void putManifest( const Schema2::ManifestList& ml,         const std::string& target ) override;
-    void putManifest( const Schema2::ImageManifest& im,        const std::string& target ) override;
+    void putManifest( Schema1::ImageManifest const& im,        std::string const& target ) override;
+    void putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) override;
+    void putManifest( Schema2::ManifestList const& ml,         std::string const& target ) override;
+    void putManifest( Schema2::ImageManifest const& im,        std::string const& target ) override;
 
     auto tagList( std::string const& rsrc ) -> Tags override;
 
     auto ping() -> bool;
     auto pingResource( std::string const& rsrc ) -> bool;
+
+    struct TokenResponse {
+      std::string token;
+      //std::string access_token; part of the proto, but supposed to equal token, undefined behavior otherwise
+      std::chrono::seconds expires_in;
+      std::chrono::system_clock::time_point issued_at;
+      std::string refresh_token;
+    };
   protected:
-    auto authHeaders() -> httplib::Headers; 
+    [[nodiscard]] auto authHeaders() const -> httplib::Headers; 
     auto authExpired() -> bool;
-    auto fetchManifest( const std::string &mediaType, const std::string& resource, const std::string& target ) -> std::shared_ptr< httplib::Response >;
+    auto fetchManifest( const std::string &mediaType, const std::string& resource, const std::string& target ) -> nlohmann::json;
   private:
     std::shared_ptr< httplib::Client > _cli;
     std::string _domain;
