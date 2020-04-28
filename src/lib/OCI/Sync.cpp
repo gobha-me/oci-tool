@@ -4,7 +4,6 @@ void OCI::Sync( OCI::Base::Client* src, OCI::Base::Client* dest ) {
   auto const& catalog = src->catalog();
 
   for ( auto const& repo : catalog.repositories ) {
-    std::cout << repo << std::endl;
     auto const& tagList = src->tagList( repo );
 
     Sync( repo, tagList.tags, src, dest );

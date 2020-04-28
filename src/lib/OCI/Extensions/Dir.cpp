@@ -39,11 +39,9 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
   //  and generate a memory map tree for later use
   for ( auto const& path_part : std::filesystem::recursive_directory_iterator( _directory ) ) {
     if ( path_part.path().parent_path().compare( _directory.path() ) != 0 ) {
-      auto repo_str = path_part.path().filename().string();
+      auto repo_str = path_part.path().string().substr( _directory.path().string().size() + 1 ); // + 1 to remove trailing slash
 
       if ( path_part.is_directory() ) {
-        repo_str = path_part.path().string().substr( _directory.path().string().size() + 1 ); // + 1 to remove trailing slash
-
         if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
           auto tag       = repo_str.substr( repo_str.find( ':' ) + 1 );
           auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
@@ -123,7 +121,7 @@ auto OCI::Extensions::Dir::hasBlob( const Schema2::ImageManifest& im, const std:
 
     std::string sha256_str = Botan::hex_encode( sha256->final() );
     std::for_each( sha256_str.begin(), sha256_str.end(), []( char & c ) {
-        c = std::tolower( c ); // NOLINT - narrowing waring, but unsigned char for the lambda doesn't build, so which is it
+        c = std::tolower( c ); // NOLINT - narrowing warning, but unsigned char for the lambda doesn't build, so which is it
       } );
 
     if ( sha == "sha256:" + sha256_str ) {

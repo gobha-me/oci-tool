@@ -273,19 +273,23 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std
   return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
 }
 
-void OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+void OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im,
+                                     const std::string& target,
+                                     std::uintmax_t total_size,
+                                     const char * blob_part,
+                                     uint64_t blob_part_size ) {
   (void)im;
   (void)target;
   (void)total_size;
   (void)blob_part;
   (void)blob_part_size;
 
-  std::cout << "OCI::Registry::Client::putBlob Schema1::ImageManifest not Not_Implemented" << std::endl;
+  std::cout << "OCI::Registry::Client::putBlob Schema1::ImageManifest Not_Implemented" << std::endl;
 }
 
-void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im,
-                                     const std::string& target,
-                                     const SHA256& blob_sha,
+void OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
+                                     std::string const& target,
+                                     SHA256 const& blob_sha,
                                      std::uintmax_t total_size,
                                      const char * blob_part,
                                      uint64_t blob_part_size ) {
@@ -296,7 +300,40 @@ void OCI::Registry::Client::putBlob( const Schema2::ImageManifest& im,
   (void)blob_part;
   (void)blob_part_size;
 
-  std::cout << "OCI::Registry::Client::putBlob Schema2::ImageManifest not Not_Implemented" << std::endl;
+  std::cout << "OCI::Registry::Client::putBlob Schema2::ImageManifest Not_Implemented" << std::endl;
+  
+  // Initiate Resumable Blob Upload
+  // POST /v2/<name>/blobs/uploads/
+  // HEADERS
+  //  HOST: <registry host>
+  //  Authorization: <scheme> <token> // so far Bearer
+  //  Content-Length: 0
+
+  // Response
+  // 202 Accepted
+  // Content-Length: 0
+  // Location: /v2/<name>/blobs/uploads/<uuid> // expecting this to include <proto>://<domain> optionally
+  // Range: 0-0
+  // Docker-Upload-UUID: <uuid>
+  //
+  // On Failure will receive Status 400 Bad Request
+
+  // Chunked upload
+  // PATCH /v2/<name>/blobs/uploads/<uuid>
+  // HEADERS
+  //  Host: <registry host>
+  //  Authorization: <scheme> <token>
+  //  Content-Range: <start of range>-<end of range, inclusive>
+  //  Content-Length: <length of chuck>
+  //  Content-Type: application/octet-streme
+  // BODY
+  //  <binary chunk>
+  
+  // Questions:
+  //  Did we already start an upload?
+  //  How do we know?
+  //  Range, WTF is that (sarcasm), how to compute and track?
+  //  A lot of failure points, should I change the putBlob interface to return bool now? Quit the upload on false
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
@@ -367,7 +404,6 @@ auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const s
       retVal = fetchManifest( mediaType, resource, target ); // Hopefully this doesn't spiral into an infinite auth loop
       break;
     case HTTP_CODE::OK:
-      std::cout << "Changing where the parsing happens to reduce code and where errors can occur" << std::endl;
       retVal = nlohmann::json::parse( res->body );
     case HTTP_CODE::Not_Found:
       break;
