@@ -72,7 +72,9 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
   return retVal;
 }
 
-void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
+auto OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool {
+  bool retVal = true;
+
   if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( sha ) != _dir_map.at( rsrc ).end() ) {
     auto image_path = _dir_map[ rsrc ][ sha ].path();
     constexpr auto BUFFSIZE = 4096;
@@ -80,12 +82,14 @@ void OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::
     std::ifstream blob( image_path, std::ios::binary );
     std::vector< uint8_t > buf( BUFFSIZE );
 
-    while ( blob.good() ) {
+    while ( blob.good() and retVal ) {
       blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() ); // NOLINT
       size_t readcount = blob.gcount();
-      call_back( reinterpret_cast< const char * >( buf.data() ), readcount ); // NOLINT
+      retVal = call_back( reinterpret_cast< const char * >( buf.data() ), readcount ); // NOLINT
     }
   }
+
+  return retVal;
 }
 
 auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
@@ -135,7 +139,7 @@ auto OCI::Extensions::Dir::hasBlob( const Schema2::ImageManifest& im, const std:
   return retVal;
 }
 
-void OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) {
+auto OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std::string& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool {
   (void)im;
   (void)target;
   (void)total_size;
@@ -143,14 +147,16 @@ void OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std:
   (void)blob_part_size;
 
   std::cerr << "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" << std::endl;
+
+  return false;
 }
 
-void OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
+auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
                                     std::string const&            target,
                                     SHA256 const&                 blob_sha,
                                     std::uintmax_t                total_size,
                                     const char*                   blob_part,
-                                    uint64_t                      blob_part_size ) {
+                                    uint64_t                      blob_part_size ) -> bool {
   (void)total_size;
   auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
   auto image_path     = image_dir_path.path() / blob_sha;
@@ -162,6 +168,8 @@ void OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
   std::ofstream blob( image_path, std::ios::app | std::ios::binary );
   
   blob.write( blob_part, blob_part_size );
+
+  return true; // FIXME: Need to return based on the disk write, is disk full, permission denied, or other issue
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {

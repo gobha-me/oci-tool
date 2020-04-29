@@ -8,21 +8,19 @@
 namespace OCI::Extensions {
   class Dir : public OCI::Base::Client {
     public:
-      using SHA256 = std::string; // kinda preemptive, incase this becomes a real type
-    public:
       Dir();
       explicit Dir( std::string const & directory ); // this would be the base path
       ~Dir() override = default;
 
       auto catalog() -> OCI::Catalog override;
 
-      void fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) override; // To where
+      auto fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool override;
 
       auto hasBlob( Schema1::ImageManifest const& im, SHA256 sha ) -> bool override;
       auto hasBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 sha ) -> bool override;
                                                                        
-      void putBlob( Schema1::ImageManifest const& im, std::string const& target, std::uintmax_t total_size, const char * blob_part,    uint64_t blob_part_size ) override;
-      void putBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 const&  blob_sha,   std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
+      auto putBlob( Schema1::ImageManifest const& im, std::string const& target, std::uintmax_t total_size, const char * blob_part,    uint64_t blob_part_size ) -> bool override;
+      auto putBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 const&  blob_sha,   std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool override;
 
       void fetchManifest( Schema1::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
       void fetchManifest( Schema1::SignedImageManifest& sim, std::string const& rsrc, std::string const& target ) override;

@@ -2,27 +2,30 @@
 #include <sstream>
 
 constexpr std::uint16_t SSL_PORT    = 443;
+constexpr std::uint16_t HTTP_PORT   = 80;
 constexpr std::uint16_t DOCKER_PORT = 5000;
 
 enum class HTTP_CODE {
-  OK              = 200,
-  Created         = 201,
-  Accepted        = 202,
-  Moved           = 301,
-  Found           = 302,
-  Temp_Redirect   = 307,
-  Perm_Redirect   = 308,
-  Bad_Request     = 400,
-  Unauthorized    = 401,
-  Forbidden       = 403,
-  Not_Found       = 404,
-  Inter_Srv_Err   = 500,
-  Not_Implemented = 501,
-  Bad_Gateway     = 502,
-  Service_Unavail = 503,
+  OK                = 200,
+  Created           = 201,
+  Accepted          = 202,
+  No_Content        = 204,
+  Moved             = 301,
+  Found             = 302,
+  Temp_Redirect     = 307,
+  Perm_Redirect     = 308,
+  Bad_Request       = 400,
+  Unauthorized      = 401,
+  Forbidden         = 403,
+  Not_Found         = 404,
+  Too_Many_Requests = 429,
+  Inter_Srv_Err     = 500,
+  Not_Implemented   = 501,
+  Bad_Gateway       = 502,
+  Service_Unavail   = 503,
 };
 
-auto splitLocation( std::string location ) -> std::tuple< std::string, std::string, std::string > { // this should have a third, assuming https proto across the board
+auto splitLocation( std::string location ) -> std::tuple< std::string, std::string, std::string > {
   std::string proto;
   std::string domain;
   std::string uri;
@@ -35,7 +38,7 @@ auto splitLocation( std::string location ) -> std::tuple< std::string, std::stri
   return { proto, domain, uri };
 }
 
-OCI::Registry::Client::Client() : _cli( nullptr ) {}
+OCI::Registry::Client::Client() : _cli( nullptr ), _patch_cli( nullptr ) {}
 OCI::Registry::Client::Client( std::string const& location ) {
   _resource = location;
 
@@ -58,16 +61,17 @@ OCI::Registry::Client::Client( std::string const& location ) {
     domain = "registry-1.docker.io";
   }
 
-  _cli = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+  _cli  = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
 
   if ( not ping() ) {
-    _cli = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+    _cli  = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
 
     if ( not ping() ) {
       std::cerr << domain << " does not respond to the V2 API (secure/unsecure)" << std::endl;
     }
   }
 
+  _patch_cli = nullptr;
   _cli->set_follow_location( true );
 }
 
@@ -144,8 +148,9 @@ auto OCI::Registry::Client::catalog() -> OCI::Catalog {
   return retVal;
 }
 
-void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) {
+auto OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool {
   _cli->set_follow_location( false );
+  bool retVal = true;
   auto client = _cli;
 
   auto location = std::string( "/v2/" + rsrc + "/blobs/" + sha );
@@ -174,12 +179,19 @@ void OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std:
 
   res = client->Get( location.c_str(), authHeaders(), call_back );
 
-  if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
-    std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
-    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+  switch( HTTP_CODE( res->status ) ) {
+    case HTTP_CODE::OK:
+    case HTTP_CODE::Found:
+      break;
+    default:
+      retVal = false;
+      std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
+      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
   }
 
   _cli->set_follow_location( true );
+
+  return retVal;
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
@@ -273,11 +285,11 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std
   return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
 }
 
-void OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im,
+auto OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im,
                                      const std::string& target,
                                      std::uintmax_t total_size,
                                      const char * blob_part,
-                                     uint64_t blob_part_size ) {
+                                     uint64_t blob_part_size ) -> bool {
   (void)im;
   (void)target;
   (void)total_size;
@@ -285,55 +297,129 @@ void OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im,
   (void)blob_part_size;
 
   std::cout << "OCI::Registry::Client::putBlob Schema1::ImageManifest Not_Implemented" << std::endl;
+
+  return false;
 }
 
-void OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
+auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
                                      std::string const& target,
                                      SHA256 const& blob_sha,
                                      std::uintmax_t total_size,
                                      const char * blob_part,
-                                     uint64_t blob_part_size ) {
-  (void)im;
-  (void)target;
-  (void)blob_sha;
-  (void)total_size;
-  (void)blob_part;
-  (void)blob_part_size;
+                                     uint64_t blob_part_size ) -> bool {
+  bool retVal = false;
 
-  std::cout << "OCI::Registry::Client::putBlob Schema2::ImageManifest Not_Implemented" << std::endl;
-  
-  // Initiate Resumable Blob Upload
-  // POST /v2/<name>/blobs/uploads/
-  // HEADERS
-  //  HOST: <registry host>
-  //  Authorization: <scheme> <token> // so far Bearer
-  //  Content-Length: 0
+  // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
+  auto headers = authHeaders();
+  std::shared_ptr< httplib::Response > res;
 
-  // Response
-  // 202 Accepted
-  // Content-Length: 0
-  // Location: /v2/<name>/blobs/uploads/<uuid> // expecting this to include <proto>://<domain> optionally
-  // Range: 0-0
-  // Docker-Upload-UUID: <uuid>
-  //
-  // On Failure will receive Status 400 Bad Request
+  bool has_error  = false;
+  bool chunk_sent = false;
 
-  // Chunked upload
-  // PATCH /v2/<name>/blobs/uploads/<uuid>
-  // HEADERS
-  //  Host: <registry host>
-  //  Authorization: <scheme> <token>
-  //  Content-Range: <start of range>-<end of range, inclusive>
-  //  Content-Length: <length of chuck>
-  //  Content-Type: application/octet-streme
-  // BODY
-  //  <binary chunk>
-  
-  // Questions:
-  //  Did we already start an upload?
-  //  How do we know?
-  //  Range, WTF is that (sarcasm), how to compute and track?
-  //  A lot of failure points, should I change the putBlob interface to return bool now? Quit the upload on false
+  if ( _patch_location.empty() ) {
+    std::cerr << "Starting upload for Blob " << blob_sha << std::endl;
+    res = _cli->Post( ( "/v2/" + im.name + "/blobs/uploads" ).c_str(), headers, "", "" );
+  } else {
+    headers.emplace( "Host", _domain );
+    res = _patch_cli->Get( ( _patch_location ).c_str(), headers );
+  }
+
+  while ( not retVal and not has_error ) {
+    switch ( HTTP_CODE( res->status ) ) {
+      case HTTP_CODE::Unauthorized:
+        if ( _auth_retry ) {
+          _auth_retry = false;
+
+          auth( res->headers, "repository:" + im.name + ":push" );
+
+          retVal = putBlob( im, target, blob_sha, total_size, blob_part, blob_part_size );
+        } else {
+          _auth_retry = true;
+        }
+
+        break;
+      case HTTP_CODE::Accepted: 
+        {
+          std::string proto;
+          std::string domain;
+          std::uint16_t port = 0;
+
+          std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
+
+          if ( _patch_cli == nullptr ) {
+            if ( proto == "https" ) {
+              port = SSL_PORT;
+            } else {
+              port = HTTP_PORT;
+            }
+
+            auto has_alt_port = domain.find( ':' );
+
+            if ( has_alt_port != std::string::npos ) {
+              port = std::stoul( domain.substr( has_alt_port + 1 ) ); 
+              domain = domain.substr( 0, has_alt_port );
+            }
+
+            if ( proto == "https" ) {
+              _patch_cli = std::make_unique< httplib::SSLClient >( domain, port );
+            } else {
+              _patch_cli = std::make_unique< httplib::Client >( domain, port );
+            }
+          }
+        }
+
+        if ( chunk_sent ) {
+          retVal = true;
+        } else {
+          headers.emplace( "Host", _domain );
+          res = _patch_cli->Get( ( _patch_location ).c_str(), headers );
+        }
+
+        break;
+      case HTTP_CODE::No_Content:
+        if ( chunk_sent ) {
+          has_error = true;
+        } else {
+          chunk_sent       = true;
+          auto range       = res->get_header_value( "Range" );
+          auto last_offset = std::stoul( range.substr( range.find( '-' ) + 1 ) ) + 1;
+
+          headers.emplace( "Content-Range", std::to_string( last_offset ) + "-" + std::to_string( last_offset + blob_part_size ) );
+          headers.emplace( "Content-Length", std::to_string( blob_part_size ) );
+
+          // Not documented, but is part of the API
+          httplib::ContentProvider content_provider = [&]( size_t offset, size_t length, httplib::DataSink &sink ) {
+            std::cout << "BPS: " << blob_part_size << " Offset: " << offset << " Length: " << length << std::endl;
+            (void)offset;
+            (void)length;
+            sink.write( blob_part, blob_part_size );
+          };
+
+          if ( last_offset + blob_part_size < total_size ) {
+            // Patch till close to finish
+            res = _patch_cli->Patch( _patch_location.c_str(), headers, blob_part_size, content_provider, "application/octet-stream"  );
+          } else {
+            // Finalize and label with the digest
+            res = _patch_cli->Put( ( _patch_location + "?digest=" + blob_sha ).c_str(), headers, blob_part_size, content_provider, "application/octet-stream" );
+
+            _patch_cli      = nullptr;
+            _patch_location = "";
+          }
+        }
+
+        break;
+      default:
+        std::cerr << "OCI::Registry::Client::putBlob " << im.name << std::endl;
+        std::cerr << "  Status: " << res->status << std::endl;
+        for ( auto const& header : res->headers ) {
+          std::cerr << header.first << " -> " << header.second << std::endl;
+        }
+        std::cerr << " Body: " << res->body << std::endl;
+        has_error = true;
+    }
+  }
+
+  return retVal;
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
@@ -480,13 +566,6 @@ auto OCI::Registry::Client::ping() -> bool {
     } else {
       retVal = false;
     }
-//    switch ( HTTP_CODE( res->status ) ) {
-//      case HTTP_CODE::OK:
-//      case HTTP_CODE::Unauthorized:
-//        break;
-//      default:
-//        retVal = false;
-//    }
   }
 
   return retVal;

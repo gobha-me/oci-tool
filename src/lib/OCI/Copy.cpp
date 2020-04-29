@@ -28,34 +28,41 @@ void OCI::Copy( const Schema1::ImageManifest& image_manifest, const std::string&
 }
 
 void OCI::Copy( const Schema2::ManifestList& manifest_list, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  bool success = true;
+
   for ( auto const& manifest: manifest_list.manifests ) {
     auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest.digest );
 
-    Copy( image_manifest, manifest.digest, src, dest );
+    success = success and Copy( image_manifest, manifest.digest, src, dest );
   }
 
-  dest->putManifest( manifest_list, target );
+  if ( success ) {
+    dest->putManifest( manifest_list, target );
+  }
 }
 
-void OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+auto OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool {
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.name, target );
+  bool retVal = true;
 
   if ( image_manifest != dest_image_manifest ) { // always returns false for dir destination, do we care? how would we fix?
     for ( auto const& layer: image_manifest.layers ) {
       if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {
         uint64_t data_sent = 0;
         std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
-          // FIXME: putBlob should return a bool, if put blob fails for some reason, need it to bubble to here as return value
           data_sent += data_length;
-          dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
 
-          return true;
+          return dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
         };
 
-        src->fetchBlob( image_manifest.name, layer.digest, call_back );
+        retVal = retVal and src->fetchBlob( image_manifest.name, layer.digest, call_back );
       }
     }
 
-    dest->putManifest( image_manifest, target ); // putManifest defines this
+    if ( retVal ) {
+      dest->putManifest( image_manifest, target ); // putManifest defines this
+    }
   }
+
+  return retVal;
 }

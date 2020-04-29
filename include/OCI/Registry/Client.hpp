@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#define CPPHTTPLIB_OPENSSL_SUPPORT = 1 //NOLINT(cppcoreguidelines-macro-usage) - required for httplib
+#define CPPHTTPLIB_OPENSSL_SUPPORT = 1 //NOLINT(cppcoreguidelines-macro-usage) - required for httplib to enable TLS
 #include <httplib.h> // https://github.com/yhirose/cpp-httplib
 
 namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
@@ -25,13 +25,13 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     auto catalog() -> OCI::Catalog override;
 
-    void fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) override; // To where
+    auto fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool override;
 
     auto hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool override;
     auto hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool override;
 
-    void putBlob( const Schema1::ImageManifest& im, std::string const& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
-    void putBlob( const Schema2::ImageManifest& im, std::string const& target, const SHA256& blob_sha, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) override;
+    auto putBlob( const Schema1::ImageManifest& im, std::string const& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool override;
+    auto putBlob( const Schema2::ImageManifest& im, std::string const& target, const SHA256& blob_sha, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool override;
 
     void inspect( std::string const& rsrc, std::string const& target );
 
@@ -63,12 +63,17 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     auto fetchManifest( const std::string &mediaType, const std::string& resource, const std::string& target ) -> nlohmann::json;
   private:
     std::shared_ptr< httplib::Client > _cli;
+    std::unique_ptr< httplib::Client > _patch_cli;
     std::string _domain;
     std::string _username;
     std::string _password;
     std::string _resource; // <namespace>/<repo name>
     std::string _requested_target; // tag or digest
+    std::string _patch_location;
+    
     TokenResponse _ctr;
+
+    bool _auth_retry = true;
   };
 
   void from_json( nlohmann::json const& j, Client::TokenResponse& ctr );
