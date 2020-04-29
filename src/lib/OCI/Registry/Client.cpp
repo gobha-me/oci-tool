@@ -389,18 +389,19 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
 
           // Not documented, but is part of the API
           httplib::ContentProvider content_provider = [&]( size_t offset, size_t length, httplib::DataSink &sink ) {
-            std::cout << "BPS: " << blob_part_size << " Offset: " << offset << " Length: " << length << std::endl;
             (void)offset;
             (void)length;
             sink.write( blob_part, blob_part_size );
           };
 
-          if ( last_offset + blob_part_size < total_size ) {
-            // Patch till close to finish
-            res = _patch_cli->Patch( _patch_location.c_str(), headers, blob_part_size, content_provider, "application/octet-stream"  );
-          } else {
+          res = _patch_cli->Patch( _patch_location.c_str(), headers, blob_part_size, content_provider, "application/octet-stream"  );
+
+          if ( last_offset + blob_part_size == total_size ) {
+            std::cout << "Size: " << total_size << " Total Sent " << last_offset + blob_part_size << std::endl;
+            headers = authHeaders();
+            headers.emplace( "Content-Length", "0" );
             // Finalize and label with the digest
-            res = _patch_cli->Put( ( _patch_location + "?digest=" + blob_sha ).c_str(), headers, blob_part_size, content_provider, "application/octet-stream" );
+            res = _patch_cli->Put( ( _patch_location + "?digest=" + blob_sha ).c_str(), headers, "", "" );
 
             _patch_cli      = nullptr;
             _patch_location = "";
