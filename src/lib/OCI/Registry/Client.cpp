@@ -570,7 +570,7 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const& im, std::
   auto im_digest( Botan::HashFunction::create( "SHA-256" ) );
   im_digest->update( im_str );
 
-  target = Botan::hex_encode( im_digest->final() );
+  target = "sha256:" + Botan::hex_encode( im_digest->final() );
   std::for_each( target.begin(), target.end(), []( char & c ) {
       c = std::tolower( c ); // NOLINT - narrowing warning, but unsigned char for the lambda doesn't build, so which is it
     } );
