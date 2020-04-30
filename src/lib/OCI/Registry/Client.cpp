@@ -313,8 +313,11 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
   auto headers = authHeaders();
   std::shared_ptr< httplib::Response > res;
 
-  bool has_error  = false;
-  bool chunk_sent = false;
+  bool has_error     = false;
+  bool chunk_sent    = false;
+  std::uint16_t port = 0;
+  std::string proto;
+  std::string domain;
 
   if ( _patch_location.empty() ) {
     std::cerr << "Starting upload for Blob " << blob_sha << std::endl;
@@ -326,6 +329,10 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
 
   while ( not retVal and not has_error ) {
     switch ( HTTP_CODE( res->status ) ) {
+      case HTTP_CODE::Created:
+        retVal = true;
+
+        break;
       case HTTP_CODE::Unauthorized:
         if ( _auth_retry ) {
           _auth_retry = false;
@@ -340,10 +347,6 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
         break;
       case HTTP_CODE::Accepted: 
         {
-          std::string proto;
-          std::string domain;
-          std::uint16_t port = 0;
-
           std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
 
           if ( _patch_cli == nullptr ) {
@@ -397,11 +400,16 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
           res = _patch_cli->Patch( _patch_location.c_str(), headers, blob_part_size, content_provider, "application/octet-stream"  );
 
           if ( last_offset + blob_part_size == total_size ) {
-            std::cout << "Size: " << total_size << " Total Sent " << last_offset + blob_part_size << std::endl;
+            // FIXME: need to add attribute to the class to hold bytes_sent for blob count and comparison, so this could can resume an upload, if the application stops for some reason
+            //        will also allow the tie below to go away as this block can move to the chunk_sent condition and finalize there
+            std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
+            //std::cout << _patch_location + "&digest=" + blob_sha.substr( blob_sha.find( ':' ) + 1 ) << std::endl;
+
             headers = authHeaders();
             headers.emplace( "Content-Length", "0" );
+            headers.emplace( "Content-Type", "application/octet-stream" );
             // Finalize and label with the digest
-            res = _patch_cli->Put( ( _patch_location + "?digest=" + blob_sha ).c_str(), headers, "", "" );
+            res = _patch_cli->Put( ( _patch_location + "&digest=" + blob_sha ).c_str(), headers, "", "application/octet-stream" );
 
             _patch_cli      = nullptr;
             _patch_location = "";
@@ -417,6 +425,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
         }
         std::cerr << " Body: " << res->body << std::endl;
         has_error = true;
+        std::abort();
     }
   }
 
