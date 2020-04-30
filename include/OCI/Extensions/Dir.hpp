@@ -27,10 +27,10 @@ namespace OCI::Extensions {
       void fetchManifest( Schema2::ManifestList& ml,         std::string const& rsrc, std::string const& target ) override;
       void fetchManifest( Schema2::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
 
-      void putManifest( Schema1::ImageManifest const& im,        std::string const& target ) override;
-      void putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) override;
-      void putManifest( Schema2::ManifestList const& ml,         std::string const& target ) override;
-      void putManifest( Schema2::ImageManifest const& im,        std::string const& target ) override;
+      auto putManifest( Schema1::ImageManifest const& im,        std::string const& target ) -> bool override;
+      auto putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) -> bool override;
+      auto putManifest( Schema2::ManifestList const& ml,         std::string const& target ) -> bool override;
+      auto putManifest( Schema2::ImageManifest const& im,        std::string&       target ) -> bool override;
 
       auto tagList( const std::string& rsrc ) -> Tags override;
     protected:

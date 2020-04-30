@@ -1,4 +1,6 @@
 #include <OCI/Registry/Client.hpp>
+#include <botan/hash.h>
+#include <botan/hex.h>
 #include <sstream>
 
 constexpr std::uint16_t SSL_PORT    = 443;
@@ -330,6 +332,8 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
   while ( not retVal and not has_error ) {
     switch ( HTTP_CODE( res->status ) ) {
       case HTTP_CODE::Created:
+        // The API doc says to expect a 204 No Content as the responce to the PUT
+        //   this does make more sense, I hope this is how all the registries respond
         retVal = true;
 
         break;
@@ -399,11 +403,10 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
 
           res = _patch_cli->Patch( _patch_location.c_str(), headers, blob_part_size, content_provider, "application/octet-stream"  );
 
-          if ( last_offset + blob_part_size == total_size ) {
+          if ( last_offset + blob_part_size == total_size or blob_part_size == total_size ) {
             // FIXME: need to add attribute to the class to hold bytes_sent for blob count and comparison, so this could can resume an upload, if the application stops for some reason
             //        will also allow the tie below to go away as this block can move to the chunk_sent condition and finalize there
             std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
-            //std::cout << _patch_location + "&digest=" + blob_sha.substr( blob_sha.find( ':' ) + 1 ) << std::endl;
 
             headers = authHeaders();
             headers.emplace( "Content-Length", "0" );
@@ -425,7 +428,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
         }
         std::cerr << " Body: " << res->body << std::endl;
         has_error = true;
-        std::abort();
+        std::abort(); // FIXME: remove
     }
   }
 
@@ -511,32 +514,91 @@ auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const s
   return retVal;
 }
 
-void OCI::Registry::Client::putManifest( const Schema1::ImageManifest& im, const std::string& target ) {
+auto OCI::Registry::Client::putManifest( const Schema1::ImageManifest& im, const std::string& target ) -> bool {
+  bool retVal = false;
   (void)im;
   (void)target;
 
   std::cout << "OCI::Registry::Client::putManifest Schema1::ImageManifest is not implemented" << std::endl;
+
+  return retVal;
 }
 
-void OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) {
+auto OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) -> bool {
+  bool retVal = false;
   (void)sim;
   (void)target;
 
   std::cout << "OCI::Registry::Client::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+
+  return retVal;
 }
 
-void OCI::Registry::Client::putManifest( const Schema2::ManifestList& ml, const std::string& target ) {
-  (void)ml;
-  (void)target;
+auto OCI::Registry::Client::putManifest( const Schema2::ManifestList& ml, const std::string& target ) -> bool {
+  bool retVal = false;
+  nlohmann::json j( ml );
 
-  std::cout << "OCI::Registry::Client::putManifest Schema2::ManifestList is not implemented" << std::endl;
+  auto res = _cli->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(), ml.mediaType.c_str() );
+
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+    auth( res->headers, "repository:" + ml.name + ":push" );
+
+    res = _cli->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(), ml.mediaType.c_str() );
+  }
+
+  switch( HTTP_CODE( res->status ) ) {
+  case HTTP_CODE::Created:
+    retVal = true;
+    break;
+  default:
+    std::cerr << "OCI::Registry::Client::putManifest Schema2::ImageManifest " << ml.name << std::endl;
+    std::cerr << "  Status: " << res->status << std::endl;
+    for ( auto const& header : res->headers ) {
+      std::cerr << header.first << " -> " << header.second << std::endl;
+    }
+    std::cerr << " Body: " << res->body << std::endl;
+  }
+
+  return retVal;
 }
 
-void OCI::Registry::Client::putManifest( const Schema2::ImageManifest& im, const std::string& target ) {
-  (void)im;
-  (void)target;
+auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const& im, std::string& target ) -> bool {
+  bool retVal = false;
+  nlohmann::json j( im );
 
-  std::cout << "OCI::Registry::Client::putManifest Schema2::ImageManifest is not implemented" << std::endl;
+  auto im_str = j.dump();
+  auto im_digest( Botan::HashFunction::create( "SHA-256" ) );
+  im_digest->update( im_str );
+
+  target = Botan::hex_encode( im_digest->final() );
+  std::for_each( target.begin(), target.end(), []( char & c ) {
+      c = std::tolower( c ); // NOLINT - narrowing warning, but unsigned char for the lambda doesn't build, so which is it
+    } );
+
+  auto res = _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(), im.mediaType.c_str() );
+
+  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+    auth( res->headers, "repository:" + im.name + ":push" );
+
+    res = _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(), im.mediaType.c_str() );
+  }
+
+  switch( HTTP_CODE( res->status ) ) {
+  case HTTP_CODE::Created:
+    retVal = true;
+    break;
+  default:
+    std::cerr << "OCI::Registry::Client::putManifest Schema2::ImageManifest " << im.name << ":" << target << std::endl;
+    std::cerr << "  Status: " << res->status << std::endl;
+    for ( auto const& header : res->headers ) {
+      std::cerr << header.first << " -> " << header.second << std::endl;
+    }
+    std::cerr << " Body: " << res->body << std::endl;
+    std::cerr << j.dump( 2 ) << std::endl;
+    std::abort(); // FIXME: remove
+  }
+
+  return retVal;
 }
 
 auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {

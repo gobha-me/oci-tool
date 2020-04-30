@@ -163,7 +163,10 @@ void OCI::Schema2::to_json( nlohmann::json& j, const  ImageManifest::Layer& iml 
   j = nlohmann::json{
       { "mediaType", iml.mediaType },
       { "size", iml.size },
-      { "digest", iml.digest },
-      { "urls", iml.digest }
+      { "digest", iml.digest }
   };
+
+  if ( not iml.urls.empty() ) {
+    j[ "urls" ] = iml.urls;
+  }
 }

@@ -27,40 +27,51 @@ void OCI::Copy( const Schema1::ImageManifest& image_manifest, const std::string&
   std::cout << "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" << std::endl;
 }
 
-void OCI::Copy( const Schema2::ManifestList& manifest_list, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+void OCI::Copy( Schema2::ManifestList& manifest_list, std::string const& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   bool success = true;
 
-  for ( auto const& manifest: manifest_list.manifests ) {
+  for ( auto& manifest: manifest_list.manifests ) {
     auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest.digest );
 
     success = success and Copy( image_manifest, manifest.digest, src, dest );
   }
 
   if ( success ) {
+    std::cout << "All ImageManifests for ManifestList: " << target << " have been put to target Client." << std::endl;
     dest->putManifest( manifest_list, target );
   }
 }
 
-auto OCI::Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool {
+auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool {
+  bool retVal              = true;
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.name, target );
-  bool retVal = true;
 
-  if ( image_manifest != dest_image_manifest ) { // always returns false for dir destination, do we care? how would we fix?
-    for ( auto const& layer: image_manifest.layers ) {
-      if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {
-        uint64_t data_sent = 0;
-        std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
-          data_sent += data_length;
+  for ( auto const& layer: image_manifest.layers ) {
+    if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {
+      uint64_t data_sent = 0;
+      std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
+        data_sent += data_length;
 
-          return dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
-        };
+        return dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
+      };
 
-        retVal = retVal and src->fetchBlob( image_manifest.name, layer.digest, call_back );
-      }
+      retVal = retVal and src->fetchBlob( image_manifest.name, layer.digest, call_back );
     }
+  }
+
+  if ( retVal ) {
+    uint64_t data_sent = 0;
+    std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
+      data_sent += data_length;
+
+      return dest->putBlob( image_manifest, target, image_manifest.config.digest, image_manifest.config.size, data, data_length );
+    };
+
+    retVal = retVal and src->fetchBlob( image_manifest.name, image_manifest.config.digest, call_back );
 
     if ( retVal ) {
-      dest->putManifest( image_manifest, target ); // putManifest defines this
+      std::cout << "All images for ImageManifest: " << target << " have been put to target Client." << std::endl;
+      retVal = dest->putManifest( image_manifest, target ); // putManifest defines this
     }
   }
 

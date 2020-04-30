@@ -6,11 +6,10 @@
 #include <string>
 
 namespace OCI {
-  void Copy( const std::string& rsrc, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest );
+  void Copy( std::string const& rsrc, std::string const& target, OCI::Base::Client* src, OCI::Base::Client* dest );
 
-  void Copy( const Schema1::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest );
 
-  void Copy( const Schema2::ManifestList& manifest_list, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest );
-
-  auto Copy( const Schema2::ImageManifest& image_manifest, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool;
+  void Copy( Schema1::ImageManifest const& image_manifest, std::string const& target, OCI::Base::Client* src, OCI::Base::Client* dest );
+  void Copy( Schema2::ManifestList&        manifest_list,  std::string const& target, OCI::Base::Client* src, OCI::Base::Client* dest );
+  auto Copy( Schema2::ImageManifest const& image_manifest, std::string& target,       OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool;
 } // namespace OCI

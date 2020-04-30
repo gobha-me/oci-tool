@@ -34,10 +34,10 @@ namespace OCI::Base {
     virtual void fetchManifest( Schema2::ManifestList& ml,         std::string const& rsrc, std::string const& target ) = 0;
     virtual void fetchManifest( Schema2::ImageManifest& im,        std::string const& rsrc, std::string const& target ) = 0;
 
-    virtual void putManifest( Schema1::ImageManifest const& im,        std::string const& target ) = 0;
-    virtual void putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) = 0;
-    virtual void putManifest( Schema2::ManifestList const& ml,         std::string const& target ) = 0;
-    virtual void putManifest( Schema2::ImageManifest const& im,        std::string const& target ) = 0;
+    virtual auto putManifest( Schema1::ImageManifest const& im,        std::string const& target ) -> bool = 0;
+    virtual auto putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) -> bool = 0;
+    virtual auto putManifest( Schema2::ManifestList const& ml,         std::string const& target ) -> bool = 0;
+    virtual auto putManifest( Schema2::ImageManifest const& im,        std::string&       target ) -> bool = 0;
 
     virtual auto tagList( std::string const& rsrc ) -> Tags = 0;
   protected:

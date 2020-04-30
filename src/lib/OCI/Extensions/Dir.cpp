@@ -232,22 +232,29 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, std::strin
   }
 }
 
-void OCI::Extensions::Dir::putManifest( const Schema1::ImageManifest& im, const std::string& target ) {
+auto OCI::Extensions::Dir::putManifest( const Schema1::ImageManifest& im, const std::string& target ) -> bool {
+  bool retVal = true;
   (void)im;
   (void)target;
 
   std::cerr << "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented" << std::endl;
+
+  return retVal;
 }
 
-void OCI::Extensions::Dir::putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) {
+auto OCI::Extensions::Dir::putManifest( const Schema1::SignedImageManifest& sim, const std::string& target ) -> bool {
+  bool retVal = true;
   (void)sim;
   (void)target;
 
   std::cerr << "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+
+  return retVal;
 }
 
-void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::string const& target ) {
+auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::string const& target ) -> bool {
   (void)target;
+  bool retVal                 = true;
   auto manifest_list_dir_path = std::filesystem::directory_entry( _directory.path() / ml.originDomain / ( ml.name + ":" + ml.requestedTarget ) );
   auto manifest_list_path     = manifest_list_dir_path.path() / "ManifestList.json";
   auto version_path           = manifest_list_dir_path.path() / "Version";
@@ -278,9 +285,12 @@ void OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::st
     manifest_list << std::setw( 2 ) << manifest_list_json;
     version       << ml.schemaVersion;
   }
+
+  return retVal;
 }
 
-void OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::string const& target ) {
+auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::string& target ) -> bool {
+  bool retVal              = true;
   auto image_dir_path      = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
   auto image_manifest_path = image_dir_path.path() / "ImageManifest.json";
 
@@ -307,6 +317,8 @@ void OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
 
     image_manifest << std::setw( 2 ) << image_manifest_json;
   }
+
+  return retVal;
 }
 
 auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {
