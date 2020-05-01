@@ -41,6 +41,7 @@ namespace OCI::Extensions {
     private:
       std::filesystem::directory_entry _directory;
       std::map< std::string, Tags >    _tags;
+      // FIXME: make _dir_map a const shared_ptr so can avoid the N copies from threads
       std::map< std::string,
       std::map< std::string, std::filesystem::directory_entry > > _dir_map;
   };

@@ -1,4 +1,6 @@
 #include <OCI/Sync.hpp>
+#include <future>
+#include <vector>
 
 void OCI::Sync( OCI::Base::Client* src, OCI::Base::Client* dest ) {
   auto const& catalog = src->catalog();

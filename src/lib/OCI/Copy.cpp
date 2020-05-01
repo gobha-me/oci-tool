@@ -3,10 +3,11 @@
 #include <vector>
 
 void OCI::Copy( const std::string& rsrc, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  auto manifest_list = Manifest< Schema2::ManifestList >( src, rsrc, target );
+  auto source        = src->copy();
+  auto manifest_list = Manifest< Schema2::ManifestList >( source.get(), rsrc, target );
 
   if ( manifest_list.schemaVersion == 1 ) { // Fall back to Schema1
-    auto image_manifest = Manifest< Schema1::ImageManifest >( src, rsrc, target );
+    auto image_manifest = Manifest< Schema1::ImageManifest >( source.get(), rsrc, target );
 
     Copy( image_manifest, target, src, dest );
   } else {
@@ -33,11 +34,12 @@ void OCI::Copy( Schema2::ManifestList& manifest_list, std::string const& target,
   bool success = true;
   std::vector< std::future< bool > > processes;
 
+  processes.reserve( manifest_list.manifests.size() );
+
   for ( auto& manifest: manifest_list.manifests ) {
     processes.push_back( std::async( std::launch::async, [&]() -> bool {
       auto source         = src->copy();
-      auto destination    = dest->copy();
-      auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest.digest );
+      auto image_manifest = Manifest< Schema2::ImageManifest >( source.get(), manifest_list.name, manifest.digest );
 
       return Copy( image_manifest, manifest.digest, src, dest );
     } ) );
@@ -58,6 +60,8 @@ auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& targe
   bool retVal              = true;
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.name, target );
   std::vector< std::future< bool > > processes;
+
+  processes.reserve( image_manifest.layers.size() );
 
   for ( auto const& layer: image_manifest.layers ) {
     processes.push_back( std::async( std::launch::async, [&]() -> bool {

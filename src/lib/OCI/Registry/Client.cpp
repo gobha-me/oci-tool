@@ -91,6 +91,7 @@ OCI::Registry::Client::Client( OCI::Registry::Client const& other ) {
   _password         = other._password;
   _resource         = other._resource;
   _requested_target = other._requested_target;
+  _ctr              = other._ctr;
 
   _cli  = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
 
@@ -98,7 +99,7 @@ OCI::Registry::Client::Client( OCI::Registry::Client const& other ) {
     _cli  = std::make_shared< httplib::Client >( _domain, DOCKER_PORT );
   }
 
-  _ctr = other._ctr;
+  _cli->set_follow_location( true );
 }
 
 // registry.redhat.io does not provide the scope in the Header, so have to generate it and
@@ -344,7 +345,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
 
   if ( _patch_location.empty() ) {
     std::cerr << "Starting upload for Blob " << blob_sha << std::endl;
-    res = _cli->Post( ( "/v2/" + im.name + "/blobs/uploads" ).c_str(), headers, "", "" );
+    res = _cli->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
   } else {
     headers.emplace( "Host", _domain );
     res = _patch_cli->Get( ( _patch_location ).c_str(), headers );
@@ -433,6 +434,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
             headers.emplace( "Content-Length", "0" );
             headers.emplace( "Content-Type", "application/octet-stream" );
             // Finalize and label with the digest
+            std::cerr << "Finalizing upload for Blob " << blob_sha << std::endl;
             res = _patch_cli->Put( ( _patch_location + "&digest=" + blob_sha ).c_str(), headers, "", "application/octet-stream" );
 
             _patch_cli      = nullptr;
@@ -482,16 +484,19 @@ void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, co
 
 void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
   auto json_body = fetchManifest( ml.mediaType, rsrc, target );
-  _requested_target = target;
 
-  json_body.get_to( ml );
+  if ( not json_body.empty() ) {
+    _requested_target = target;
 
-  if ( ml.name.empty() ) {
-    ml.name = rsrc;
+    json_body.get_to( ml );
+
+    if ( ml.name.empty() ) {
+      ml.name = rsrc;
+    }
+
+    ml.originDomain    = _domain;
+    ml.requestedTarget = _requested_target;
   }
-
-  ml.originDomain    = _domain;
-  ml.requestedTarget = _requested_target;
 }
 
 void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {

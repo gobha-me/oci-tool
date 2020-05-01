@@ -35,7 +35,7 @@ auto main( int argc, char ** argv ) -> int {
 
   if ( src_proto_itr == std::string:: npos ) {
     std::cerr << "improperly formated source string" << std::endl;
-    std::cerr << argv[0] << " <proto>:<uri>" << " <proto>:<uri>" << std::endl;
+    std::cerr << argv[0] << " <proto>:<uri>" << " <proto>:<uri>" << std::endl; // NOLINT
 
     return EXIT_FAILURE;
   }
@@ -50,7 +50,7 @@ auto main( int argc, char ** argv ) -> int {
     //  this is not made for renaming or tagging, might be a
     //  feature to consider for oci-copy
     std::cerr << "improperly formated destination string" << std::endl;
-    std::cerr << argv[0] << " <proto>:<uri>" << " <proto>:<uri>" << std::endl;
+    std::cerr << argv[0] << " <proto>:<uri>" << " <proto>:<uri>" << std::endl; // NOLINT
 
     return EXIT_FAILURE;
   }
@@ -101,7 +101,7 @@ auto main( int argc, char ** argv ) -> int {
   } else {
     auto source = CLIENT_MAP.at( src_proto )( src_location, src_password, src_password );
 
-    // need a 'resource', but without will use source, dest which assumes _catalog is implemented or works for source
+    // need a 'resource', but without will use source which assumes _catalog is implemented or available
     OCI::Sync( source.get(), destination.get() );
   }
 
