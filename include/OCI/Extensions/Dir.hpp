@@ -4,6 +4,7 @@
 #include <OCI/Schema2.hpp>
 #include <OCI/Tags.hpp>
 #include <filesystem>
+#include <mutex>
 
 namespace OCI::Extensions {
   class Dir : public OCI::Base::Client {
@@ -44,5 +45,6 @@ namespace OCI::Extensions {
       // FIXME: make _dir_map a const shared_ptr so can avoid the N copies from threads
       std::map< std::string,
       std::map< std::string, std::filesystem::directory_entry > > _dir_map;
+
   };
 } // namespace OCI::Extensions

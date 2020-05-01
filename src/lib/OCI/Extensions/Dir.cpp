@@ -6,6 +6,8 @@
 #include <fstream>
 #include <set>
 
+std::mutex DIR_MUTEX;
+
 OCI::Extensions::Dir::Dir() = default;
 OCI::Extensions::Dir::Dir( std::string const& directory ) {
   auto trailing_slash = directory.find_last_of( '/' );
@@ -172,7 +174,11 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
   auto image_path     = image_dir_path.path() / blob_sha;
 
   if ( not image_dir_path.exists() ) {
-    std::filesystem::create_directories( image_dir_path );
+    std::lock_guard< std::mutex > lg( DIR_MUTEX );
+
+    if ( not image_dir_path.exists() ) {
+      std::filesystem::create_directories( image_dir_path );
+    }
   }
 
   std::ofstream blob( image_path, std::ios::app | std::ios::binary );

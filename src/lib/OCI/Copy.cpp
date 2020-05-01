@@ -9,9 +9,9 @@ void OCI::Copy( const std::string& rsrc, const std::string& target, OCI::Base::C
   if ( manifest_list.schemaVersion == 1 ) { // Fall back to Schema1
     auto image_manifest = Manifest< Schema1::ImageManifest >( source.get(), rsrc, target );
 
-    Copy( image_manifest, target, src, dest );
+    Copy( image_manifest, target, source.get(), dest );
   } else {
-    Copy( manifest_list, target, src, dest );
+    Copy( manifest_list, target, source.get(), dest );
   }
 }
 
@@ -41,7 +41,7 @@ void OCI::Copy( Schema2::ManifestList& manifest_list, std::string const& target,
       auto source         = src->copy();
       auto image_manifest = Manifest< Schema2::ImageManifest >( source.get(), manifest_list.name, manifest.digest );
 
-      return Copy( image_manifest, manifest.digest, src, dest );
+      return Copy( image_manifest, manifest.digest, source.get(), dest );
     } ) );
   }
 

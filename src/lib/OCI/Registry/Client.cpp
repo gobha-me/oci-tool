@@ -485,9 +485,9 @@ void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, co
 void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
   auto json_body = fetchManifest( ml.mediaType, rsrc, target );
 
-  if ( not json_body.empty() ) {
-    _requested_target = target;
+  _requested_target = target;
 
+  if ( not json_body.empty() ) {
     json_body.get_to( ml );
 
     if ( ml.name.empty() ) {
