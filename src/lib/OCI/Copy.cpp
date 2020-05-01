@@ -1,4 +1,6 @@
 #include <OCI/Copy.hpp>
+#include <future>
+#include <vector>
 
 void OCI::Copy( const std::string& rsrc, const std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   auto manifest_list = Manifest< Schema2::ManifestList >( src, rsrc, target );
@@ -29,11 +31,21 @@ void OCI::Copy( const Schema1::ImageManifest& image_manifest, const std::string&
 
 void OCI::Copy( Schema2::ManifestList& manifest_list, std::string const& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   bool success = true;
+  std::vector< std::future< bool > > processes;
 
   for ( auto& manifest: manifest_list.manifests ) {
-    auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest.digest );
+    processes.push_back( std::async( std::launch::async, [&]() -> bool {
+      auto source         = src->copy();
+      auto destination    = dest->copy();
+      auto image_manifest = Manifest< Schema2::ImageManifest >( src, manifest_list.name, manifest.digest );
 
-    success = success and Copy( image_manifest, manifest.digest, src, dest );
+      return Copy( image_manifest, manifest.digest, src, dest );
+    } ) );
+  }
+
+  for ( auto& process: processes ) {
+    process.wait();
+    success = success and process.get();
   }
 
   if ( success ) {
@@ -45,18 +57,32 @@ void OCI::Copy( Schema2::ManifestList& manifest_list, std::string const& target,
 auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool {
   bool retVal              = true;
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.name, target );
+  std::vector< std::future< bool > > processes;
 
   for ( auto const& layer: image_manifest.layers ) {
-    if ( src->hasBlob( image_manifest, target, layer.digest ) and not dest->hasBlob( image_manifest, target, layer.digest ) ) {
-      uint64_t data_sent = 0;
-      std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
-        data_sent += data_length;
+    processes.push_back( std::async( std::launch::async, [&]() -> bool {
+      bool lretVal     = true;
+      auto source      = src->copy();
+      auto destination = dest->copy();
 
-        return dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
-      };
+      if ( source->hasBlob( image_manifest, target, layer.digest ) and not destination->hasBlob( image_manifest, target, layer.digest ) ) {
+        uint64_t data_sent = 0;
+        std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
+          data_sent += data_length;
 
-      retVal = retVal and src->fetchBlob( image_manifest.name, layer.digest, call_back );
-    }
+          return destination->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
+        };
+
+        lretVal = source->fetchBlob( image_manifest.name, layer.digest, call_back );
+      }
+
+      return lretVal;
+    } ) );
+  }
+
+  for ( auto& process : processes ) {
+    process.wait();
+    retVal = retVal and process.get();
   }
 
   if ( retVal ) {
@@ -71,7 +97,7 @@ auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& targe
 
     if ( retVal ) {
       std::cout << "All images for ImageManifest: " << target << " have been put to target Client." << std::endl;
-      retVal = dest->putManifest( image_manifest, target ); // putManifest defines this
+      retVal = dest->putManifest( image_manifest, target );
     }
   }
 

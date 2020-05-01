@@ -22,6 +22,16 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) {
   }
 }
 
+OCI::Extensions::Dir::Dir( OCI::Extensions::Dir const& other ) {
+  _directory = other._directory;
+  _tags      = other._tags;
+  _dir_map   = other._dir_map;
+}
+
+auto OCI::Extensions::Dir::copy() -> std::unique_ptr< OCI::Base::Client > {
+  return std::make_unique< OCI::Extensions::Dir >( *this );
+}
+
 auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
   Catalog retVal;
 

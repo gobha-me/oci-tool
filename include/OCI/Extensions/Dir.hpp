@@ -10,9 +10,13 @@ namespace OCI::Extensions {
     public:
       Dir();
       explicit Dir( std::string const & directory ); // this would be the base path
+      Dir( Dir const& other );
+
       ~Dir() override = default;
 
       auto catalog() -> OCI::Catalog override;
+
+      auto copy() -> std::unique_ptr< OCI::Base::Client > override;
 
       auto fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool override;
 
@@ -38,6 +42,6 @@ namespace OCI::Extensions {
       std::filesystem::directory_entry _directory;
       std::map< std::string, Tags >    _tags;
       std::map< std::string,
-        std::map< std::string, std::filesystem::directory_entry > > _dir_map;
+      std::map< std::string, std::filesystem::directory_entry > > _dir_map;
   };
 } // namespace OCI::Extensions

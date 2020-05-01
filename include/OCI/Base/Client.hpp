@@ -21,6 +21,8 @@ namespace OCI::Base {
 
     virtual auto catalog() -> OCI::Catalog = 0;
 
+    virtual auto copy() -> std::unique_ptr< Client > = 0;
+
     virtual auto fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool( const char *, uint64_t )>& call_back ) -> bool = 0;
 
     virtual auto hasBlob( Schema1::ImageManifest const& im, SHA256 sha ) -> bool = 0;

@@ -1,6 +1,7 @@
 #include <OCI/Registry/Client.hpp>
 #include <botan/hash.h>
 #include <botan/hex.h>
+#include <memory>
 #include <sstream>
 
 constexpr std::uint16_t SSL_PORT    = 443;
@@ -84,6 +85,22 @@ OCI::Registry::Client::Client( std::string const& location,
   _password = std::move( password );
 }
 
+OCI::Registry::Client::Client( OCI::Registry::Client const& other ) {
+  _domain           = other._domain;
+  _username         = other._username;
+  _password         = other._password;
+  _resource         = other._resource;
+  _requested_target = other._requested_target;
+
+  _cli  = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
+
+  if ( not ping() ) {
+    _cli  = std::make_shared< httplib::Client >( _domain, DOCKER_PORT );
+  }
+
+  _ctr = other._ctr;
+}
+
 // registry.redhat.io does not provide the scope in the Header, so have to generate it and
 //   pass it in as an argument
 void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string const& scope ) {
@@ -148,6 +165,10 @@ auto OCI::Registry::Client::catalog() -> OCI::Catalog {
   std::cerr << "OCI::Registry::Client::catalog Not implemented" << std::endl;
 
   return retVal;
+}
+
+auto OCI::Registry::Client::copy() -> std::unique_ptr< OCI::Base::Client > {
+  return std::make_unique< OCI::Registry::Client >( *this );
 }
 
 auto OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool {
@@ -428,7 +449,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
         }
         std::cerr << " Body: " << res->body << std::endl;
         has_error = true;
-        std::abort(); // FIXME: remove
+        //std::abort(); // FIXME: remove
     }
   }
 
@@ -595,7 +616,7 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const& im, std::
     }
     std::cerr << " Body: " << res->body << std::endl;
     std::cerr << j.dump( 2 ) << std::endl;
-    std::abort(); // FIXME: remove
+    //std::abort(); // FIXME: remove
   }
 
   return retVal;

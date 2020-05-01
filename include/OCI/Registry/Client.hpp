@@ -19,11 +19,16 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     Client();
     explicit Client( std::string const& location );
     Client( std::string const& location, std::string username, std::string password );
+
+    Client( Client const& other );
+
     ~Client() override = default;
 
     void auth( httplib::Headers const& headers, std::string const& scope );
 
     auto catalog() -> OCI::Catalog override;
+
+    auto copy() -> std::unique_ptr< OCI::Base::Client > override;
 
     auto fetchBlob( std::string const& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool override;
 
