@@ -2,7 +2,7 @@
 This spawned from the need of doing a multi arch sync, which requires a multi arch copy
  and learn how REST interfaces can be implemented, so going the 'hard' route was a personal choice
 
-### DEPENDACIES
+### DEPENDENCIES
 Attempted to have this only require few dependacies (libraries) and be mostly header only for external stuff.
 This failed with SHA256 digest validation.  If someone knows of a good one, that works I am all ears. until then
 ensure libbotan-2 (dev) is installed.
