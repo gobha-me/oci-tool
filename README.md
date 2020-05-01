@@ -1,4 +1,4 @@
-### DEPENDACIES
+### DEPENDENCIES
 Attempted to have this only require few dependacies (libraries) and be mostly header only for external stuff.
 This failed with SHA256 digest validation.  If someone knows of a good one, that works I am all ears. until then
 ensure libbotan-2 (dev) is installed.
