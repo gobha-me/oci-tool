@@ -19,7 +19,17 @@ void OCI::Sync( std::string const& rsrc, OCI::Base::Client* src, OCI::Base::Clie
 }
 
 void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  std::vector< std::future< void > > processes;
+
+  processes.reserve( tags.size() );
+
   for ( auto const& tag: tags ) {
-    Copy( rsrc, tag, src, dest );
+    processes.push_back( std::async( std::launch::async, [&]() {
+      Copy( rsrc, tag, src, dest );
+    } ) );
+  }
+
+  for ( auto& process : processes ) {
+    process.wait();
   }
 }
