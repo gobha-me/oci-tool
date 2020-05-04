@@ -59,35 +59,37 @@ void OCI::Copy( Schema2::ManifestList& manifest_list, std::string const& target,
 auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool {
   bool retVal              = true;
   bool newBlob             = false;
-  auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.name, target );
+  auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest.requestedTarget, target );
   std::vector< std::future< bool > > processes;
 
   processes.reserve( image_manifest.layers.size() );
 
-  for ( auto const& layer: image_manifest.layers ) {
-    if ( not dest->hasBlob( image_manifest, target, layer.digest ) ) {
-      newBlob = true;
+  if ( image_manifest.layers != dest_image_manifest.layers ) {
+    for ( auto const& layer: image_manifest.layers ) {
+      if ( not dest->hasBlob( image_manifest, target, layer.digest ) ) {
+        newBlob = true;
 
-      processes.push_back( std::async( std::launch::async, [&]() -> bool {
-        bool lretVal     = true;
-        auto source      = src->copy();
-        auto destination = dest->copy();
+        processes.push_back( std::async( std::launch::async, [&]() -> bool {
+          bool lretVal     = true;
+          auto source      = src->copy();
+          auto destination = dest->copy();
 
-          uint64_t data_sent = 0;
-          std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
-            data_sent += data_length;
+            uint64_t data_sent = 0;
+            std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {
+              data_sent += data_length;
 
-            return destination->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
-          };
+              return destination->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length );
+            };
 
-          lretVal = source->fetchBlob( image_manifest.name, layer.digest, call_back );
+            lretVal = source->fetchBlob( image_manifest.name, layer.digest, call_back );
 
-        return lretVal;
-      } ) );
+          return lretVal;
+        } ) );
+      }
     }
   }
 
-  if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
+  if ( image_manifest.config.digest != dest_image_manifest.config.digest ) {
     newBlob = true;
 
     uint64_t data_sent = 0;

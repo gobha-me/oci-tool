@@ -1,24 +1,19 @@
 #include <OCI/Schema2.hpp>
 
-auto OCI::Schema2::operator==( const ImageManifest& im1, const ImageManifest& im2 ) -> bool {
-  bool retVal = true;
-
-  for ( auto const& layer: im1.layers ) {
-    auto im2_itr = std::find_if( im2.layers.begin(), im2.layers.end(), [layer]( const ImageManifest::Layer& x ) {
-        return layer.digest == x.digest;
-      } );
-
-    if ( im2_itr == im2.layers.end() ) {
-      retVal = false;
-      break;
-    }
-  }
-
-  return retVal;
+auto OCI::Schema2::operator==( ImageManifest const& im1, ImageManifest const& im2 ) -> bool {
+  return im1.layers == im2.layers;
 }
 
-auto OCI::Schema2::operator!=( const ImageManifest& im1, const ImageManifest& im2 ) -> bool {
+auto OCI::Schema2::operator!=( ImageManifest const& im1, ImageManifest const& im2 ) -> bool {
   return not ( im1 == im2 );
+}
+
+auto OCI::Schema2::operator==( ImageManifest::Layer const& iml1, ImageManifest::Layer const& iml2 ) -> bool {
+  return iml1.digest == iml2.digest;
+}
+
+auto OCI::Schema2::operator!=( ImageManifest::Layer const& iml1, ImageManifest::Layer const& iml2 ) -> bool {
+  return not ( iml1 == iml2 );
 }
 
 auto OCI::Schema2::operator==( ManifestList const& ml1, ManifestList const& ml2 ) -> bool {

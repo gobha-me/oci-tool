@@ -55,6 +55,9 @@ namespace OCI::Schema2 {
   auto operator==( ImageManifest const& im1, ImageManifest const& im2 ) -> bool;
   auto operator!=( ImageManifest const& im1, ImageManifest const& im2 ) -> bool;
 
+  auto operator==( ImageManifest::Layer const& iml1, ImageManifest::Layer const& iml2 ) -> bool;
+  auto operator!=( ImageManifest::Layer const& iml1, ImageManifest::Layer const& iml2 ) -> bool;
+
   auto operator==( ManifestList const& ml1, ManifestList const& ml2 ) -> bool;
   auto operator!=( ManifestList const& ml1, ManifestList const& ml2 ) -> bool;
 

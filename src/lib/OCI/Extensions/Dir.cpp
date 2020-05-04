@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <mutex>
 #include <set>
 
 std::mutex DIR_MUTEX;
@@ -26,8 +27,6 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) {
 
 OCI::Extensions::Dir::Dir( OCI::Extensions::Dir const& other ) {
   _directory = other._directory;
-  _tags      = other._tags;
-  _dir_map   = other._dir_map;
 }
 
 auto OCI::Extensions::Dir::copy() -> std::unique_ptr< OCI::Base::Client > {
@@ -36,59 +35,23 @@ auto OCI::Extensions::Dir::copy() -> std::unique_ptr< OCI::Base::Client > {
 
 auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
   Catalog retVal;
+  auto dir_map = dirMap();
 
-  // expecting dir to be root of the tree
-  //  - subtree of namespaces
-  //   - subtree of repo-name:(tag|digest) (contents varies based on Schema version)
-  //    - subtree of digest with ImageManifests and blobs (Schemav2 only)
+  retVal.repositories.resize( dir_map.size() );
 
-  std::set< std::string > repos;
-
-  std::cout << "OCI::Extensions::Dir::catalog" << std::endl;
-  
-  // Two fold
-  //  generate a '_catalog' like responce
-  //  and generate a memory map tree for later use
-  for ( auto const& path_part : std::filesystem::recursive_directory_iterator( _directory ) ) {
-    if ( path_part.path().parent_path().compare( _directory.path() ) != 0 ) {
-      auto repo_str = path_part.path().string().substr( _directory.path().string().size() + 1 ); // + 1 to remove trailing slash
-
-      if ( path_part.is_directory() ) {
-        if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
-          auto tag       = repo_str.substr( repo_str.find( ':' ) + 1 );
-          auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
-
-          repos.insert( repo_name );
-          _tags[ repo_name ].tags.push_back( tag );
-
-          _dir_map[ repo_name ][ tag ] = path_part;
-        } else {
-          auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
-          auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
-
-          _dir_map[ repo_name ][ target ] = path_part;
-        }
-      } else if ( repo_str.find( "sha" ) != std::string::npos ) {
-        // Blobs
-        auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
-        auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
-
-        _dir_map[ repo_name ][ target ] = path_part;
-      }
-    }
-  }
-
-  retVal.repositories.resize( repos.size() );
-  std::copy( repos.begin(), repos.end(), retVal.repositories.begin() );
+  std::transform( dir_map.begin(), dir_map.end(), back_inserter( retVal.repositories ), []( auto const& pair ) {
+    return pair.first;
+  } );
 
   return retVal;
 }
 
 auto OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool {
   bool retVal = true;
+  auto const& dir_map = dirMap();
 
-  if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( sha ) != _dir_map.at( rsrc ).end() ) {
-    auto image_path = _dir_map[ rsrc ][ sha ].path();
+  if ( dir_map.find( rsrc ) != dir_map.end() and dir_map.at( rsrc ).path.find( sha ) != dir_map.at( rsrc ).path.end() ) {
+    auto image_path = dir_map.at( rsrc ).path.at( sha ).path();
     constexpr auto BUFFSIZE = 4096;
 
     std::ifstream blob( image_path, std::ios::binary );
@@ -114,13 +77,14 @@ auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha
 }
 
 auto OCI::Extensions::Dir::hasBlob( const Schema2::ImageManifest& im, const std::string& target, SHA256 sha ) -> bool {
-  bool retVal     = false;
+  bool retVal         = false;
+  auto const& dir_map = dirMap();
   std::filesystem::path image_path;
 
-  if ( _dir_map.empty() ) {
+  if ( dir_map.empty() ) {
     image_path = _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target / sha;
-  } else if ( _dir_map.find( im.name ) != _dir_map.end() and _dir_map.at( im.name ).find( target ) != _dir_map.at( im.name ).end() ) {
-    image_path = _dir_map[ im.name ][ target ].path() / sha;
+  } else if ( dir_map.find( im.name ) != dir_map.end() and dir_map.at( im.name ).path.find( target ) != dir_map.at( im.name ).path.end() ) {
+    image_path = dir_map.at( im.name ).path.at( target ).path() / sha;
   }
 
   if ( std::filesystem::exists( image_path ) ) {
@@ -206,10 +170,11 @@ void OCI::Extensions::Dir::fetchManifest( Schema1::SignedImageManifest& sim, con
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
   // Expectation is we are in <base>/<domain> dir with a sub-tree of <repo>:<tags>
+  auto const& dir_map = dirMap();
 
-  if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( target ) != _dir_map.at( rsrc ).end() ) {
-    auto ml_file_path  = _dir_map[ rsrc ][ target ].path() / "ManifestList.json";
-    auto ver_file_path = _dir_map[ rsrc ][ target ].path() / "Version";
+  if ( dir_map.find( rsrc ) != dir_map.end() and dir_map.at( rsrc ).path.find( target ) != dir_map.at( rsrc ).path.end() ) {
+    auto ml_file_path  = dir_map.at( rsrc ).path.at( target ).path() / "ManifestList.json";
+    auto ver_file_path = dir_map.at( rsrc ).path.at( target ).path() / "Version";
 
     if ( std::filesystem::exists( ver_file_path ) ) {
       std::ifstream ver_file( ver_file_path );
@@ -231,8 +196,10 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, const std::
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, std::string const& rsrc, std::string const& target ) {
-  if ( _dir_map.find( rsrc ) != _dir_map.end() and _dir_map.at( rsrc ).find( target ) != _dir_map.at( rsrc ).end() ) {
-    auto im_file_path = _dir_map[ rsrc ][ target ].path() / "ImageManifest.json";
+  auto const& dir_map = dirMap();
+
+  if ( dir_map.find( rsrc ) != dir_map.end() and dir_map.at( rsrc ).path.find( target ) != dir_map.at( rsrc ).path.end() ) {
+    auto im_file_path = dir_map.at( rsrc ).path.at( target ).path() / "ImageManifest.json";
 
     if ( std::filesystem::exists( im_file_path ) ) {
       nlohmann::json im_json;
@@ -245,6 +212,8 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, std::strin
       im_json[ "requestedTarget" ].get_to( im.requestedTarget );
       im_json[ "name" ].get_to( im.name );
     }
+  } else {
+    std::cerr << "Unable to locate ImagManifest for " << rsrc << "->" << target << std::endl;
   }
 }
 
@@ -338,14 +307,66 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
 }
 
 auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {
-  Tags retVal;
+  OCI::Tags retVal;
+  auto dir_map = dirMap();
 
-  if ( _tags.empty() ) {
+  if ( dir_map.empty() ) {
     catalog();
   }
 
-  if ( _tags.find( rsrc ) != _tags.end() ) {
-    retVal = _tags.at( rsrc );
+  if ( dir_map.find( rsrc ) != dir_map.end() ) {
+    retVal.name = rsrc;
+    retVal.tags = dir_map.at( rsrc ).tags;
+  }
+
+  return retVal;
+}
+
+std::mutex DIR_MAP_MUT;
+auto OCI::Extensions::Dir::dirMap() -> DirMap const& {
+  static DirMap retVal;
+  auto dir = _directory;
+
+  // expecting dir to be root of the tree
+  //  - subtree of namespaces
+  //   - subtree of repo-name:(tag|digest) (contents varies based on Schema version)
+  //    - subtree of digest with ImageManifests and blobs (Schemav2 only)
+  // Top level can be either the root dir with domain subtrees or within a domain dir as tree root
+
+  if ( retVal.empty() ) {
+    std::lock_guard< std::mutex > lg( DIR_MAP_MUT );
+
+    if ( retVal.empty() ) {
+      auto base_dir = dir;
+      for ( auto const& path_part : std::filesystem::recursive_directory_iterator( dir ) ) {
+        if ( path_part.is_directory() and path_part.path().filename().string().find( '.' ) != std::string::npos ) { // Will not work with shortnames, requires fqdn
+          base_dir = path_part; // This is to account for the domain case, for a Docker -> Dir, where we may already have images
+        } else if ( path_part.path().string().find( ':' ) != std::string::npos ) {
+          auto repo_str = path_part.path().string().substr( base_dir.path().string().size() + 1 ); // + 1 to remove trailing slash
+
+          if ( path_part.is_directory() ) {
+            if ( std::count( repo_str.begin(), repo_str.end(), '/' ) == 1 ) {
+              auto tag       = repo_str.substr( repo_str.find( ':' ) + 1 );
+              auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
+
+              retVal[ repo_name ].tags.push_back( tag );
+              retVal[ repo_name ].path[ tag ] = path_part;
+            } else {
+              auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
+              auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
+
+              retVal[ repo_name ].path[ target ] = path_part;
+            }
+          } else if ( repo_str.find( "sha" ) != std::string::npos ) {
+            // Blobs
+            auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
+            auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
+
+            retVal[ repo_name ].path[ target ] = path_part;
+          }
+        }
+      }
+    }
   }
 
   return retVal;

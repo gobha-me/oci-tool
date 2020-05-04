@@ -7,6 +7,18 @@
 #include <mutex>
 
 namespace OCI::Extensions {
+  using RepoName = std::string;
+  using Target   = std::string;
+  using Tags     = std::vector< std::string >;
+
+  struct RepoDetails {
+    Tags tags;
+    std::map< Target, std::filesystem::directory_entry > path;
+  };
+
+  // FIXME: Make room for the domain?
+  using DirMap = std::map< RepoName, RepoDetails >;
+
   class Dir : public OCI::Base::Client {
     public:
       Dir();
@@ -37,14 +49,10 @@ namespace OCI::Extensions {
       auto putManifest( Schema2::ManifestList const& ml,         std::string const& target ) -> bool override;
       auto putManifest( Schema2::ImageManifest const& im,        std::string&       target ) -> bool override;
 
-      auto tagList( const std::string& rsrc ) -> Tags override;
+      auto tagList( const std::string& rsrc ) -> OCI::Tags override;
     protected:
+      auto dirMap() -> DirMap const&;
     private:
       std::filesystem::directory_entry _directory;
-      std::map< std::string, Tags >    _tags;
-      // FIXME: make _dir_map a const shared_ptr so can avoid the N copies from threads
-      std::map< std::string,
-      std::map< std::string, std::filesystem::directory_entry > > _dir_map;
-
   };
 } // namespace OCI::Extensions
