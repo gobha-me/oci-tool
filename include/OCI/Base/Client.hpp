@@ -28,18 +28,18 @@ namespace OCI::Base {
     virtual auto hasBlob( Schema1::ImageManifest const& im, SHA256 sha ) -> bool = 0;
     virtual auto hasBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 sha ) -> bool = 0;
 
-    virtual auto putBlob( Schema1::ImageManifest const& im, std::string const& target, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool = 0;
-    virtual auto putBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 const& blob_sha, std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool = 0;
+    virtual auto putBlob( Schema1::ImageManifest const& im, std::string const& target, std::uintmax_t total_size, const char * blob_part,    uint64_t blob_part_size ) -> bool = 0;
+    virtual auto putBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256  const& blob_sha,   std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool = 0;
                                                                              
-    virtual void fetchManifest( Schema1::ImageManifest& im,        std::string const& rsrc, std::string const& target ) = 0;
-    virtual void fetchManifest( Schema1::SignedImageManifest& sim, std::string const& rsrc, std::string const& target ) = 0;
-    virtual void fetchManifest( Schema2::ManifestList& ml,         std::string const& rsrc, std::string const& target ) = 0;
-    virtual void fetchManifest( Schema2::ImageManifest& im,        std::string const& rsrc, std::string const& target ) = 0;
+    virtual void fetchManifest( Schema1::ImageManifest      & im,  Schema1::ImageManifest       const& request ) = 0;
+    virtual void fetchManifest( Schema1::SignedImageManifest& sim, Schema1::SignedImageManifest const& request ) = 0;
+    virtual void fetchManifest( Schema2::ManifestList       & ml,  Schema2::ManifestList        const& request ) = 0;
+    virtual void fetchManifest( Schema2::ImageManifest      & im,  Schema2::ImageManifest       const& request ) = 0;
 
-    virtual auto putManifest( Schema1::ImageManifest const& im,        std::string const& target ) -> bool = 0;
+    virtual auto putManifest( Schema1::ImageManifest       const& im,  std::string const& target ) -> bool = 0;
     virtual auto putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) -> bool = 0;
-    virtual auto putManifest( Schema2::ManifestList const& ml,         std::string const& target ) -> bool = 0;
-    virtual auto putManifest( Schema2::ImageManifest const& im,        std::string&       target ) -> bool = 0;
+    virtual auto putManifest( Schema2::ManifestList        const& ml,  std::string const& target ) -> bool = 0;
+    virtual auto putManifest( Schema2::ImageManifest       const& im,  std::string      & target ) -> bool = 0;
 
     virtual auto tagList( std::string const& rsrc ) -> Tags = 0;
   protected:

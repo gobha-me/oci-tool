@@ -24,8 +24,12 @@ namespace OCI::Extensions {
       Dir();
       explicit Dir( std::string const & directory ); // this would be the base path
       Dir( Dir const& other );
+      Dir( Dir&& other ) noexcept;
 
       ~Dir() override = default;
+
+      auto operator=( Dir const& other ) -> Dir&;
+      auto operator=( Dir&& other ) noexcept -> Dir&;
 
       auto catalog() -> OCI::Catalog override;
 
@@ -39,10 +43,10 @@ namespace OCI::Extensions {
       auto putBlob( Schema1::ImageManifest const& im, std::string const& target, std::uintmax_t total_size, const char * blob_part,    uint64_t blob_part_size ) -> bool override;
       auto putBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 const&  blob_sha,   std::uintmax_t total_size, const char * blob_part, uint64_t blob_part_size ) -> bool override;
 
-      void fetchManifest( Schema1::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
-      void fetchManifest( Schema1::SignedImageManifest& sim, std::string const& rsrc, std::string const& target ) override;
-      void fetchManifest( Schema2::ManifestList& ml,         std::string const& rsrc, std::string const& target ) override;
-      void fetchManifest( Schema2::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
+      void fetchManifest( Schema1::ImageManifest      & im,  Schema1::ImageManifest       const& request ) override;
+      void fetchManifest( Schema1::SignedImageManifest& sim, Schema1::SignedImageManifest const& request ) override;
+      void fetchManifest( Schema2::ManifestList       & ml,  Schema2::ManifestList        const& request ) override;
+      void fetchManifest( Schema2::ImageManifest      & im,  Schema2::ImageManifest       const& request ) override;
 
       auto putManifest( Schema1::ImageManifest const& im,        std::string const& target ) -> bool override;
       auto putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) -> bool override;
@@ -54,5 +58,6 @@ namespace OCI::Extensions {
       auto dirMap() -> DirMap const&;
     private:
       std::filesystem::directory_entry _directory;
+      std::filesystem::path            _temp_file;
   };
 } // namespace OCI::Extensions

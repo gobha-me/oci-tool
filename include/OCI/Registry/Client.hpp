@@ -40,15 +40,15 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     void inspect( std::string const& rsrc, std::string const& target );
 
-    void fetchManifest( Schema1::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
-    void fetchManifest( Schema1::SignedImageManifest& sim, std::string const& rsrc, std::string const& target ) override;
-    void fetchManifest( Schema2::ManifestList& ml,         std::string const& rsrc, std::string const& target ) override;
-    void fetchManifest( Schema2::ImageManifest& im,        std::string const& rsrc, std::string const& target ) override;
+    void fetchManifest( Schema1::ImageManifest      & im,  Schema1::ImageManifest       const& request ) override;
+    void fetchManifest( Schema1::SignedImageManifest& sim, Schema1::SignedImageManifest const& request ) override;
+    void fetchManifest( Schema2::ManifestList       & ml,  Schema2::ManifestList        const& request ) override;
+    void fetchManifest( Schema2::ImageManifest      & im,  Schema2::ImageManifest       const& request ) override;
 
     auto putManifest( Schema1::ImageManifest const& im,        std::string const& target ) -> bool override;
     auto putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) -> bool override;
     auto putManifest( Schema2::ManifestList const& ml,         std::string const& target ) -> bool override;
-    auto putManifest( Schema2::ImageManifest const& im,        std::string&       target ) -> bool override;
+    auto putManifest( Schema2::ImageManifest const& im,        std::string      & target ) -> bool override;
 
     auto tagList( std::string const& rsrc ) -> Tags override;
 
@@ -69,11 +69,11 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
   private:
     std::shared_ptr< httplib::Client > _cli;
     std::unique_ptr< httplib::Client > _patch_cli;
-    std::string _domain;
+    std::string _domain; // Required for making copies
     std::string _username;
     std::string _password;
-    std::string _resource; // <namespace>/<repo name>
-    std::string _requested_target; // tag or digest
+//    std::string _resource; // <namespace>/<repo name>
+//    std::string _requested_target; // tag or digest
     std::string _patch_location;
     
     TokenResponse _ctr;

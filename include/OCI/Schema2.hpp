@@ -40,8 +40,9 @@ namespace OCI::Schema2 {
     };
 
     std::string     name; // <namespace>/<repo>
-    std::string     originDomain; // local extension
-    std::string     requestedTarget; // local extension
+    std::string     originDomain;    // local extension
+    std::string     requestedTarget; // local extension 'Package tag/digest'
+    std::string     requestedDigest; // local extension 'Digest for this Manifest'
     std::uint16_t   schemaVersion = 0;
     std::string     mediaType = "application/vnd.docker.distribution.manifest.v2+json";
     struct {

@@ -43,34 +43,34 @@ auto splitLocation( std::string location ) -> std::tuple< std::string, std::stri
 
 OCI::Registry::Client::Client() : _cli( nullptr ), _patch_cli( nullptr ) {}
 OCI::Registry::Client::Client( std::string const& location ) {
-  _resource = location;
+  auto resource = location;
 
-  if ( _resource.find( "//" ) != std::string::npos ) {
-    _resource = _resource.substr( 2 ); // strip the // if exists
+  if ( resource.find( "//" ) != std::string::npos ) {
+    resource = resource.substr( 2 ); // strip the // if exists
   }
 
-  if ( _resource.find( '/' ) != std::string::npos ) {
-    _domain = _resource.substr( 0, _resource.find( '/' ) );
+  if ( resource.find( '/' ) != std::string::npos ) {
+    _domain = resource.substr( 0, resource.find( '/' ) );
   } else {
-    _domain = _resource;
+    _domain = resource;
   }
 
-  auto domain = _domain;
+  //auto domain = _domain;
   
   // in uri docker will translate to https
   // if docker.io use registry-1.docker.io as the site doesn't redirect
   if ( _domain == "docker.io" ) {
     // either docker.io should work, or they should have a proper redirect implemented
-    domain = "registry-1.docker.io";
+    _domain = "registry-1.docker.io";
   }
 
-  _cli  = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+  _cli  = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
 
   if ( not ping() ) {
-    _cli  = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+    _cli  = std::make_shared< httplib::Client >( _domain, DOCKER_PORT );
 
     if ( not ping() ) {
-      std::cerr << domain << " does not respond to the V2 API (secure/unsecure)" << std::endl;
+      std::cerr << _domain << " does not respond to the V2 API (secure/unsecure)" << std::endl;
     }
   }
 
@@ -89,8 +89,6 @@ OCI::Registry::Client::Client( OCI::Registry::Client const& other ) {
   _domain           = other._domain;
   _username         = other._username;
   _password         = other._password;
-  _resource         = other._resource;
-  _requested_target = other._requested_target;
   _ctr              = other._ctr;
 
   _cli  = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
@@ -451,65 +449,73 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
         }
         std::cerr << " Body: " << res->body << std::endl;
         has_error = true;
-        //std::abort(); // FIXME: remove
     }
   }
 
   return retVal;
 }
 
-void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  auto json_body = fetchManifest( im.mediaType, rsrc, target );
+void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest& im, Schema1::ImageManifest const& request ) {
+  auto json_body = fetchManifest( im.mediaType, request.name, request.requestedTarget );
 
   json_body.get_to( im );
 
   if ( im.name.empty() ) {
-    im.name = rsrc;
+    im.name = request.name;
   }
 
-  im.originDomain = _domain; // This is just for sync from a Registry to a Directory
+  im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
 }
 
-void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, const std::string& rsrc, const std::string& target ) {
-  auto json_body = fetchManifest( sim.mediaType, rsrc, target );
+void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest& sim, Schema1::SignedImageManifest const& request ) {
+  auto json_body = fetchManifest( sim.mediaType, request.name, request.requestedTarget );
 
   json_body.get_to( sim );
 
   if ( sim.name.empty() ) {
-    sim.name = rsrc;
+    sim.name = request.name;
   }
 
-  sim.originDomain = _domain; // This is just for sync from a Registry to a Directory
+  sim.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
 }
 
-void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, const std::string& rsrc, const std::string& target ) {
-  auto json_body = fetchManifest( ml.mediaType, rsrc, target );
-
-  _requested_target = target;
+void OCI::Registry::Client::fetchManifest( Schema2::ManifestList& ml, Schema2::ManifestList const& request ) {
+  auto json_body = fetchManifest( ml.mediaType, request.name, request.requestedTarget );
 
   if ( not json_body.empty() ) {
     json_body.get_to( ml );
 
     if ( ml.name.empty() ) {
-      ml.name = rsrc;
+      ml.name = request.name;
     }
 
-    ml.originDomain    = _domain;
-    ml.requestedTarget = _requested_target;
+    if ( request.originDomain.empty() ) {
+      ml.originDomain = _domain;
+    } else {
+      ml.originDomain = request.originDomain;
+    }
+
+    ml.requestedTarget = request.requestedTarget;
   }
 }
 
-void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, const std::string& rsrc, const std::string& target ) {
-  auto json_body = fetchManifest( im.mediaType, rsrc, target );
+void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest& im, Schema2::ImageManifest const& request ) {
+  auto json_body = fetchManifest( im.mediaType, request.name, request.requestedDigest );
 
   json_body.get_to( im );
 
   if ( im.name.empty() ) {
-    im.name = rsrc;
+    im.name = request.name;
   }
 
-  im.originDomain    = _domain; // This is just for sync from a Registry to a Directory
-  im.requestedTarget = _requested_target;
+  if ( request.originDomain.empty() ) {
+    im.originDomain = _domain;
+  } else {
+    im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
+  }
+
+  im.requestedTarget = request.requestedTarget;
+  im.requestedDigest = request.requestedDigest;
 }
 
 auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const std::string& resource, const std::string& target ) -> nlohmann::json {
@@ -621,7 +627,6 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const& im, std::
     }
     std::cerr << " Body: " << res->body << std::endl;
     std::cerr << j.dump( 2 ) << std::endl;
-    //std::abort(); // FIXME: remove
   }
 
   return retVal;
