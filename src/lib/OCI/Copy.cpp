@@ -102,7 +102,8 @@ auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& targe
     }
   }
 
-  if ( image_manifest.config.digest != dest_image_manifest.config.digest ) {
+  if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
+    std::cout << "Getting Config Blob: " << image_manifest.config.digest << std::endl;
     newBlob = true;
 
     uint64_t data_sent = 0;
@@ -114,6 +115,7 @@ auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& targe
 
     retVal = retVal and src->fetchBlob( image_manifest.name, image_manifest.config.digest, call_back );
   }
+
 
   for ( auto& process : processes ) {
     process.wait();

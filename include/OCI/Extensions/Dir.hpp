@@ -57,6 +57,7 @@ namespace OCI::Extensions {
     protected:
       auto dirMap() -> DirMap const&;
     private:
+      uint64_t                         _bytes_written;
       std::filesystem::directory_entry _directory;
       std::filesystem::path            _temp_file;
   };

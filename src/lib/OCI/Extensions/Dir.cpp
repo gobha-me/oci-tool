@@ -9,6 +9,8 @@
 #include <set>
 
 std::mutex DIR_MUTEX;
+std::mutex DIR_MAP_MUT;
+std::mutex SEED_MUTEX;
 
 auto genUUID() -> std::string {
   constexpr std::array< char, 62 > const CHARS( {
@@ -22,25 +24,44 @@ auto genUUID() -> std::string {
   } );
   constexpr auto WORD_SIZE = 24;
 
+  std::lock_guard< std::mutex > lg( SEED_MUTEX );
   auto seed = std::chrono::system_clock::now().time_since_epoch().count();
 
   std::string retVal;
   std::mt19937 generator( seed );
   for ( std::uint16_t index = 0; index != WORD_SIZE; index ++ ) {
-   retVal += CHARS[ generator() % CHARS.size() ]; // NOLINT
+   retVal += CHARS[ generator() % ( CHARS.size() - 1 ) ]; // NOLINT
   }
 
   return retVal;
 }
 
-auto validateFile( SHA256 sha, std::filesystem::path file ) -> bool {
-  bool retVal = false;
+auto validateFile( std::string const& sha, std::filesystem::path const& file ) -> bool {
+  bool retVal             = false;
+  constexpr auto BUFFSIZE = 4096;
+
+  auto sha256( Botan::HashFunction::create( "SHA-256" ) );
+
+  std::ifstream blob( file, std::ios::binary );
+  std::vector< uint8_t > buf( BUFFSIZE );
+
+  while ( blob.good() ) {
+    blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() ); // NOLINT
+    size_t readcount = blob.gcount();
+    sha256->update( buf.data(), readcount );
+  }
+
+  std::string sha256_str = Botan::hex_encode( sha256->final(), false );
+
+  if ( sha == "sha256:" + sha256_str ) {
+    retVal = true;
+  }
 
   return retVal;
 }
 
-OCI::Extensions::Dir::Dir() = default;
-OCI::Extensions::Dir::Dir( std::string const& directory ) {
+OCI::Extensions::Dir::Dir() : _bytes_written( 0 ) {}
+OCI::Extensions::Dir::Dir( std::string const& directory ) : _bytes_written( 0 ) {
   auto trailing_slash = directory.find_last_of( '/' );
 
   if ( trailing_slash == directory.size() - 1 ) {
@@ -63,7 +84,7 @@ OCI::Extensions::Dir::Dir( OCI::Extensions::Dir && other ) noexcept {
   _directory = std::move( other._directory );
 }
 
-auto OCI::Extensions::Dir::operator=( Dir const& other ) -> Dir& {
+auto OCI::Extensions::Dir::operator=( Dir const& other ) -> Dir& { // NOLINT - HANDLE SELF COPIES https://clang.llvm.org/extra/clang-tidy/checks/bugprone-unhandled-self-assignment.html
   _directory = other._directory;
 
   return *this;
@@ -126,40 +147,25 @@ auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha
 auto OCI::Extensions::Dir::hasBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 sha ) -> bool {
   bool retVal         = false;
   auto dir_map        = dirMap();
-  std::filesystem::path image_path;
 
   if ( dir_map.find( im.name ) != dir_map.end() and dir_map.at( im.name ).path.find( im.requestedDigest ) != dir_map.at( im.name ).path.end() ) {
-    image_path = dir_map.at( im.name ).path.at( im.requestedTarget ).path() / sha;
+    // The map wins
+    retVal = true;
   } else if ( not im.originDomain.empty() ) {
-    image_path = _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target / sha;
-  }
+    auto blob_file      = _directory.path() / "blobs" / sha;
+    auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target);
+    auto image_path     = image_dir_path.path() / sha;
 
-  if ( std::filesystem::exists( image_path ) ) {
-    constexpr auto BUFFSIZE = 2048;
-    auto sha256( Botan::HashFunction::create( "SHA-256" ) );
-    std::ifstream blob( image_path, std::ios::binary );
-    std::vector< uint8_t > buf( BUFFSIZE );
-
-    while ( blob.good() ) {
-      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() ); // NOLINT
-      size_t readcount = blob.gcount();
-      sha256->update( buf.data(), readcount );
-    }
-
-    std::string sha256_str = Botan::hex_encode( sha256->final() );
-    std::for_each( sha256_str.begin(), sha256_str.end(), []( char & c ) {
-        c = std::tolower( c ); // NOLINT - narrowing warning, but unsigned char for the lambda doesn't build, so which is it
-      } );
-
-    if ( sha == "sha256:" + sha256_str ) {
-      retVal = true;
-    } else {
-      // remove a failed file, as the write point only appends, and an incomplete or bad file could cause problems
-      std::cerr << "Removing bad image: " << image_path.string() << std::endl;
-      if ( not std::filesystem::remove( image_path ) ) {
-        std::cerr << " Unable to remove bad file, telling system it exists to avoid disk growth!" << std::endl;
-        retVal = true;
+    if ( std::filesystem::exists( image_path ) ) {
+      retVal = validateFile( sha, image_path );
+    } else if ( std::filesystem::exists( blob_file ) ) {
+      if ( not image_dir_path.exists() ) {
+        std::filesystem::create_directories( image_dir_path );
       }
+
+      std::filesystem::create_symlink( blob_file, image_path );
+
+      retVal = std::filesystem::exists( image_path );
     }
   }
 
@@ -184,11 +190,12 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
                                     std::uintmax_t                total_size,
                                     const char*                   blob_part,
                                     uint64_t                      blob_part_size ) -> bool {
-  (void)total_size;
+  auto retVal         = false;
   auto blob_dir       = std::filesystem::directory_entry( _directory.path() / "blobs" );
   auto temp_dir       = std::filesystem::directory_entry( _directory.path() / "temp" );
   auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
   auto image_path     = image_dir_path.path() / blob_sha;
+  auto blob_path      = blob_dir.path() /blob_sha;
 
   if ( _temp_file.empty() ) {
     _temp_file = temp_dir.path() / genUUID();
@@ -210,6 +217,9 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
     }
   }
 
+  // Temp dir may require external periodic cleaning
+  //  or just be smart about it here
+  //  Largest potential file size / slowest down load speed = oldest possible file
   if ( not temp_dir.exists() ) {
     std::lock_guard< std::mutex > lg( DIR_MUTEX );
 
@@ -218,19 +228,42 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
     }
   }
 
-  std::ofstream blob( image_path, std::ios::app | std::ios::binary );
-  
-  blob.write( blob_part, blob_part_size );
+  {// scoped so the file closes prior to any other operation
+    std::ofstream blob( _temp_file, std::ios::app | std::ios::binary );
+    
+    retVal = blob.write( blob_part, blob_part_size ).good();
+  }
 
-  if ( std::filesystem::file_size( image_path ) == total_size ) {
-    // Validate SHA
-    // copy temp_file to blobs dir
-    // remove temp_file
-    // link blobs dir file to image location
+  if ( retVal ) {
+    _bytes_written += blob_part_size;
+  }
+
+  if ( _bytes_written == total_size ) {
+    if ( validateFile( blob_sha, _temp_file ) ) {
+      std::lock_guard< std::mutex > lg( DIR_MUTEX );
+
+      if ( not std::filesystem::exists( blob_path ) ) {
+        std::filesystem::copy_file( _temp_file, blob_path );
+      }
+
+      if ( std::filesystem::exists( blob_path ) ) {
+        std::filesystem::create_symlink( blob_path, image_path );
+      } else {
+        std::cout << "Failed to copy file '" << _temp_file.string() << "' -> '" << blob_path.string() << "'" << std::endl;
+      }
+
+      std::filesystem::remove( _temp_file );
+    } else if ( std::filesystem::remove( _temp_file ) ) {
+      std::cerr << "Removed dirty file, file did not validate" << std::endl;
+      std::filesystem::remove( _temp_file );
+
+      retVal = false;
+    }
+
     _temp_file = "";
   }
 
-  return true; // FIXME: Need to return based on the disk write, is disk full, permission denied, or other issue
+  return retVal; // FIXME: Need to return based on the disk write, is disk full, permission denied, or other issue
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema1::ImageManifest& im, Schema1::ImageManifest const& request ) {
@@ -375,6 +408,11 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
     }
   }
 
+  if ( not hasBlob( im, target, im.config.digest ) ) {
+    std::cerr << "Config digest missing for " << im.name << ":" << im.requestedTarget << "/" << im.requestedDigest << std::endl;
+    retVal = false;
+  }
+
   if ( retVal ) {
     std::ofstream image_manifest( image_manifest_path );
 
@@ -400,7 +438,6 @@ auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {
   return retVal;
 }
 
-std::mutex DIR_MAP_MUT;
 auto OCI::Extensions::Dir::dirMap() -> DirMap const& {
   static std::map< std::string, DirMap > retVal;
   auto dir = _directory;

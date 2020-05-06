@@ -349,7 +349,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
     res = _patch_cli->Get( ( _patch_location ).c_str(), headers );
   }
 
-  while ( not retVal and not has_error ) {
+  while ( res != nullptr and not retVal and not has_error ) {
     switch ( HTTP_CODE( res->status ) ) {
       case HTTP_CODE::Created:
         // The API doc says to expect a 204 No Content as the responce to the PUT
@@ -399,44 +399,47 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
           retVal = true;
         } else {
           headers.emplace( "Host", _domain );
+
           res = _patch_cli->Get( ( _patch_location ).c_str(), headers );
         }
 
         break;
-      case HTTP_CODE::No_Content:
-        if ( chunk_sent ) {
-          has_error = true;
-        } else {
-          chunk_sent       = true;
-          auto range       = res->get_header_value( "Range" );
-          auto last_offset = std::stoul( range.substr( range.find( '-' ) + 1 ) ) + 1;
+      case HTTP_CODE::No_Content: {
+          if ( chunk_sent ) {
+            has_error = true;
+          } else {
+            chunk_sent       = true;
+            auto range       = res->get_header_value( "Range" );
+            auto last_offset = std::stoul( range.substr( range.find( '-' ) + 1 ) ) + 1;
 
-          headers.emplace( "Content-Range", std::to_string( last_offset ) + "-" + std::to_string( last_offset + blob_part_size ) );
-          headers.emplace( "Content-Length", std::to_string( blob_part_size ) );
+            headers.emplace( "Content-Range", std::to_string( last_offset ) + "-" + std::to_string( last_offset + blob_part_size ) );
+            headers.emplace( "Content-Length", std::to_string( blob_part_size ) );
 
-          // Not documented, but is part of the API
-          httplib::ContentProvider content_provider = [&]( size_t offset, size_t length, httplib::DataSink &sink ) {
-            (void)offset;
-            (void)length;
-            sink.write( blob_part, blob_part_size );
-          };
+            // Not documented, but is part of the API
+            httplib::ContentProvider content_provider = [&]( size_t offset, size_t length, httplib::DataSink &sink ) {
+              (void)offset;
+              (void)length;
+              sink.write( blob_part, blob_part_size );
+            };
 
-          res = _patch_cli->Patch( _patch_location.c_str(), headers, blob_part_size, content_provider, "application/octet-stream"  );
+            res = _patch_cli->Patch( _patch_location.c_str(), headers, blob_part_size, content_provider, "application/octet-stream"  );
 
-          if ( last_offset + blob_part_size == total_size or blob_part_size == total_size ) {
-            // FIXME: need to add attribute to the class to hold bytes_sent for blob count and comparison, so this could can resume an upload, if the application stops for some reason
-            //        will also allow the tie below to go away as this block can move to the chunk_sent condition and finalize there
-            std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
+            if ( last_offset + blob_part_size == total_size or blob_part_size == total_size ) {
+              // FIXME: need to add attribute to the class to hold bytes_sent for blob count and comparison, so this could can resume an upload, if the application stops for some reason
+              //        will also allow the tie below to go away as this block can move to the chunk_sent condition and finalize there
+              std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
 
-            headers = authHeaders();
-            headers.emplace( "Content-Length", "0" );
-            headers.emplace( "Content-Type", "application/octet-stream" );
-            // Finalize and label with the digest
-            std::cerr << "Finalizing upload for Blob " << blob_sha << std::endl;
-            res = _patch_cli->Put( ( _patch_location + "&digest=" + blob_sha ).c_str(), headers, "", "application/octet-stream" );
+              headers = authHeaders();
+              headers.emplace( "Content-Length", "0" );
+              headers.emplace( "Content-Type", "application/octet-stream" );
+              // Finalize and label with the digest
+              std::cerr << "Finalizing upload for Blob " << blob_sha << std::endl;
 
-            _patch_cli      = nullptr;
-            _patch_location = "";
+              res = _patch_cli->Put( ( _patch_location + "&digest=" + blob_sha ).c_str(), headers, "", "application/octet-stream" );
+
+              _patch_cli      = nullptr;
+              _patch_location = "";
+            }
           }
         }
 
@@ -450,6 +453,11 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
         std::cerr << " Body: " << res->body << std::endl;
         has_error = true;
     }
+  }
+
+  if ( res == nullptr ) {
+    std::cerr << "lost or timed out on our connection to the registry" << std::endl;
+    retVal = false;
   }
 
   return retVal;

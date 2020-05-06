@@ -24,9 +24,9 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
 
   for ( auto const& tag: tags ) {
     processes.push_back( std::async( std::launch::async, [&]() {
-      auto source      = src->copy();
-      auto destination = dest->copy();
-      Copy( rsrc, tag, source.get(), destination.get() );
+    auto source      = src->copy();
+    auto destination = dest->copy();
+    Copy( rsrc, tag, source.get(), destination.get() );
     } ) );
   }
 
