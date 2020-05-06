@@ -26,11 +26,11 @@ auto genUUID() -> std::string {
 
   std::string retVal;
   std::random_device rd;
-  std::mt19937 generator( rd );
+  std::mt19937 generator( rd() );
   std::uniform_int_distribution<> dis( 0, CHARS.size() - 1 );
 
   for ( std::uint16_t index = 0; index != WORD_SIZE; index ++ ) {
-   retVal += CHARS[ dis( generator() ) ]; // NOLINT
+   retVal += CHARS[ dis( generator ) ]; // NOLINT
   }
 
   return retVal;
