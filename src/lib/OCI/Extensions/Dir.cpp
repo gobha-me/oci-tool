@@ -22,15 +22,15 @@ auto genUUID() -> std::string {
     'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
     'u', 'v', 'w', 'x', 'y', 'z',
   } );
-  constexpr auto WORD_SIZE = 24;
-
-  std::lock_guard< std::mutex > lg( SEED_MUTEX );
-  auto seed = std::chrono::system_clock::now().time_since_epoch().count();
+  constexpr auto WORD_SIZE = 48;
 
   std::string retVal;
-  std::mt19937 generator( seed );
+  std::random_device rd;
+  std::mt19937 generator( rd );
+  std::uniform_int_distribution<> dis( 0, CHARS.size() - 1 );
+
   for ( std::uint16_t index = 0; index != WORD_SIZE; index ++ ) {
-   retVal += CHARS[ generator() % ( CHARS.size() - 1 ) ]; // NOLINT
+   retVal += CHARS[ dis( generator() ) ]; // NOLINT
   }
 
   return retVal;
