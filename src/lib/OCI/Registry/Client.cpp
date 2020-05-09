@@ -201,14 +201,18 @@ auto OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std:
 
   res = client->Get( location.c_str(), authHeaders(), call_back );
 
-  switch( HTTP_CODE( res->status ) ) {
-    case HTTP_CODE::OK:
-    case HTTP_CODE::Found:
-      break;
-    default:
-      retVal = false;
-      std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
-      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+  if ( res == nullptr ) {
+    retVal = false; // FIXME: Retrying should work here
+  } else {
+    switch( HTTP_CODE( res->status ) ) {
+      case HTTP_CODE::OK:
+      case HTTP_CODE::Found:
+        break;
+      default:
+        retVal = false;
+        std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
+        std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+    }
   }
 
   _cli->set_follow_location( true );
@@ -344,9 +348,12 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
   if ( _patch_location.empty() ) {
     std::cerr << "Starting upload for Blob " << blob_sha << std::endl;
     res = _cli->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
+    // FIXME: IF NULL HERE JUST RETRY
   } else {
     headers.emplace( "Host", _domain );
     res = _patch_cli->Get( ( _patch_location ).c_str(), headers );
+    // WITHOUT A RESULT AND NEXT ENDPOINT, RESUMING MAY NOT BE FEASIBLE
+    // Should we just ensure there is a longer timeout
   }
 
   while ( res != nullptr and not retVal and not has_error ) {

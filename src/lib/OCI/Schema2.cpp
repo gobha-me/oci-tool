@@ -1,7 +1,7 @@
 #include <OCI/Schema2.hpp>
 
 auto OCI::Schema2::operator==( ImageManifest const& im1, ImageManifest const& im2 ) -> bool {
-  return im1.layers == im2.layers;
+  return im1.layers == im2.layers and im1.config.digest == im2.config.digest;
 }
 
 auto OCI::Schema2::operator!=( ImageManifest const& im1, ImageManifest const& im2 ) -> bool {
@@ -31,6 +31,8 @@ auto OCI::Schema2::operator==( ManifestList const& ml1, ManifestList const& ml2 
       }
     }
   } else {
+    std::cout << ml1.name << " != " << ml2.name << std::endl;
+    std::abort();
     retVal = false;
   }
 

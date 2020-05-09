@@ -30,7 +30,7 @@ auto genUUID() -> std::string {
   std::uniform_int_distribution<> dis( 0, CHARS.size() - 1 );
 
   for ( std::uint16_t index = 0; index != WORD_SIZE; index ++ ) {
-   retVal += CHARS[ dis( generator ) ]; // NOLINT
+    retVal += CHARS[ dis( generator ) ]; // NOLINT
   }
 
   return retVal;
@@ -102,7 +102,7 @@ auto OCI::Extensions::Dir::copy() -> std::unique_ptr< OCI::Base::Client > {
 
 auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
   Catalog retVal;
-  auto dir_map = dirMap();
+  auto const& dir_map = dirMap();
 
   retVal.repositories.resize( dir_map.size() );
 
@@ -115,7 +115,7 @@ auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
 
 auto OCI::Extensions::Dir::fetchBlob( const std::string& rsrc, SHA256 sha, std::function< bool(const char *, uint64_t ) >& call_back ) -> bool {
   bool retVal = true;
-  auto dir_map = dirMap();
+  auto const& dir_map = dirMap();
 
   std::cout << "Fetching Blob Resource: " << sha << std::endl;
   if ( dir_map.find( rsrc ) != dir_map.end() and dir_map.at( rsrc ).path.find( sha ) != dir_map.at( rsrc ).path.end() ) {
@@ -146,26 +146,43 @@ auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha
 
 auto OCI::Extensions::Dir::hasBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 sha ) -> bool {
   bool retVal         = false;
-  auto dir_map        = dirMap();
+  auto const& dir_map = dirMap();
+  std::filesystem::directory_entry image_dir_path;
+  std::filesystem::path            image_path;
 
   if ( dir_map.find( im.name ) != dir_map.end() and dir_map.at( im.name ).path.find( im.requestedDigest ) != dir_map.at( im.name ).path.end() ) {
-    // The map wins
+    image_dir_path = dir_map.at( im.name ).path.find( im.requestedDigest )->second;
+    image_path     = image_dir_path.path() / sha;
+  }
+
+  if ( image_dir_path.path().empty() and not im.originDomain.empty() ) {
+    image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
+    image_path     = image_dir_path.path() / sha;
+  }
+
+  if ( image_dir_path.path().empty() ) {
+    std::cerr << "OCI::Extensions::Dir Schema2::ImageManifest unable to determine image_dir_path\n";
+    std::abort();
+  }
+
+  if ( not image_dir_path.exists() ) {
+    std::filesystem::create_directories( image_dir_path );
+  }
+
+  if ( std::filesystem::exists( image_path ) ) {
     retVal = true;
-  } else if ( not im.originDomain.empty() ) {
-    auto blob_file      = _directory.path() / "blobs" / sha;
-    auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target);
-    auto image_path     = image_dir_path.path() / sha;
+  } else {
+    auto blob_file = _directory.path() / "blobs" / sha;
 
-    if ( std::filesystem::exists( image_path ) ) {
-      retVal = validateFile( sha, image_path );
-    } else if ( std::filesystem::exists( blob_file ) ) {
-      if ( not image_dir_path.exists() ) {
-        std::filesystem::create_directories( image_dir_path );
+    if ( std::filesystem::exists( blob_file ) ) {
+      std::error_code ec;
+      std::filesystem::create_symlink( blob_file, image_path, ec );
+
+      if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
+        std::cerr << ec.value() << " -> " << ec.message() << std::endl;
+      } else {
+        retVal = true;
       }
-
-      std::filesystem::create_symlink( blob_file, image_path );
-
-      retVal = std::filesystem::exists( image_path );
     }
   }
 
@@ -191,11 +208,12 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
                                     const char*                   blob_part,
                                     uint64_t                      blob_part_size ) -> bool {
   auto retVal         = false;
+  auto complete       = false;
   auto blob_dir       = std::filesystem::directory_entry( _directory.path() / "blobs" );
   auto temp_dir       = std::filesystem::directory_entry( _directory.path() / "temp" );
   auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
   auto image_path     = image_dir_path.path() / blob_sha;
-  auto blob_path      = blob_dir.path() /blob_sha;
+  auto blob_path      = blob_dir.path() / blob_sha;
 
   if ( _temp_file.empty() ) {
     _temp_file = temp_dir.path() / genUUID();
@@ -247,23 +265,28 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
       }
 
       if ( std::filesystem::exists( blob_path ) ) {
-        std::filesystem::create_symlink( blob_path, image_path );
+        if ( not std::filesystem::exists( image_path ) ) {
+          std::filesystem::create_symlink( blob_path, image_path );
+        }
+
+        complete = true;
       } else {
         std::cout << "Failed to copy file '" << _temp_file.string() << "' -> '" << blob_path.string() << "'" << std::endl;
+        retVal = false;
       }
-
-      std::filesystem::remove( _temp_file );
-    } else if ( std::filesystem::remove( _temp_file ) ) {
+    } else {
       std::cerr << "Removed dirty file, file did not validate" << std::endl;
-      std::filesystem::remove( _temp_file );
 
       retVal = false;
     }
+  }
 
+  if ( complete or not retVal ) {
+    std::filesystem::remove( _temp_file );
     _temp_file = "";
   }
 
-  return retVal; // FIXME: Need to return based on the disk write, is disk full, permission denied, or other issue
+  return retVal;
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema1::ImageManifest& im, Schema1::ImageManifest const& request ) {
@@ -283,51 +306,70 @@ void OCI::Extensions::Dir::fetchManifest( Schema1::SignedImageManifest& sim, Sch
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, Schema2::ManifestList const& request ) {
   // Expectation is we are in <base>/<domain> dir with a sub-tree of <repo>:<tags>
-  auto dir_map = dirMap();
+  auto const& dir_map = dirMap();
+  std::filesystem::directory_entry ml_dir_path;
+  std::filesystem::path            ml_file_path;
+  std::filesystem::path            ver_file_path;
 
   if ( dir_map.find( request.name ) != dir_map.end() and dir_map.at( request.name ).path.find( request.requestedTarget ) != dir_map.at( request.name ).path.end() ) {
-    auto ml_file_path  = dir_map.at( request.name ).path.at( request.requestedTarget ).path() / "ManifestList.json";
-    auto ver_file_path = dir_map.at( request.name ).path.at( request.requestedTarget ).path() / "Version";
+    ml_dir_path   = dir_map.at( request.name ).path.at( request.requestedTarget );
+    ml_file_path  = ml_dir_path.path() / "ManifestList.json";
+    ver_file_path = ml_dir_path.path() / "Version";
+  }
 
-    if ( std::filesystem::exists( ver_file_path ) ) {
-      std::ifstream ver_file( ver_file_path );
-      ver_file >> ml.schemaVersion;
+  if ( ml_dir_path.path().empty() ) {
+    ml_dir_path   = std::filesystem::directory_entry( _directory.path() / request.originDomain / ( request.name + ":" + request.requestedTarget ) );
+    ml_file_path  = ml_dir_path.path() / "ManifestList.json";
+    ver_file_path = ml_dir_path.path() / "Version";
+  }
 
-      if ( ml.schemaVersion == 2 and std::filesystem::exists( ml_file_path ) ) {
-        nlohmann::json ml_json;
-        std::ifstream ml_file( ml_file_path );
-        ml_file >> ml_json;
+  if ( std::filesystem::exists( ver_file_path ) ) {
+    std::ifstream ver_file( ver_file_path );
+    ver_file >> ml.schemaVersion;
+  }
 
-        ml_json.get_to( ml );
+  if ( ml.schemaVersion == 2 and std::filesystem::exists( ml_file_path ) ) {
+    nlohmann::json ml_json;
+    std::ifstream ml_file( ml_file_path );
+    ml_file >> ml_json;
 
-        ml_json[ "originDomain" ].get_to( ml.originDomain );
-        ml_json[ "requestedTarget" ].get_to( ml.requestedTarget );
-        ml_json[ "name" ].get_to( ml.name );
-      }
-    }
+    ml_json.get_to( ml );
+
+    ml_json[ "originDomain" ].get_to( ml.originDomain );
+    ml_json[ "requestedTarget" ].get_to( ml.requestedTarget );
+    ml_json[ "name" ].get_to( ml.name );
   }
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, Schema2::ImageManifest const& request ) {
-  auto dir_map = dirMap();
+  auto const& dir_map = dirMap();
+  std::filesystem::directory_entry im_dir_path;
+  std::filesystem::path            im_file_path;
 
   if ( dir_map.find( request.name ) != dir_map.end() and dir_map.at( request.name ).path.find( request.requestedDigest ) != dir_map.at( request.name ).path.end() ) {
-    auto im_file_path = dir_map.at( request.name ).path.at( request.requestedDigest ).path() / "ImageManifest.json";
+    im_dir_path  = dir_map.at( request.name ).path.at( request.requestedDigest );
+    im_file_path = im_dir_path.path() / "ImageManifest.json";
+  }
 
-    if ( std::filesystem::exists( im_file_path ) ) {
-      nlohmann::json im_json;
-      std::ifstream im_file( im_file_path );
-      im_file >> im_json;
+  if ( im_dir_path.path().empty() ) {
+    im_dir_path  = std::filesystem::directory_entry( _directory.path() / request.originDomain / ( request.name + ":" + request.requestedTarget ) );
+    im_file_path = im_dir_path.path() / request.requestedDigest / "ImageManifest.json";
+  }
 
-      im_json.get_to( im );
 
-      im_json[ "originDomain" ].get_to( im.originDomain );
-      im_json[ "requestedTarget" ].get_to( im.requestedTarget );
-      im_json[ "requestedDigest" ].get_to( im.requestedDigest );
-      im_json[ "name" ].get_to( im.name );
-    }
+  if ( std::filesystem::exists( im_file_path ) ) {
+    nlohmann::json im_json;
+    std::ifstream im_file( im_file_path );
+    im_file >> im_json;
+
+    im_json.get_to( im );
+
+    im_json[ "originDomain" ].get_to( im.originDomain );
+    im_json[ "requestedTarget" ].get_to( im.requestedTarget );
+    im_json[ "requestedDigest" ].get_to( im.requestedDigest );
+    im_json[ "name" ].get_to( im.name );
   } else {
-    std::cerr << "OCI::Extensions::Dir::fetchManifest Unable to locate ImageManifest for " << request.name << "->" << request.requestedTarget << std::endl;
+    std::cerr << "OCI::Extensions::Dir::fetchManifest Unable to locate ImageManifest for " << request.name << ":" << request.requestedTarget << std::endl;
   }
 }
 
@@ -351,13 +393,36 @@ auto OCI::Extensions::Dir::putManifest( Schema1::SignedImageManifest const& sim,
   return retVal;
 }
 
-auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::string const& target ) -> bool {
-  (void)target;
-  bool retVal                 = true;
+auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, [[maybe_unused]] std::string const& target ) -> bool {
+  bool retVal                 = false;
   auto manifest_list_dir_path = std::filesystem::directory_entry( _directory.path() / ml.originDomain / ( ml.name + ":" + ml.requestedTarget ) );
   auto manifest_list_path     = manifest_list_dir_path.path() / "ManifestList.json";
   auto version_path           = manifest_list_dir_path.path() / "Version";
 
+  if ( manifest_list_dir_path.exists() ) {
+    for ( auto const& file : std::filesystem::directory_iterator( manifest_list_dir_path ) ) {
+      if ( file.is_directory() ) {
+        auto file_str = file.path().filename().string();
+        auto mlm_itr  = std::find_if( ml.manifests.begin(), ml.manifests.end(),
+            [file_str]( Schema2::ManifestList::Manifest const &mlm ) -> bool { return mlm.digest == file_str; } );
+
+        if ( mlm_itr == ml.manifests.end() ) {
+          std::cout << file.path() << " is not a ImageManifest of " << ml.name << ":" << ml.requestedTarget << std::endl;
+          std::filesystem::remove_all( file );
+        }
+      }
+    }
+  }
+
+  if ( std::filesystem::exists( manifest_list_path ) ) {
+    Schema2::ManifestList other;
+    fetchManifest( other, ml );
+
+    if ( ml != other ) {
+      std::cout << "OCI::Extensions::putManifest Schema2::ManifestList -> Received a new Manifest" << std::endl;
+      std::filesystem::remove( manifest_list_path );
+    }
+  }
 
   nlohmann::json manifest_list_json = ml;
 
@@ -366,27 +431,30 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, std::st
   manifest_list_json[ "requestedTarget" ] = ml.requestedTarget;
   manifest_list_json[ "name" ]            = ml.name;
 
-  bool complete = true;
-
+  auto valid = true;
   for ( auto const& im : ml.manifests ) {
     auto im_path = manifest_list_dir_path.path() / im.digest / "ImageManifest.json";
 
     if ( not std::filesystem::exists( im_path ) ) {
-      complete = false;
-      break;
+      std::cerr << "Unable to write ManifestList, missing ImageManifest: \n";
+      std::cerr << "  " << im_path << std::endl;
+      valid = false;
     }
   }
 
-  if ( complete ) {
+  if ( valid and not std::filesystem::exists( manifest_list_path ) ) {
+    std::cout << "OCI::Extensions::putManifest Schema2::ManifestList -> Writing file " << std::endl;
     std::ofstream manifest_list( manifest_list_path ); 
     std::ofstream version( version_path );
 
     manifest_list << std::setw( 2 ) << manifest_list_json;
     version       << ml.schemaVersion;
+
+    retVal = true;
   }
 
   return retVal;
-}
+} // OCI::Extensions::Dir::putManifest Schema2::ManifestList
 
 auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::string& target ) -> bool {
   bool retVal              = true;
@@ -404,19 +472,21 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
   for ( auto const& layer : im.layers ) {
     if ( not hasBlob( im, target, layer.digest ) ) {
       retVal = false;
-      break;
     }
   }
 
-  if ( not hasBlob( im, target, im.config.digest ) ) {
-    std::cerr << "Config digest missing for " << im.name << ":" << im.requestedTarget << "/" << im.requestedDigest << std::endl;
+  if ( retVal and hasBlob( im, target, im.config.digest ) ) {
+    if ( std::filesystem::exists( image_manifest_path ) ) {
+      retVal = false; // Because nothing changed
+    } else {
+      std::cout << "OCI::Extensions::putManifest Schema::ImageManifest -> Writing file" << std::endl;
+      std::ofstream image_manifest( image_manifest_path );
+
+      image_manifest << std::setw( 2 ) << image_manifest_json;
+    }
+  } else {
+    std::cerr << "Layer or Config digest missing for " << im.name << ":" << im.requestedTarget << "/" << im.requestedDigest << std::endl;
     retVal = false;
-  }
-
-  if ( retVal ) {
-    std::ofstream image_manifest( image_manifest_path );
-
-    image_manifest << std::setw( 2 ) << image_manifest_json;
   }
 
   return retVal;
@@ -424,7 +494,7 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
 
 auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {
   OCI::Tags retVal;
-  auto dir_map = dirMap();
+  auto const& dir_map = dirMap();
 
   if ( dir_map.empty() ) {
     catalog();
