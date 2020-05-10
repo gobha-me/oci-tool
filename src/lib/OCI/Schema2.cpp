@@ -31,8 +31,6 @@ auto OCI::Schema2::operator==( ManifestList const& ml1, ManifestList const& ml2 
       }
     }
   } else {
-    std::cout << ml1.name << " != " << ml2.name << std::endl;
-    std::abort();
     retVal = false;
   }
 

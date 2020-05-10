@@ -44,27 +44,31 @@ void OCI::Copy( Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OC
   Schema2::ImageManifest im_request;
   im_request.name            = manifest_list.name;
   im_request.requestedTarget = manifest_list.requestedTarget;
-  std::vector< std::thread > processes;
+  auto dest_manifest_list    = Manifest< Schema2::ManifestList >( dest, manifest_list );
 
-  processes.reserve( manifest_list.manifests.size() );
+  if ( manifest_list != dest_manifest_list ) {
+    std::vector< std::thread > processes;
 
-  for ( auto& manifest: manifest_list.manifests ) {
-    processes.emplace_back( [&]() -> void {
-      im_request.requestedDigest = manifest.digest;
+    processes.reserve( manifest_list.manifests.size() );
 
-      auto source         = src->copy();
-      auto destination    = dest->copy();
-      auto image_manifest = Manifest< Schema2::ImageManifest >( source.get(), im_request );
+    for ( auto& manifest: manifest_list.manifests ) {
+      processes.emplace_back( [&]() -> void {
+        im_request.requestedDigest = manifest.digest;
 
-      Copy( image_manifest, manifest.digest, source.get(), destination.get() );
-    } );
+        auto source         = src->copy();
+        auto destination    = dest->copy();
+        auto image_manifest = Manifest< Schema2::ImageManifest >( source.get(), im_request );
+
+        Copy( image_manifest, manifest.digest, source.get(), destination.get() );
+      } );
+    }
+
+    for ( auto& process : processes ) {
+      process.join();
+    }
+
+    dest->putManifest( manifest_list, manifest_list.requestedTarget );
   }
-
-  for ( auto& process : processes ) {
-    process.join();
-  }
-
-  dest->putManifest( manifest_list, manifest_list.requestedTarget );
 } // OCI::Copy Schema2::ManifestList
 
 auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& target, OCI::Base::Client* src, OCI::Base::Client* dest ) -> bool {

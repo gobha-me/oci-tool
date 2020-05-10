@@ -59,6 +59,9 @@ namespace OCI::Extensions {
     private:
       uint64_t                         _bytes_written;
       std::filesystem::directory_entry _directory;
+      std::filesystem::directory_entry _tree_root;
+      std::filesystem::directory_entry _blobs_dir;
+      std::filesystem::directory_entry _temp_dir;
       std::filesystem::path            _temp_file;
   };
 } // namespace OCI::Extensions
