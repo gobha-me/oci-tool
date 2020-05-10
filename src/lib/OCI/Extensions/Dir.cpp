@@ -79,7 +79,7 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) : _bytes_written( 0 ) 
   }
 
   if ( not _directory.is_directory() ) {
-    std::cerr << _directory.path() << " does not exist or is not a directory." << std::endl;
+    std::cerr << _directory.path() << " does not exist or is not a directory.\n";
     std::abort();
   }
 
@@ -98,7 +98,7 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) : _bytes_written( 0 ) 
     _temp_dir  = std::filesystem::directory_entry( _tree_root.path() / "temp" );
 
     if ( not ( _blobs_dir.is_directory() and _temp_dir.is_directory() ) ) {
-      std::cerr << "OCI::Extensions::Dir " << directory << " could not be determined to be a valid OCITree";
+      std::cerr << "OCI::Extensions::Dir " << directory << " could not be determined to be a valid OCITree\n";
       std::abort();
     }
   }
@@ -186,9 +186,8 @@ auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha
 }
 
 auto OCI::Extensions::Dir::hasBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 sha ) -> bool {
-  bool retVal         = false;
+  bool retVal = false;
   std::filesystem::directory_entry image_dir_path;
-  std::filesystem::path            image_path;
 
   if ( _directory == _tree_root ) {
     image_dir_path = std::filesystem::directory_entry( _tree_root.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
@@ -196,30 +195,10 @@ auto OCI::Extensions::Dir::hasBlob( Schema2::ImageManifest const& im, std::strin
     image_dir_path = std::filesystem::directory_entry( _directory.path() / ( im.name + ":" + im.requestedTarget ) / target );
   }
 
-  auto blob_file = _blobs_dir.path() / sha;
-  image_path     = image_dir_path.path() / sha;
-
-  if ( not image_dir_path.exists() ) {
-    std::lock_guard< std::mutex > lg( DIR_MUTEX );
-
-    if ( not image_dir_path.exists() ) {
-      std::filesystem::create_directories( image_dir_path );
-    }
-  }
+  auto image_path = image_dir_path.path() / sha;
 
   if ( std::filesystem::exists( image_path ) ) {
     retVal = true;
-  } else {
-    if ( std::filesystem::exists( blob_file ) ) {
-      std::error_code ec;
-      std::filesystem::create_symlink( blob_file, image_path, ec );
-
-      if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
-        std::cerr << ec.value() << " -> " << ec.message() << "\n";
-      } else {
-        retVal = true;
-      }
-    }
   }
 
   return retVal;
@@ -232,7 +211,7 @@ auto OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std:
   (void)blob_part;
   (void)blob_part_size;
 
-  std::cerr << "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented\n";
 
   return false;
 }
@@ -245,13 +224,9 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
                                     uint64_t                      blob_part_size ) -> bool {
   auto retVal         = false;
   auto complete       = false;
+  auto blob_path      = _blobs_dir.path() / blob_sha;
   auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) / target );
   auto image_path     = image_dir_path.path() / blob_sha;
-  auto blob_path      = _blobs_dir.path() / blob_sha;
-
-  if ( _temp_file.empty() ) {
-    _temp_file = _temp_dir.path() / genUUID();
-  }
 
   if ( not image_dir_path.exists() ) {
     std::lock_guard< std::mutex > lg( DIR_MUTEX );
@@ -261,58 +236,68 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
     }
   }
 
-  {// scoped so the file closes prior to any other operation
-    std::ofstream blob( _temp_file, std::ios::app | std::ios::binary );
-    
-    retVal = blob.write( blob_part, blob_part_size ).good();
-  }
+  if ( std::filesystem::exists( blob_path ) ) {
+    complete = true;
+  } else {
+    if ( _temp_file.empty() ) {
+      _temp_file = _temp_dir.path() / genUUID();
+    }
 
-  if ( retVal ) {
-    _bytes_written += blob_part_size;
-  }
+    {// scoped so the file closes prior to any other operation
+      std::ofstream blob( _temp_file, std::ios::app | std::ios::binary );
+      
+      retVal = blob.write( blob_part, blob_part_size ).good();
+    }
 
-  if ( _bytes_written == total_size ) {
-    if ( validateFile( blob_sha, _temp_file ) ) {
-      if ( not std::filesystem::exists( blob_path ) ) {
-        std::lock_guard< std::mutex > lg( DIR_MUTEX );
+    if ( retVal ) {
+      _bytes_written += blob_part_size;
+    }
 
+    if ( _bytes_written == total_size ) {
+      if ( validateFile( blob_sha, _temp_file ) ) {
         if ( not std::filesystem::exists( blob_path ) ) {
-          std::filesystem::copy_file( _temp_file, blob_path );
-        }
-      }
-
-      if ( std::filesystem::exists( blob_path ) ) {
-        if ( not std::filesystem::exists( image_path ) ) {
           std::lock_guard< std::mutex > lg( DIR_MUTEX );
 
-          if ( not std::filesystem::exists( image_path ) ) {
-            std::error_code ec;
-
-            std::filesystem::create_symlink( blob_path, image_path, ec );
-
-            if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
-              std::cerr << ec.value() << " -> " << ec.message() << '\n';
-            }
+          if ( not std::filesystem::exists( blob_path ) ) {
+            std::filesystem::copy_file( _temp_file, blob_path );
           }
+
+          complete = true;
         }
-
-        complete = std::filesystem::exists( image_path );
       } else {
-        std::cout << "Failed to copy file '" << _temp_file.string() << "' -> '" << blob_path.string() << "'" << std::endl;
-        retVal = false;
-      }
-    } else {
-      std::cerr << "Removed dirty file, file did not validate" << std::endl;
+        std::cerr << "OCI::Extensions::Dir Removed dirty file, file did not validate\n";
 
-      retVal = false;
+        std::filesystem::remove( _temp_file );
+        _temp_file.clear();
+        _bytes_written = 0;
+
+        retVal   = false;
+      }
     }
   }
 
-  if ( complete or not retVal ) {
-    std::lock_guard< std::mutex > lg( DIR_MUTEX );
+  if ( complete ) {
+    if ( not std::filesystem::exists( image_path ) ) {
+      std::lock_guard< std::mutex > lg( DIR_MUTEX );
 
-    std::filesystem::remove( _temp_file );
-    _temp_file = "";
+      if ( not std::filesystem::exists( image_path ) ) {
+        std::error_code ec;
+
+        std::filesystem::create_symlink( blob_path, image_path, ec );
+
+        if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
+          std::cerr << "OCI::Extensions::putBlob create_symlink(" << ec.value() << " -> " << ec.message() << ")\n"
+                    << "  " << blob_path << " -> " << image_path << '\n';
+        }
+      }
+    }
+
+    if ( not _temp_file.empty() and std::filesystem::exists( _temp_file ) ) {
+      std::filesystem::remove( _temp_file );
+    }
+
+    _temp_file.clear();
+    _bytes_written = 0;
   }
 
   return retVal;
@@ -322,7 +307,7 @@ void OCI::Extensions::Dir::fetchManifest( Schema1::ImageManifest& im, Schema1::I
   (void)im;
   (void)request;
 
-  std::cerr << "OCI::Extensions::Dir::fetchManifest Schema1::ImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::fetchManifest Schema1::ImageManifest is not implemented\n";
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema1::SignedImageManifest& sim, Schema1::SignedImageManifest const& request ) {
@@ -330,7 +315,7 @@ void OCI::Extensions::Dir::fetchManifest( Schema1::SignedImageManifest& sim, Sch
   (void)request;
 
 
-  std::cerr << "OCI::Extensions::Dir::fetchManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::fetchManifest Schema1::SignedImageManifest is not implemented\n";
 }
 
 void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList& ml, Schema2::ManifestList const& request ) {
@@ -406,10 +391,10 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest& im, Schema2::I
       im_json[ "requestedDigest" ].get_to( im.requestedDigest );
       im_json[ "name" ].get_to( im.name );
     } else {
-      std::cerr << "OCI::Extensions::Dir::fetchManifest Error reading ImageManifest.json " << request.name << ":" << request.requestedTarget << std::endl;
+      std::cerr << "OCI::Extensions::Dir::fetchManifest Error reading ImageManifest.json " << request.name << ":" << request.requestedTarget << '\n';
     }
   } else {
-    std::cerr << "OCI::Extensions::Dir::fetchManifest Unable to locate ImageManifest for " << request.name << ":" << request.requestedTarget << std::endl;
+    std::cerr << "OCI::Extensions::Dir::fetchManifest Unable to locate ImageManifest for " << request.name << ":" << request.requestedTarget << '\n';
   }
 }
 
@@ -418,7 +403,7 @@ auto OCI::Extensions::Dir::putManifest( Schema1::ImageManifest const& im, std::s
   (void)im;
   (void)target;
 
-  std::cerr << "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented\n";
 
   return retVal;
 }
@@ -428,7 +413,7 @@ auto OCI::Extensions::Dir::putManifest( Schema1::SignedImageManifest const& sim,
   (void)sim;
   (void)target;
 
-  std::cerr << "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+  std::cerr << "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented\n";
 
   return retVal;
 }
@@ -450,7 +435,7 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, [[maybe
           std::lock_guard< std::mutex > lg( DIR_MUTEX );
 
           if ( file.exists() ) {
-            std::cout << file.path() << " is not a ImageManifest of " << ml.name << ":" << ml.requestedTarget << std::endl;
+            std::cout << file.path() << " is not a ImageManifest of " << ml.name << ":" << ml.requestedTarget << '\n';
             std::filesystem::remove_all( file );
           }
         }
@@ -466,7 +451,7 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, [[maybe
       std::lock_guard< std::mutex > lg( DIR_MUTEX );
 
       if ( std::filesystem::exists( manifest_list_path ) ) {
-        std::cout << "OCI::Extensions::putManifest Schema2::ManifestList -> Received a new Manifest" << std::endl;
+        std::cout << "OCI::Extensions::putManifest Schema2::ManifestList -> Received a new Manifest" << '\n';
         std::filesystem::remove( manifest_list_path );
       }
     }
@@ -485,13 +470,13 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const& ml, [[maybe
 
     if ( not std::filesystem::exists( im_path ) ) {
       std::cerr << "Unable to write ManifestList, missing ImageManifest: \n";
-      std::cerr << "  " << im_path << std::endl;
+      std::cerr << "  " << im_path << '\n';
       valid = false;
     }
   }
 
   if ( valid and not std::filesystem::exists( manifest_list_path ) ) {
-    std::cout << "OCI::Extensions::putManifest Schema2::ManifestList -> Writing file " << std::endl;
+    std::cout << "OCI::Extensions::putManifest Schema2::ManifestList -> Writing file " << '\n';
 
     std::lock_guard< std::mutex > lg( DIR_MUTEX );
     std::ofstream manifest_list( manifest_list_path ); 
@@ -529,7 +514,7 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
     if ( std::filesystem::exists( image_manifest_path ) ) {
       retVal = false; // Because nothing changed
     } else {
-      std::cout << "OCI::Extensions::putManifest Schema::ImageManifest -> Writing file" << std::endl;
+      std::cout << "OCI::Extensions::putManifest Schema::ImageManifest -> Writing file\n";
       std::ofstream image_manifest( image_manifest_path );
 
       image_manifest << std::setw( 2 ) << image_manifest_json;
@@ -568,7 +553,7 @@ auto OCI::Extensions::Dir::dirMap() -> DirMap const& {
     std::lock_guard< std::mutex > lg( DIR_MAP_MUT );
 
     if ( retVal[ _directory.path().string() ].empty() ) {
-      std::cout << "Generating Directory Map of: " << _directory.path().string() << std::endl;
+      std::cout << "Generating Directory Map of: " << _directory.path().string() << '\n';
       auto &dir_map = retVal[ _directory.path().string() ];
       auto base_dir = dir;
 
