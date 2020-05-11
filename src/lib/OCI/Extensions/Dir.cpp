@@ -569,7 +569,10 @@ auto OCI::Extensions::Dir::dirMap() -> DirMap const& {
               auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
 
               dir_map[ repo_name ].tags.push_back( tag );
-              dir_map[ repo_name ].path[ tag ] = path_part;
+
+              if ( std::filesystem::exists( path_part.path() / "ManifestList.json" ) ) {
+                dir_map[ repo_name ].path[ tag ] = path_part;
+              }
             } else {
               auto repo_name = repo_str.substr( 0, repo_str.find( ':' ) );
               auto target    = repo_str.substr( repo_str.find_last_of( '/' ) + 1 );
