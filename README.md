@@ -28,9 +28,10 @@ clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
 On the TODO list
 
 - Argument parsing and validation
+  - Without this dir: -> docker: is restricted to "open" registries that do not require Auth to push
 - Implement Image and Manifest DELETE - this is more important for Dir than Client which may be noop
 - Picking and implementing an error/logging solution, to throw or not to throw
 - Implement Manifest v2 Schema 1 methods for images that do not have the modern Schema 2 manifests
-- Implement asynchronous copies blobs/manifests
 - Source and Destination is very seperate, this disallows at the moment doing a resume (per the API) on either side
+  - There are senarios where this is a problem, it is about timing and the timeout period for an upload on the registry side
 - Tests????
