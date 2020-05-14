@@ -41,9 +41,6 @@ void OCI::Copy( const Schema1::ImageManifest& image_manifest, OCI::Base::Client*
 }
 
 void OCI::Copy( Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  Schema2::ImageManifest im_request;
-  im_request.name            = manifest_list.name;
-  im_request.requestedTarget = manifest_list.requestedTarget;
   auto dest_manifest_list    = Manifest< Schema2::ManifestList >( dest, manifest_list );
 
   if ( manifest_list != dest_manifest_list ) {
@@ -53,6 +50,11 @@ void OCI::Copy( Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OC
 
     for ( auto& manifest: manifest_list.manifests ) {
       processes.emplace_back( [&]() -> void {
+        Schema2::ImageManifest im_request;
+
+        auto local_manifest_list   = manifest_list;
+        im_request.name            = local_manifest_list.name;
+        im_request.requestedTarget = local_manifest_list.requestedTarget;
         im_request.requestedDigest = manifest.digest;
 
         auto source         = src->copy();
