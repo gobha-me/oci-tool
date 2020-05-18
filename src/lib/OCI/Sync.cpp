@@ -2,16 +2,26 @@
 #include <thread>
 #include <vector>
 
+void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
+  for ( auto const& domain : src->domains() ) {
+    auto const catalog = src->catalog( domain );
+
+    for ( auto const& repo : catalog.repositories ) {
+      Sync( repo, src->tagList( repo ).tags, src, dest );
+    }
+  }
+}
+
 void OCI::Sync( OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  auto const& catalog = src->catalog();
+  auto const catalog = src->catalog();
 
   for ( auto const& repo : catalog.repositories ) {
-    Sync( repo, src->tagList( repo ).tags , src, dest );
+    Sync( repo, src->tagList( repo ).tags, src, dest );
   }
 }
 
 void OCI::Sync( std::string const& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest ) {
-  auto const& tagList = src->tagList( rsrc );
+  auto const tagList = src->tagList( rsrc );
 
   Sync( rsrc, tagList.tags, src, dest );
 }
@@ -24,10 +34,7 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
 
   for ( auto const& tag: tags ) {
     processes.emplace_back( [&]() {
-    //auto source      = src->copy();
-    //auto destination = dest->copy();
-
-    Copy( rsrc, tag, src, dest );
+      Copy( rsrc, tag, src, dest );
     } );
 
     if ( processes.size() == processes.capacity() ) {

@@ -1,4 +1,5 @@
 #include <OCI/Factory.hpp>
+#include <OCI/Extensions/Yaml.hpp>
 #include <OCI/Sync.hpp>
 #include <Yaml.hpp>
 #include <iostream>
@@ -64,44 +65,15 @@ auto main( int argc, char ** argv ) -> int {
   auto dest_proto    = dest.substr( 0, dest_proto_itr );
   auto dest_location = dest.substr( dest_proto_itr + 1 );
   
-  auto destination = CLIENT_MAP.at( dest_proto )( dest_location, dest_username, dest_password );
+  auto destination = OCI::CLIENT_MAP.at( dest_proto )( dest_location, dest_username, dest_password );
+
+  // a 'resource', but without will use source which assumes _catalog is implemented or available
 
   if ( src_proto == "yaml" ) {
-    Yaml::Node root_node; // need a new Yaml parser, this one doesn't follow C++ Iterator standards, which breaks range loops and the STL algorithms
-    Yaml::Parse( root_node, src_location.c_str() ); // c-string for filename, std::string for a string to parse, WTF, should be two different functions
-
-    for ( auto source_node = root_node.Begin(); source_node != root_node.End(); source_node++ ) {
-      auto domain       = (*source_node).first;
-      auto images_node  = (*source_node).second[ "images" ];
-      auto username     = (*source_node).second[ "username" ].As< std::string >();
-      auto password     = (*source_node).second[ "password" ].As< std::string >();
-
-      auto source = CLIENT_MAP.at( "docker" )( domain, username, password );;
-
-      for ( auto image_node = images_node.Begin(); image_node != images_node.End(); image_node++ ) {
-        auto resource = (*image_node).first;
-
-        if ( resource.find( '/' ) == std::string::npos ) {
-          resource.insert( 0, "library/" ); // set to default namespace if non provided
-        }
-
-        if ( (*image_node).second.IsSequence() ) {
-          std::vector< std::string > tags;
-
-          for ( auto tag_node = (*image_node).second.Begin(); tag_node != (*image_node).second.End(); tag_node++ ) {
-            tags.push_back( (*tag_node).second.As< std::string >() );
-          }
-
-          OCI::Sync( resource, tags, source.get(), destination.get() );
-        } else {
-          OCI::Sync( resource, source.get(), destination.get() );
-        }
-      }
-    }
+    auto source = OCI::Extensions::Yaml( src_location );
+    OCI::Sync( &source, destination.get() );
   } else {
-    auto source = CLIENT_MAP.at( src_proto )( src_location, src_password, src_password );
-
-    // need a 'resource', but without will use source which assumes _catalog is implemented or available
+    auto source = OCI::CLIENT_MAP.at( src_proto )( src_location, src_password, src_password );
     OCI::Sync( source.get(), destination.get() );
   }
 
