@@ -176,13 +176,21 @@ auto OCI::Extensions::Dir::fetchBlob( [[maybe_unused]] const std::string& rsrc, 
   return retVal;
 }
 
-auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, SHA256 sha ) -> bool {
-  (void)im;
-  (void)sha;
+auto OCI::Extensions::Dir::hasBlob( const Schema1::ImageManifest& im, [[maybe_unused]] SHA256 sha ) -> bool {
+  bool retVal = false;
+  std::filesystem::directory_entry image_dir_path;
 
-  std::cerr << "OCI::Extensions::Dir::hasBlob Schema1::ImageManifest is not implemented\n";
+  if ( _directory == _tree_root ) {
+    image_dir_path = std::filesystem::directory_entry( _tree_root.path() / im.originDomain / ( im.name + ":" + im.requestedTarget ) );
+  } else {
+    image_dir_path = std::filesystem::directory_entry( _directory.path() / ( im.name + ":" + im.requestedTarget ) );
+  }
 
-  return false;
+  if ( std::filesystem::exists( image_dir_path ) ) {
+    retVal = true;
+  }
+
+  return retVal;
 }
 
 auto OCI::Extensions::Dir::hasBlob( Schema2::ImageManifest const& im, std::string const& target, SHA256 sha ) -> bool {
