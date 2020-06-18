@@ -145,10 +145,10 @@ auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ImageManifest  const&, st
 auto OCI::Extensions::Yaml::tagList( std::string const& rsrc ) -> OCI::Tags {
   OCI::Tags retVal;
 
-  if ( _catalog.tags.find( _current_domain ) == _catalog.tags.end() ) {
-    retVal = _client->tagList( rsrc );
-  } else {
+  if ( _catalog.tags.find( _current_domain ) != _catalog.tags.end() and _catalog.tags.at( _current_domain ).find( rsrc ) != _catalog.tags.at( _current_domain ).end() ) {
     retVal = _catalog.tags.at( _current_domain ).at( rsrc );
+  } else {
+    retVal = _client->tagList( rsrc );
   }
 
   return retVal;

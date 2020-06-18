@@ -551,7 +551,9 @@ auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const s
       break;
     case HTTP_CODE::OK:
       retVal = nlohmann::json::parse( res->body );
+      break;
     case HTTP_CODE::Not_Found:
+      std::cerr << "OCI::Registry::Client::fetchManifest request Manifest Not_Found " << mediaType << ' ' << resource << ':' << target << "\n";
       break;
     default:
       std::cerr << "OCI::Registry::Client::fetchManifest " << location << std::endl;

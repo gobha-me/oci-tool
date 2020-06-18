@@ -33,4 +33,6 @@ namespace OCI::Schema1 { // https://docs.docker.com/registry/spec/api/
   void from_json( const nlohmann::json& j, ImageManifest& im );
   void from_json( const nlohmann::json& j, SignedImageManifest& sim );
   void from_json( const nlohmann::json& j, SignedImageManifest::Signature& sims );
+
+  void to_json( nlohmann::json& j, ImageManifest const& im );
 } // namespace OCI::Schema1

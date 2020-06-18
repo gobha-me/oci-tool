@@ -10,23 +10,52 @@ void OCI::Copy( std::string const& rsrc, std::string const& target, OCI::Base::C
 
   auto manifest_list = Manifest< Schema2::ManifestList >( src, ml_request );
 
-  if ( manifest_list.schemaVersion == 1 ) { // Fall back to Schema1
-    Schema1::ImageManifest im_request;
+  switch ( manifest_list.schemaVersion ) {
+    case 1: // Fall back to Schema1
+      {
+        Schema1::ImageManifest im_request;
 
-    im_request.name            = rsrc;
-    im_request.requestedTarget = target;
+        im_request.name            = rsrc;
+        im_request.requestedTarget = target;
 
-    auto image_manifest = Manifest< Schema1::ImageManifest >( src, im_request );
+        auto image_manifest = Manifest< Schema1::ImageManifest >( src, im_request );
 
-    Copy( image_manifest, src, dest );
-  } else {
-    std::cout << "OCI::Copy Start  " << rsrc << ":" << target << "\n";
-    Copy( manifest_list, src, dest );
-    std::cout << "OCI::Copy Finish " << rsrc << ":" << target << "\n";
+        if ( not image_manifest.fsLayers.empty() ) {
+          std::cout << "OCI::Copy Start Schema1  " << rsrc << ":" << target << "\n";
+          Copy( image_manifest, src, dest );
+          std::cout << "OCI::Copy Finish Schema1 " << rsrc << ":" << target << "\n";
+        }
+      }
+
+      break;
+    case 2:
+      if ( not manifest_list.manifests.empty() ) {
+        std::cout << "OCI::Copy Start Schema2  " << rsrc << ":" << target << "\n";
+        Copy( manifest_list, src, dest );
+        std::cout << "OCI::Copy Finish Schema2 " << rsrc << ":" << target << "\n";
+      }
+
+      break;
+    default:
+      std::cout << "Unknown schemaVersion " << manifest_list.schemaVersion << '\n';
   }
 }
 
 void OCI::Copy( const Schema1::ImageManifest& image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+  (void)src;
+
+  for ( auto const& layer: image_manifest.fsLayers ) {
+    if ( layer.first == "blobSum" ) {
+      if ( not dest->hasBlob( image_manifest, layer.second ) ) {
+        std::cout << "Destintaion doesn't have layer" << std::endl;
+      }
+    }
+  }
+
+  std::cout << "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" << std::endl;
+}
+
+void OCI::Copy( const Schema1::SignedImageManifest& image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   (void)src;
 
   for ( auto const& layer: image_manifest.fsLayers ) {
