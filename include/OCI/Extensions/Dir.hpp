@@ -53,6 +53,8 @@ namespace OCI::Extensions {
       auto putManifest( Schema2::ManifestList const& ml,         std::string const& target ) -> bool override;
       auto putManifest( Schema2::ImageManifest const& im,        std::string&       target ) -> bool override;
 
+      auto swap( Dir &other ) -> void;
+
       auto tagList( const std::string& rsrc ) -> OCI::Tags override;
     protected:
       auto dirMap() -> DirMap const&;

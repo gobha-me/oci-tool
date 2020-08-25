@@ -1,6 +1,7 @@
 #include <OCI/Copy.hpp>
 #include <future>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 void OCI::Copy( std::string const& rsrc, std::string const& target, OCI::Base::Client* src, OCI::Base::Client* dest ) {
   Schema2::ManifestList ml_request;
@@ -21,23 +22,23 @@ void OCI::Copy( std::string const& rsrc, std::string const& target, OCI::Base::C
         auto image_manifest = Manifest< Schema1::ImageManifest >( src, im_request );
 
         if ( not image_manifest.fsLayers.empty() ) {
-          std::cout << "OCI::Copy Start Schema1  " << rsrc << ":" << target << "\n";
+          spdlog::info( "OCI::Copy Start Schema1 ImageManifest {}:{}", rsrc, target );
           Copy( image_manifest, src, dest );
-          std::cout << "OCI::Copy Finish Schema1 " << rsrc << ":" << target << "\n";
+          spdlog::info( "OCI::Copy Finish Schema1 ImageManifest ", rsrc, target );
         }
       }
 
       break;
     case 2:
       if ( not manifest_list.manifests.empty() ) {
-        std::cout << "OCI::Copy Start Schema2  " << rsrc << ":" << target << "\n";
+        spdlog::info( "OCI::Copy Start Schema2 ManifestList ", rsrc, target );
         Copy( manifest_list, src, dest );
-        std::cout << "OCI::Copy Finish Schema2 " << rsrc << ":" << target << "\n";
+        spdlog::info( "OCI::Copy Finish Schema2 ManifestList ", rsrc, target );
       }
 
       break;
     default:
-      std::cout << "Unknown schemaVersion " << manifest_list.schemaVersion << '\n';
+      spdlog::error( "Unknown schemaVersion {}", manifest_list.schemaVersion );
   }
 }
 
@@ -47,12 +48,12 @@ void OCI::Copy( const Schema1::ImageManifest& image_manifest, OCI::Base::Client*
   for ( auto const& layer: image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
       if ( not dest->hasBlob( image_manifest, layer.second ) ) {
-        std::cout << "Destintaion doesn't have layer" << std::endl;
+        spdlog::info( "Destintaion doesn't have layer" );
       }
     }
   }
 
-  std::cout << "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" << std::endl;
+  spdlog::warn( "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" );
 }
 
 void OCI::Copy( const Schema1::SignedImageManifest& image_manifest, OCI::Base::Client* src, OCI::Base::Client* dest ) {
@@ -61,12 +62,12 @@ void OCI::Copy( const Schema1::SignedImageManifest& image_manifest, OCI::Base::C
   for ( auto const& layer: image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
       if ( not dest->hasBlob( image_manifest, layer.second ) ) {
-        std::cout << "Destintaion doesn't have layer" << std::endl;
+        spdlog::info( "Destintaion doesn't have layer" );
       }
     }
   }
 
-  std::cout << "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" << std::endl;
+  spdlog::warn( "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" );
 }
 
 void OCI::Copy( Schema2::ManifestList& manifest_list, OCI::Base::Client* src, OCI::Base::Client* dest ) {
@@ -120,7 +121,7 @@ auto OCI::Copy( Schema2::ImageManifest const& image_manifest, std::string& targe
     }
 
     if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
-      std::cout << "Getting Config Blob: " << image_manifest.config.digest << "\n";
+      spdlog::info( "Getting Config Blob: {}", image_manifest.config.digest );
 
       uint64_t data_sent = 0;
       std::function< bool( const char *, uint64_t ) > call_back = [&]( const char *data, uint64_t data_length ) -> bool {

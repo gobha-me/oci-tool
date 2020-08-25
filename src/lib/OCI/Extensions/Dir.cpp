@@ -7,6 +7,7 @@
 #include <mutex>
 #include <random>
 #include <set>
+#include <spdlog/spdlog.h>
 
 std::mutex DIR_MUTEX;
 std::mutex DIR_MAP_MUT;
@@ -98,13 +99,13 @@ OCI::Extensions::Dir::Dir( std::string const& directory ) : _bytes_written( 0 ) 
     _temp_dir  = std::filesystem::directory_entry( _tree_root.path() / "temp" );
 
     if ( not ( _blobs_dir.is_directory() and _temp_dir.is_directory() ) ) {
-      std::cerr << "OCI::Extensions::Dir " << directory << " could not be determined to be a valid OCITree\n";
+      spdlog::error( "OCI::Extensions::Dir {} could not be determined to be a valid OCITree", directory );
       std::abort();
     }
   }
 }
 
-OCI::Extensions::Dir::Dir( OCI::Extensions::Dir const& other ) {
+OCI::Extensions::Dir::Dir( OCI::Extensions::Dir const& other ) : _bytes_written( 0 ) {
   _tree_root = other._tree_root;
   _directory = other._directory;
   _blobs_dir = other._blobs_dir;
@@ -112,17 +113,15 @@ OCI::Extensions::Dir::Dir( OCI::Extensions::Dir const& other ) {
 }
 
 OCI::Extensions::Dir::Dir( OCI::Extensions::Dir && other ) noexcept {
-  _tree_root = std::move( other._tree_root );
-  _directory = std::move( other._directory );
-  _blobs_dir = std::move( other._blobs_dir );
-  _temp_dir  = std::move( other._temp_dir );
+  _bytes_written = other._bytes_written;
+  _tree_root     = std::move( other._tree_root );
+  _directory     = std::move( other._directory );
+  _blobs_dir     = std::move( other._blobs_dir );
+  _temp_dir      = std::move( other._temp_dir );
 }
 
-auto OCI::Extensions::Dir::operator=( Dir const& other ) -> Dir& { // NOLINT - HANDLE SELF COPIES https://clang.llvm.org/extra/clang-tidy/checks/bugprone-unhandled-self-assignment.html
-  _tree_root = other._tree_root;
-  _directory = other._directory;
-  _blobs_dir = other._blobs_dir;
-  _temp_dir  = other._temp_dir;
+auto OCI::Extensions::Dir::operator=( Dir const& other ) -> Dir& {
+  Dir(other).swap( *this );
 
   return *this;
 }
@@ -157,7 +156,7 @@ auto OCI::Extensions::Dir::fetchBlob( [[maybe_unused]] const std::string& rsrc, 
   bool retVal        = true;
   auto blob_path = _tree_root.path() / "blobs" / sha;
 
-  std::cout << "OCI::Extensions::Dir::fetchBlob Fetching Blob Resource: " << sha << "\n";
+  spdlog::info( "OCI::Extensions::Dir::fetchBlob Fetching Blob Resource: {}", sha );
   if ( std::filesystem::exists( blob_path ) ) {
     constexpr auto BUFFSIZE = 4096;
 
@@ -170,7 +169,7 @@ auto OCI::Extensions::Dir::fetchBlob( [[maybe_unused]] const std::string& rsrc, 
       retVal = call_back( reinterpret_cast< const char * >( buf.data() ), readcount ); // NOLINT
     }
   } else {
-    std::cerr << "OCI::Extensions::Dir::fetchBlob unable to locate blob: " << sha << "\n";
+    spdlog::error( "OCI::Extensions::Dir::fetchBlob unable to locate blob: {}", sha );
   }
 
   return retVal;
@@ -219,7 +218,7 @@ auto OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest& im, const std:
   (void)blob_part;
   (void)blob_part_size;
 
-  std::cerr << "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented\n";
+  spdlog::error( "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" );
 
   return false;
 }
@@ -273,7 +272,7 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
           complete = true;
         }
       } else {
-        std::cerr << "OCI::Extensions::Dir Removed dirty file, file did not validate\n";
+        spdlog::error( "OCI::Extensions::Dir Removed dirty file, file did not validate" );
 
         std::filesystem::remove( _temp_file );
         _temp_file.clear();
@@ -294,8 +293,8 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const& im,
         std::filesystem::create_symlink( blob_path, image_path, ec );
 
         if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
-          std::cerr << "OCI::Extensions::putBlob create_symlink(" << ec.value() << " -> " << ec.message() << ")\n"
-                    << "  " << blob_path << " -> " << image_path << '\n';
+          spdlog::error( "OCI::Extensions::putBlob create_symlink( {} -> {} ) {}  -> {}  "
+             , ec.value(), ec.message(), blob_path, image_path );
         }
       }
     }
@@ -533,6 +532,14 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const& im, std::s
   }
 
   return retVal;
+}
+
+auto OCI::Extensions::Dir::swap( Dir &other ) -> void {
+  std::swap( _bytes_written, other._bytes_written );
+  std::swap( _tree_root, other._tree_root );
+  std::swap( _directory, other._directory );
+  std::swap( _blobs_dir, other._blobs_dir );
+  std::swap( _temp_dir, other._temp_dir );
 }
 
 auto OCI::Extensions::Dir::tagList( std::string const& rsrc ) -> OCI::Tags {

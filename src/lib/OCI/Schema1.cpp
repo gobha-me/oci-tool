@@ -1,4 +1,5 @@
 #include <OCI/Schema1.hpp>
+#include <spdlog/spdlog.h>
 
 void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::ImageManifest& im ) {
   j.at( "architecture" ).get_to( im.architecture );
@@ -24,14 +25,14 @@ void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::SignedImage
   (void)j;
   (void)sim;
 
-  std::cout << "Construct OCI::Schema1::SignedManifest" << std::endl;
+  spdlog::warn( "Construct OCI::Schema1::SignedManifest" );
 }
 
 void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::SignedImageManifest::Signature& sims ) {
   (void)j;
   (void)sims;
 
-  std::cout << "Construct OCI::Schema1::SignedManifest::Signature" << std::endl;
+  spdlog::warn( "Construct OCI::Schema1::SignedManifest::Signature" );
 }
 
 void OCI::Schema1::to_json( nlohmann::json& j, OCI::Schema1::ImageManifest const& im ) {

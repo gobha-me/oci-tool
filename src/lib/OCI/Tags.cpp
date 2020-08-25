@@ -9,5 +9,5 @@ void OCI::to_json( nlohmann::json& j, const Tags& t ) {
   (void)j;
   (void)t;
 
-  std::cout << "Construst json from OCI::Tags" << std::endl;
+  spdlog::warn( "Construst json from OCI::Tags" );
 }
