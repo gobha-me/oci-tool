@@ -8,9 +8,19 @@ This failed with SHA256 digest validation.  If someone knows of a good one, that
 ensure libbotan-2 (dev) is installed.
 
 ### BUILD
-Building is simple, quick and dirty, spent to much time trying to get cmake to work for this simple build.  Will circle back when have the time
+Release build
 ```
-./Build.sh
+$ mkdir BUILD
+$ cd BUILD
+$ cmake ..
+$ make
+```
+Debug Build
+```
+$ mkdir BUILD
+$ cd BUILD
+$ cmake -DCMAKE_BUILD_TYPE=Debug ..
+$ make
 ```
 
 ### EXAMPLES
