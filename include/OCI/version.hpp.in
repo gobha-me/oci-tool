@@ -1,0 +1,4 @@
+#pragma once
+#define OCI_VERSION_MAJOR = @OCI_Tools_VERSION_MAJOR@;
+#define OCI_VERSION_MINOR = @OCI_Tools_VERSION_MINOR@;
+#define OCI_VERSION_PATCH = @OCI_Tools_VERSION_PATCH@;

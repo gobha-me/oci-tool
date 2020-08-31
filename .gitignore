@@ -2,3 +2,4 @@ oci-tool
 *.sw*
 /bin
 .clangd
+/BUILD

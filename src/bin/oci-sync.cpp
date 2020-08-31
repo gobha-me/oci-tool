@@ -6,10 +6,6 @@
 #include <args.hxx>
 #include <spdlog/spdlog.h>
 
-// This spawned from the need of doing a multi arch sync, which requires a multi arch copy
-//  and learn how REST interfaces can be implemented, so going the 'hard' route was a personal choice
-// SRC(s), good for now, but would like to extend to a "DirTree" to a Registry, so this would also require a proto
-
 // So far this will only work for the following combinations
 // yaml -> dir
 // yaml -> docker (unauthenticated)
