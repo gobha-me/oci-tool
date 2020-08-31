@@ -1,5 +1,6 @@
 #include <OCI/Extensions/Yaml.hpp>
 #include <OCI/Factory.hpp>
+#include <spdlog/spdlog.h>
 
 OCI::Extensions::Yaml::Yaml( std::string const &file_path ) : _client( nullptr ) {
   ::Yaml::Node root_node; // need a new Yaml parser, this one doesn't follow C++ Iterator standards, which breaks range loops and the STL algorithms
@@ -65,7 +66,7 @@ auto OCI::Extensions::Yaml::operator=( Yaml && other ) noexcept -> Yaml& {
 }
 
 auto OCI::Extensions::Yaml::catalog() -> OCI::Catalog {
-  std::cerr << "OCI::Extensions::Yaml is not a normal client, see documentation for details.\n";
+  spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 
@@ -97,12 +98,12 @@ auto OCI::Extensions::Yaml::hasBlob( OCI::Schema2::ImageManifest const& im, std:
 }
 
 auto OCI::Extensions::Yaml::putBlob( OCI::Schema1::ImageManifest const&, std::string const&, std::uintmax_t, const char *, uint64_t ) -> bool { // NOLINT
-  std::cerr << "OCI::Extensions::Yaml is not a normal client, see documentation for details.\n";
+  spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 
 auto OCI::Extensions::Yaml::putBlob( OCI::Schema2::ImageManifest const&, std::string const&, SHA256 const&, std::uintmax_t, const char *, uint64_t ) -> bool { // NOLINT
-  std::cerr << "OCI::Extensions::Yaml is not a normal client, see documentation for details.\n";
+  spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 
@@ -123,22 +124,22 @@ void OCI::Extensions::Yaml::fetchManifest( OCI::Schema2::ImageManifest & im, OCI
 }
 
 auto OCI::Extensions::Yaml::putManifest( OCI::Schema1::ImageManifest const &, std::string const& target ) -> bool { // NOLINT
-  std::cerr << "OCI::Extensions::Yaml is not a normal client, see documentation for details.\n";
+  spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 
 auto OCI::Extensions::Yaml::putManifest( OCI::Schema1::SignedImageManifest const&, std::string const& target ) -> bool { // NOLINT
-  std::cerr << "OCI::Extensions::Yaml is not a normal client, see documentation for details.\n";
+  spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 
 auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ManifestList const&, std::string const& target ) -> bool { // NOLINT
-  std::cerr << "OCI::Extensions::Yaml is not a normal client, see documentation for details.\n";
+  spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 
 auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ImageManifest  const&, std::string & target ) -> bool { // NOLINT
-  std::cerr << "OCI::Extensions::Yaml is not a normal client, see documentation for details.\n";
+  spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 

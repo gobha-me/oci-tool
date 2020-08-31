@@ -58,7 +58,7 @@ auto main( int argc, char ** argv ) -> int {
       break;
   }
 
-  spdlog::set_pattern("[%H:%M:%S %z] [%n] [%^---%L---%$] [thread %t] %v");
+  spdlog::set_pattern("[%H:%M:%S] [%^%l%$] [thread %t] %v");
 
   std::shared_ptr< OCI::Base::Client > source;
 

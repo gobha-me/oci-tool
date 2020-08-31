@@ -24,16 +24,16 @@ void OCI::Copy( std::string const& rsrc, std::string const& target, OCI::Base::C
         if ( not image_manifest.fsLayers.empty() ) {
           spdlog::info( "OCI::Copy Start Schema1 ImageManifest {}:{}", rsrc, target );
           Copy( image_manifest, src, dest );
-          spdlog::info( "OCI::Copy Finish Schema1 ImageManifest ", rsrc, target );
+          spdlog::info( "OCI::Copy Finish Schema1 ImageManifest {}:{}", rsrc, target );
         }
       }
 
       break;
     case 2:
       if ( not manifest_list.manifests.empty() ) {
-        spdlog::info( "OCI::Copy Start Schema2 ManifestList ", rsrc, target );
+        spdlog::info( "OCI::Copy Start Schema2 ManifestList {}:{}", rsrc, target );
         Copy( manifest_list, src, dest );
-        spdlog::info( "OCI::Copy Finish Schema2 ManifestList ", rsrc, target );
+        spdlog::info( "OCI::Copy Finish Schema2 ManifestList {}:{}", rsrc, target );
       }
 
       break;

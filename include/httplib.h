@@ -128,14 +128,14 @@ using socket_t = SOCKET;
 #include <unistd.h>
 
 using socket_t = int;
-#define INVALID_SOCKET (-1)
+constexpr auto INVALID_SOCKET (-1);
 #endif //_WIN32
 
 #include <array>
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
 #include <fstream>
 #include <functional>
@@ -148,6 +148,7 @@ using socket_t = int;
 #include <string>
 #include <sys/stat.h>
 #include <thread>
+#include <utility>
 
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
 #include <openssl/err.h>
@@ -183,7 +184,7 @@ namespace httplib {
 namespace detail {
 
 struct ci {
-  bool operator()(const std::string &s1, const std::string &s2) const {
+  auto operator()(const std::string &s1, const std::string &s2) const -> bool {
     return std::lexicographical_compare(
         s1.begin(), s1.end(), s2.begin(), s2.end(),
         [](char c1, char c2) { return ::tolower(c1) < ::tolower(c2); });
@@ -211,13 +212,13 @@ struct MultipartFormData {
 using MultipartFormDataItems = std::vector<MultipartFormData>;
 using MultipartFormDataMap = std::multimap<std::string, MultipartFormData>;
 
-class DataSink {
-public:
-  DataSink() = default;
-  DataSink(const DataSink &) = delete;
-  DataSink &operator=(const DataSink &) = delete;
-  DataSink(DataSink &&) = delete;
-  DataSink &operator=(DataSink &&) = delete;
+struct DataSink {
+//  DataSink() = default;
+//  DataSink(const DataSink &) = delete;
+//  auto operator=(const DataSink &) -> DataSink & = delete;
+//  DataSink(DataSink &&) = delete;
+//  auto operator=(DataSink &&) -> DataSink & = delete;
+//  ~DataSink() = default;
 
   std::function<void(const char *data, size_t data_len)> write;
   std::function<void()> done;
@@ -240,15 +241,16 @@ public:
                                              ContentReceiver receiver)>;
 
   ContentReader(Reader reader, MultipartReader muitlpart_reader)
-      : reader_(reader), muitlpart_reader_(muitlpart_reader) {}
+      : reader_(std::move(reader)), muitlpart_reader_(std::move(muitlpart_reader)) {}
 
-  bool operator()(MultipartContentHeader header,
-                  ContentReceiver receiver) const {
-    return muitlpart_reader_(header, receiver);
+  auto operator()(MultipartContentHeader header,
+                  ContentReceiver receiver) const -> bool {
+    return muitlpart_reader_(std::move(header), std::move(receiver));
   }
 
-  bool operator()(ContentReceiver receiver) const { return reader_(receiver); }
+  auto operator()(ContentReceiver receiver) const -> bool { return reader_(std::move(receiver)); }
 
+private:
   Reader reader_;
   MultipartReader muitlpart_reader_;
 };
@@ -296,7 +298,7 @@ struct Request {
   MultipartFormData get_file_value(const char *key) const;
 
   // private members...
-  size_t content_length;
+  size_t content_length{};
   ContentProvider content_provider;
 };
 
@@ -328,9 +330,9 @@ struct Response {
 
   Response() = default;
   Response(const Response &) = default;
-  Response &operator=(const Response &) = default;
+  auto operator=(const Response &) -> Response & = default;
   Response(Response &&) = default;
-  Response &operator=(Response &&) = default;
+  auto operator=(Response &&) -> Response & = default;
   ~Response() {
     if (content_provider_resource_releaser) {
       content_provider_resource_releaser();
@@ -338,7 +340,7 @@ struct Response {
   }
 
   // private members...
-  size_t content_length = 0;
+  size_t content_length{};
   ContentProvider content_provider;
   std::function<void()> content_provider_resource_releaser;
 };
@@ -4409,6 +4411,21 @@ inline void Client::set_logger(Logger logger) { logger_ = std::move(logger); }
  */
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
 namespace detail {
+inline auto ssl_free( std::mutex &ctx_mutex, SSL *ssl ) -> void {
+  std::lock_guard<std::mutex> guard(ctx_mutex);
+
+  if ( ssl != nullptr ) {
+    SSL_free(ssl);
+  }
+}
+
+inline auto ssl_shutdown_and_free( std::mutex &ctx_mutex, SSL *ssl ) -> void {
+  if ( ssl != nullptr ) {
+    SSL_shutdown(ssl);
+
+    ssl_free( ctx_mutex, ssl );
+  }
+}
 
 template <typename U, typename V, typename T>
 inline bool process_and_close_socket_ssl(
@@ -4418,7 +4435,7 @@ inline bool process_and_close_socket_ssl(
   assert(keep_alive_max_count > 0);
 
   SSL *ssl = nullptr;
-  {
+  {// FIXME: make a SSL "guard" wrapper class to do the right thing on scope exit
     std::lock_guard<std::mutex> guard(ctx_mutex);
     ssl = SSL_new(ctx);
   }
@@ -4432,11 +4449,7 @@ inline bool process_and_close_socket_ssl(
   SSL_set_bio(ssl, bio, bio);
 
   if (!setup(ssl)) {
-    SSL_shutdown(ssl);
-    {
-      std::lock_guard<std::mutex> guard(ctx_mutex);
-      SSL_free(ssl);
-    }
+    ssl_shutdown_and_free( ctx_mutex, ssl );
 
     close_socket(sock);
     return false;
@@ -4447,30 +4460,36 @@ inline bool process_and_close_socket_ssl(
   if (SSL_connect_or_accept(ssl) == 1) {
     if (keep_alive_max_count > 1) {
       auto count = keep_alive_max_count;
+      auto connection_close = false;
       while (count > 0 &&
              (is_client_request ||
               detail::select_read(sock, CPPHTTPLIB_KEEPALIVE_TIMEOUT_SECOND,
                                   CPPHTTPLIB_KEEPALIVE_TIMEOUT_USECOND) > 0)) {
         SSLSocketStream strm(sock, ssl, read_timeout_sec, read_timeout_usec);
         auto last_connection = count == 1;
-        auto connection_close = false;
 
         ret = callback(ssl, strm, last_connection, connection_close);
         if (!ret || connection_close) { break; }
 
         count--;
       }
+
+      if ( connection_close ) {
+        ssl_free( ctx_mutex, ssl );
+      } else {
+        ssl_shutdown_and_free( ctx_mutex, ssl );
+      }
     } else {
       SSLSocketStream strm(sock, ssl, read_timeout_sec, read_timeout_usec);
       auto dummy_connection_close = false;
       ret = callback(ssl, strm, true, dummy_connection_close);
-    }
-  }
 
-  SSL_shutdown(ssl);
-  {
-    std::lock_guard<std::mutex> guard(ctx_mutex);
-    SSL_free(ssl);
+      if ( dummy_connection_close ) {
+        ssl_free( ctx_mutex, ssl );
+      } else {
+        ssl_shutdown_and_free( ctx_mutex, ssl );
+      }
+    }
   }
 
   close_socket(sock);

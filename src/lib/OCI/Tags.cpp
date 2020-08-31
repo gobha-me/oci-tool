@@ -1,4 +1,5 @@
 #include <OCI/Tags.hpp>
+#include <spdlog/spdlog.h>
 
 void OCI::from_json( const nlohmann::json& j, Tags& t ) {
   j.at( "name" ).get_to( t.name );

@@ -3,6 +3,7 @@
 #include <botan/hex.h>
 #include <memory>
 #include <sstream>
+#include <spdlog/spdlog.h>
 
 constexpr std::uint16_t SSL_PORT    = 443;
 constexpr std::uint16_t HTTP_PORT   = 80;
@@ -70,7 +71,7 @@ OCI::Registry::Client::Client( std::string const& location ) {
     _cli  = std::make_shared< httplib::Client >( _domain, DOCKER_PORT );
 
     if ( not ping() ) {
-      std::cerr << _domain << " does not respond to the V2 API (secure/unsecure)" << std::endl;
+      spdlog::warn( "{} does not respond to the V2 API (secure/unsecure)", _domain );
     }
   }
 
@@ -113,8 +114,6 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string c
 
     std::string location;
 
-    //std::cout << "|" << auth_type << "|" << " |" << auth_hint << "|" << std::endl;
-
     auto realm      = auth_hint.substr( 0, coma );
          realm      = realm.substr( realm.find( '"' ) + 1, realm.length() - ( realm.find( '"' ) + 2 ) );
          realm      = realm.substr( realm.find( '/' ) + 2 ); // remove proto
@@ -136,12 +135,12 @@ void OCI::Registry::Client::auth( httplib::Headers const& headers, std::string c
     auto j = nlohmann::json::parse( result->body );
 
     if ( j.find( "token" ) == j.end() ) {
-      std::cerr << "Auth Failed: " << j.dump( 2 ) << std::endl;
+      spdlog::error( "Auth Failed: {}", j.dump( 2 ) );
     } else {
       j.get_to( _ctr );
     }
   } else {
-    std::cerr << "OCI::Registry::Client::auth not given header 'Www-Authenticate'" << std::endl;
+    spdlog::error( "OCI::Registry::Client::auth not given header 'Www-Authenticate'" );
   }
 }
 
@@ -161,7 +160,7 @@ auto OCI::Registry::Client::authHeaders() const -> httplib::Headers {
 auto OCI::Registry::Client::catalog() -> OCI::Catalog {
   Catalog retVal;
 
-  std::cerr << "OCI::Registry::Client::catalog Not implemented" << std::endl;
+  spdlog::warn( "OCI::Registry::Client::catalog Not implemented" );
 
   return retVal;
 }
@@ -210,8 +209,7 @@ auto OCI::Registry::Client::fetchBlob( const std::string& rsrc, SHA256 sha, std:
         break;
       default:
         retVal = false;
-        std::cerr << "OCI::Registry::Client::fetchBlob " << location << std::endl;
-        std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+        spdlog::error( "OCI::Registry::Client::fetchBlob {}\n  Status: {} Body: {}", location, res->status, res->body );
     }
   }
 
@@ -251,10 +249,9 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest& im, SHA256 sh
   }
 
   if ( not ( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
-    std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
-    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+    spdlog::error( "OCI::Registry::Client::hasBlob {}\n  Status: {} Body: {}", location, res->status, res->body );
     for ( auto const& header : res->headers ) {
-      std::cerr << header.first << " -> " << header.second << std::endl;
+      spdlog::error( "{} -> {}", header.first, header.second );
     }
   }
   _cli->set_follow_location( true );
@@ -299,10 +296,9 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest& im, const std
     case HTTP_CODE::Not_Found: // Common if not yet pushed images so it created a lot of noise
       break;
     default:
-      std::cerr << "OCI::Registry::Client::hasBlob " << location << std::endl;
-      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+      spdlog::error( "OCI::Registry::Client::hasBlob {}\n  Status: {} Body: {}", location, res->status, res->body );
       for ( auto const& header : res->headers ) {
-        std::cerr << header.first << " -> " << header.second << std::endl;
+        spdlog::error( "{} -> {}", header.first, header.second );
       }
   }
 
@@ -322,7 +318,7 @@ auto OCI::Registry::Client::putBlob( const Schema1::ImageManifest& im,
   (void)blob_part;
   (void)blob_part_size;
 
-  std::cout << "OCI::Registry::Client::putBlob Schema1::ImageManifest Not_Implemented" << std::endl;
+  spdlog::warn( "OCI::Registry::Client::putBlob Schema1::ImageManifest Not_Implemented" );
 
   return false;
 }
@@ -346,7 +342,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
   std::string domain;
 
   if ( _patch_location.empty() ) {
-    std::cerr << "Starting upload for Blob " << blob_sha << std::endl;
+    spdlog::info( "Starting upload for Blob {}", blob_sha );
     res = _cli->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
     // FIXME: IF NULL HERE JUST RETRY
   } else {
@@ -440,7 +436,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
               headers.emplace( "Content-Length", "0" );
               headers.emplace( "Content-Type", "application/octet-stream" );
               // Finalize and label with the digest
-              std::cerr << "Finalizing upload for Blob " << blob_sha << std::endl;
+              spdlog::info( "Finalizing upload for Blob {}", blob_sha );
 
               res = _patch_cli->Put( ( _patch_location + "&digest=" + blob_sha ).c_str(), headers, "", "application/octet-stream" );
 
@@ -452,18 +448,17 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const& im,
 
         break;
       default:
-        std::cerr << "OCI::Registry::Client::putBlob " << im.name << std::endl;
-        std::cerr << "  Status: " << res->status << std::endl;
+        spdlog::error( "OCI::Registry::Client::putBlob  {}\n  Status: {}", im.name, res->status ) ;
         for ( auto const& header : res->headers ) {
-          std::cerr << header.first << " -> " << header.second << std::endl;
+          spdlog::error( "{} -> {}", header.first, header.second );
         }
-        std::cerr << " Body: " << res->body << std::endl;
+        spdlog::error( " Body: {}", res->body );
         has_error = true;
     }
   }
 
   if ( res == nullptr ) {
-    std::cerr << "lost or timed out on our connection to the registry" << std::endl;
+    spdlog::warn( "lost or timed out on our connection to the registry" );
     retVal = false;
   }
 
@@ -543,21 +538,24 @@ auto OCI::Registry::Client::fetchManifest( const std::string& mediaType, const s
 
   auto res = _cli->Get( location.c_str(), headers );
 
-  switch ( HTTP_CODE( res->status ) ) {
-    case HTTP_CODE::Unauthorized:
-      auth( res->headers, "repository:" + resource + ":pull" ); // auth modifies the headers, so should auth return headers???
+  if ( res == nullptr ) {
+    spdlog::error( "OCI::Registry::Client::fetchManifest request error, returned NULL {}:{}", resource, target );
+  } else {
+    switch ( HTTP_CODE( res->status ) ) {
+      case HTTP_CODE::Unauthorized:
+        auth( res->headers, "repository:" + resource + ":pull" ); // auth modifies the headers, so should auth return headers???
 
-      retVal = fetchManifest( mediaType, resource, target ); // Hopefully this doesn't spiral into an infinite auth loop
-      break;
-    case HTTP_CODE::OK:
-      retVal = nlohmann::json::parse( res->body );
-      break;
-    case HTTP_CODE::Not_Found:
-      std::cerr << "OCI::Registry::Client::fetchManifest request Manifest Not_Found " << mediaType << ' ' << resource << ':' << target << "\n";
-      break;
-    default:
-      std::cerr << "OCI::Registry::Client::fetchManifest " << location << std::endl;
-      std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+        retVal = fetchManifest( mediaType, resource, target ); // Hopefully this doesn't spiral into an infinite auth loop
+        break;
+      case HTTP_CODE::OK:
+        retVal = nlohmann::json::parse( res->body );
+        break;
+      case HTTP_CODE::Not_Found:
+        spdlog::warn( "OCI::Registry::Client::fetchManifest request Manifest Not_Found {} {}:{}", mediaType, resource, target );
+        break;
+      default:
+        spdlog::error( "OCI::Registry::Client::fetchManifest {}\n  Status: {} Body: {}", location, res->status, res->body );
+    }
   }
 
   return retVal;
@@ -568,7 +566,7 @@ auto OCI::Registry::Client::putManifest( const Schema1::ImageManifest& im, const
   (void)im;
   (void)target;
 
-  std::cout << "OCI::Registry::Client::putManifest Schema1::ImageManifest is not implemented" << std::endl;
+  spdlog::warn( "OCI::Registry::Client::putManifest Schema1::ImageManifest is not implemented" );
 
   return retVal;
 }
@@ -578,7 +576,7 @@ auto OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest& sim
   (void)sim;
   (void)target;
 
-  std::cout << "OCI::Registry::Client::putManifest Schema1::SignedImageManifest is not implemented" << std::endl;
+  spdlog::warn( "OCI::Registry::Client::putManifest Schema1::SignedImageManifest is not implemented" );
 
   return retVal;
 }
@@ -600,12 +598,11 @@ auto OCI::Registry::Client::putManifest( const Schema2::ManifestList& ml, const 
     retVal = true;
     break;
   default:
-    std::cerr << "OCI::Registry::Client::putManifest Schema2::ImageManifest " << ml.name << std::endl;
-    std::cerr << "  Status: " << res->status << std::endl;
+    spdlog::error( "OCI::Registry::Client::putManifest Schema2::ImageManifest {}\n  Status: ", ml.name, res->status );
     for ( auto const& header : res->headers ) {
-      std::cerr << header.first << " -> " << header.second << std::endl;
+      spdlog::error( "{} -> {}",  header.first, header.second );
     }
-    std::cerr << " Body: " << res->body << std::endl;
+    spdlog::error( " Body: {}", res->body );
   }
 
   return retVal;
@@ -637,13 +634,12 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const& im, std::
     retVal = true;
     break;
   default:
-    std::cerr << "OCI::Registry::Client::putManifest Schema2::ImageManifest " << im.name << ":" << target << std::endl;
-    std::cerr << "  Status: " << res->status << std::endl;
+    spdlog::error( "OCI::Registry::Client::putManifest Schema2::ImageManifest {}:{}\n  Status: {}", im.name, target, res->status );
     for ( auto const& header : res->headers ) {
-      std::cerr << header.first << " -> " << header.second << std::endl;
+      spdlog::error( "{} -> {}", header.first, header.second );
     }
-    std::cerr << " Body: " << res->body << std::endl;
-    std::cerr << j.dump( 2 ) << std::endl;
+    spdlog::error( " Body: {}", res->body );
+    spdlog::error( j.dump( 2 ) );
   }
 
   return retVal;
@@ -664,8 +660,7 @@ auto OCI::Registry::Client::tagList( const std::string& rsrc ) -> OCI::Tags {
   if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     retVal = nlohmann::json::parse( res->body ).get< Tags >();
   } else {
-    std::cerr << "OCI::Registry::Client::tagList " << location << std::endl;
-    std::cerr << "  Status: " << res->status << " Body: " << res->body << std::endl;
+    spdlog::error( "OCI::Registry::Client::tagList {}\n  Status: {} Body: {}", location, res->status, res->body );
   }
 
   return retVal;
