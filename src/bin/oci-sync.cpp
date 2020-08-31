@@ -1,9 +1,9 @@
-#include <OCI/Factory.hpp>
 #include <OCI/Extensions/Yaml.hpp>
+#include <OCI/Factory.hpp>
 #include <OCI/Sync.hpp>
 #include <Yaml.hpp>
-#include <iostream>
 #include <args.hxx>
+#include <iostream>
 #include <spdlog/spdlog.h>
 
 // So far this will only work for the following combinations
@@ -11,31 +11,34 @@
 // yaml -> docker (unauthenticated)
 // dir  -> dir
 // dir  -> docker (unauthenticated)
-auto main( int argc, char ** argv ) -> int {
+auto main( int argc, char **argv ) -> int {
   using namespace std::string_literals;
 
-  args::ArgumentParser            parser( "Multi architecture OCI sync tool" );
-  args::HelpFlag                  help( parser, "help", "Display this help message", { 'h', "help" } );
-  args::CounterFlag               verbose( parser, "VERBOSE", "increase logging", { 'v', "verbose" } );
-  args::ValueFlag< std::string >  dest_username( parser, "USERNAME", "User to authenticate to the destination registry", { 'u', "username" } );
-  args::ValueFlag< std::string >  dest_password( parser, "PASSWORD", "PASSWORD to authenticate to the destination registry", { 'p', "password" } );
-  args::Group                     group( parser, "", args::Group::Validators::All ); // NOLINT API Defined outside this application Core Guidelines Slicing
+  args::ArgumentParser           parser( "Multi architecture OCI sync tool" );
+  args::HelpFlag                 help( parser, "help", "Display this help message", { 'h', "help" } );
+  args::CounterFlag              verbose( parser, "VERBOSE", "increase logging", { 'v', "verbose" } );
+  args::ValueFlag< std::string > dest_username( parser, "USERNAME", "User to authenticate to the destination registry",
+                                                { 'u', "username" } );
+  args::ValueFlag< std::string > dest_password(
+      parser, "PASSWORD", "PASSWORD to authenticate to the destination registry", { 'p', "password" } );
+  args::Group group( // NOLINT(cppcoreguidelines-slicing)
+      parser, "", args::Group::Validators::All );
   args::Positional< std::string > src_arg( group, "<proto>:<uri>", "Images source" );
   args::Positional< std::string > dest_arg( group, "<proto>:<uri>", "Images destination" );
   args::CompletionFlag            completion( parser, { "complete" } );
 
   try {
     parser.ParseCLI( argc, argv );
-  } catch ( args::Help& ) {
+  } catch ( args::Help & ) {
     std::cout << parser;
 
     return EXIT_FAILURE;
-  } catch ( args::ParseError& e ) {
+  } catch ( args::ParseError &e ) {
     std::cerr << e.what() << std::endl;
     std::cerr << parser;
 
     return EXIT_FAILURE;
-  } catch ( args::ValidationError& e ) {
+  } catch ( args::ValidationError &e ) {
     std::cerr << e.what() << std::endl;
     std::cerr << parser;
 
@@ -43,24 +46,24 @@ auto main( int argc, char ** argv ) -> int {
   }
 
   switch ( verbose.Get() ) {
-    case 1:
-      spdlog::set_level( spdlog::level::debug );
-      break;
-    case 2:
-      spdlog::set_level( spdlog::level::trace );
-      break;
-    default:
-      spdlog::set_level( spdlog::level::info );
-      break;
+  case 1:
+    spdlog::set_level( spdlog::level::debug );
+    break;
+  case 2:
+    spdlog::set_level( spdlog::level::trace );
+    break;
+  default:
+    spdlog::set_level( spdlog::level::info );
+    break;
   }
 
-  spdlog::set_pattern("[%H:%M:%S] [%^%l%$] [thread %t] %v");
+  spdlog::set_pattern( "[%H:%M:%S] [%^%l%$] [thread %t] %v" );
 
   std::shared_ptr< OCI::Base::Client > source;
 
   std::string src_username;
   std::string src_password;
-  
+
   auto src_proto_itr  = src_arg.Get().find( ':' );
   auto dest_proto_itr = dest_arg.Get().find( ':' );
 
@@ -87,12 +90,12 @@ auto main( int argc, char ** argv ) -> int {
   // need to ensure src and dest proto are within a supported set
   //  as of today that is: yaml docker dir
 
-  auto src_proto     = src_arg.Get().substr( 0, src_proto_itr );
-  auto src_location  = src_arg.Get().substr( src_proto_itr + 1 );
+  auto src_proto    = src_arg.Get().substr( 0, src_proto_itr );
+  auto src_location = src_arg.Get().substr( src_proto_itr + 1 );
 
   auto dest_proto    = dest_arg.Get().substr( 0, dest_proto_itr );
   auto dest_location = dest_arg.Get().substr( dest_proto_itr + 1 );
-  
+
   auto destination = OCI::CLIENT_MAP.at( dest_proto )( dest_location, dest_username.Get(), dest_password.Get() );
 
   // a 'resource', but without will use source which assumes _catalog is implemented or available
