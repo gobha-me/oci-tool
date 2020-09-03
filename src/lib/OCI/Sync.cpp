@@ -27,7 +27,8 @@ void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest, indicators:
     };
     // clang-format on
 
-    auto sync_bar_index = progress_bars.push_back( sync_bar );
+    //auto sync_bar_index = progress_bars.push_back( sync_bar );
+    auto sync_bar_ref = progress_bars.push_back( sync_bar );
 
     auto repo_index = 0;
     for ( auto const& repo : catalog.repositories ) {
@@ -52,14 +53,11 @@ void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest, indicators:
         }
       }
 
-//      try {
-        auto &sync_bar_ref = progress_bars[ sync_bar_index ];
-        sync_bar_ref.tick();
-        sync_bar_ref.set_option( indicators::option::PostfixText{
-      	  std::to_string( ++repo_index ) + "/" + std::to_string( catalog.repositories.size() )
-    	  });
-//      } catch ( std::system_error &e ) {
-//      }
+      //auto &sync_bar_ref = progress_bars[ sync_bar_index ];
+      sync_bar_ref.get().tick();
+      sync_bar_ref.get().set_option( indicators::option::PostfixText{
+      	std::to_string( ++repo_index ) + "/" + std::to_string( catalog.repositories.size() )
+    	});
     }
   }
 
@@ -104,7 +102,8 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
     };
     // clang-format on
 
-  auto sync_bar_index = progress_bars.push_back( sync_bar );
+  //auto sync_bar_index = progress_bars.push_back( sync_bar );
+  auto sync_bar_ref = progress_bars.push_back( sync_bar );
 
   auto tag_index = 0;
   for ( auto const& tag: tags ) {
@@ -129,14 +128,11 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
       }
     }
 
-//    try {
-      auto &sync_bar = progress_bars[ sync_bar_index ];
-      sync_bar.tick();
-      sync_bar.set_option( indicators::option::PostfixText{
-        std::to_string( ++tag_index ) + "/" + std::to_string( tags.size() )
-      });
-//    } catch ( std::system_error &e ) {
-//    }
+    //auto &sync_bar = progress_bars[ sync_bar_index ];
+    sync_bar_ref.get().tick();
+    sync_bar_ref.get().set_option( indicators::option::PostfixText{
+      std::to_string( ++tag_index ) + "/" + std::to_string( tags.size() )
+    });
   }
 
   for ( auto& process: processes ) {
