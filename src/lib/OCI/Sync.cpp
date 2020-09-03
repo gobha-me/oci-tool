@@ -59,10 +59,23 @@ void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest, indicators:
       	std::to_string( ++repo_index ) + "/" + std::to_string( catalog.repositories.size() )
     	});
     }
-  }
 
-  for ( auto& process: processes ) {
-    process.join();
+    while ( not processes.empty() ) {
+      auto proc_itr = std::find_if( processes.begin(), processes.end(), []( std::thread& process ) {
+          bool retVal = false;
+
+          if ( process.joinable() ) {
+            process.join();
+            retVal = true;
+          }
+
+          return retVal;
+      } );
+
+      if ( proc_itr != processes.end() ) {
+        processes.erase( proc_itr );
+      }
+    }
   }
 }
 

@@ -5,7 +5,7 @@
 #include <args.hxx>
 #include <indicators.hpp>
 #include <iostream>
-#include <signal.h>
+#include <csignal>
 #include <spdlog/spdlog.h>
 
 class indicators_cursor_guard {
@@ -101,6 +101,7 @@ auto main( int argc, char **argv ) -> int {
   auto dest_proto_itr = dest_arg.Get().find( ':' );
 
   if ( src_proto_itr == std::string::npos ) {
+    std::cerr << "Images Source is not properly formated!" << std::endl;
     std::cerr << parser;
 
     return EXIT_FAILURE;
@@ -114,6 +115,12 @@ auto main( int argc, char **argv ) -> int {
     // the repo name and tag info comes from the source
     //  this is by design as we are "cloning" the source
     //  this is not made for renaming or tagging
+    if ( dest_arg.Get().find( "yaml" ) != std::string::npos ) {
+      std::cerr << "yaml is not a valid destination" << std::endl;
+    } else {
+      std::cerr << "Images Destination is not properly formated!" << std::endl;
+    }
+
     std::cerr << parser;
 
     return EXIT_FAILURE;
