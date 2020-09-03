@@ -56,6 +56,7 @@ namespace OCI::Extensions {
       auto swap( Dir &other ) -> void;
 
       auto tagList( const std::string& rsrc ) -> OCI::Tags override;
+      auto tagList( std::string const &rsrc, std::regex const &re ) -> OCI::Tags override;
     protected:
       auto dirMap() -> DirMap const&;
     private:

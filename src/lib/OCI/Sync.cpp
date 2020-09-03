@@ -1,9 +1,10 @@
 #include <OCI/Sync.hpp>
 #include <thread>
 #include <vector>
+#include <spdlog/spdlog.h>
 
-void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
-  constexpr auto THREAD_LIMIT=4;
+void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest, indicators::DynamicProgress< indicators::ProgressBar >& progress_bars ) {
+  constexpr auto THREAD_LIMIT = 4;
   std::vector< std::thread > processes;
 
   processes.reserve( THREAD_LIMIT );
@@ -11,9 +12,27 @@ void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
   for ( auto const& domain : src->domains() ) {
     auto const catalog = src->catalog( domain );
 
+    // clang-format off
+    indicators::ProgressBar sync_bar{
+        indicators::option::BarWidth{80}, // NOLINT
+    		indicators::option::Start{"["},
+    		indicators::option::Fill{"■"},
+    		indicators::option::Lead{"■"},
+    		indicators::option::Remainder{" "},
+    		indicators::option::End{" ]"},
+        indicators::option::MaxProgress{ catalog.repositories.size() },
+        indicators::option::ForegroundColor{indicators::Color::cyan},
+        indicators::option::PrefixText{ domain },
+        indicators::option::PostfixText{ "0/" + std::to_string( catalog.repositories.size() ) }
+    };
+    // clang-format on
+
+    auto sync_bar_index = progress_bars.push_back( sync_bar );
+
+    auto repo_index = 0;
     for ( auto const& repo : catalog.repositories ) {
       processes.emplace_back( [&]() -> void {
-        Sync( repo, src->tagList( repo ).tags, src, dest );
+        Sync( repo, src->tagList( repo ).tags, src, dest, progress_bars );
       } );
 
       while ( processes.size() == processes.capacity() ) {
@@ -32,6 +51,15 @@ void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
           processes.erase( proc_itr );
         }
       }
+
+//      try {
+        auto &sync_bar_ref = progress_bars[ sync_bar_index ];
+        sync_bar_ref.tick();
+        sync_bar_ref.set_option( indicators::option::PostfixText{
+      	  std::to_string( ++repo_index ) + "/" + std::to_string( catalog.repositories.size() )
+    	  });
+//      } catch ( std::system_error &e ) {
+//      }
     }
   }
 
@@ -40,26 +68,45 @@ void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
   }
 }
 
-void OCI::Sync( OCI::Base::Client* src, OCI::Base::Client* dest ) {
+void OCI::Sync( OCI::Base::Client* src, OCI::Base::Client* dest, indicators::DynamicProgress< indicators::ProgressBar >& progress_bars ) {
   auto const catalog = src->catalog();
 
   for ( auto const& repo : catalog.repositories ) {
-    Sync( repo, src->tagList( repo ).tags, src, dest );
+    Sync( repo, src->tagList( repo ).tags, src, dest, progress_bars );
   }
 }
 
-void OCI::Sync( std::string const& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+void OCI::Sync( std::string const& rsrc, OCI::Base::Client* src, OCI::Base::Client* dest, indicators::DynamicProgress< indicators::ProgressBar >& progress_bars ) {
   auto const tagList = src->tagList( rsrc );
 
-  Sync( rsrc, tagList.tags, src, dest );
+  Sync( rsrc, tagList.tags, src, dest, progress_bars );
 }
 
-void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags, OCI::Base::Client* src, OCI::Base::Client* dest ) {
+void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags, OCI::Base::Client* src, OCI::Base::Client* dest, indicators::DynamicProgress< indicators::ProgressBar >& progress_bars ) {
   constexpr auto THREAD_LIMIT=4;
   std::vector< std::thread > processes;
 
   processes.reserve( THREAD_LIMIT );
 
+  spdlog::error( rsrc );
+  // clang-format off
+  indicators::ProgressBar sync_bar{
+      indicators::option::BarWidth{60}, // NOLINT
+      indicators::option::Start{"["},
+      indicators::option::Fill{"■"},
+      indicators::option::Lead{"■"},
+      indicators::option::Remainder{" "},
+      indicators::option::End{" ]"},
+      indicators::option::MaxProgress{ tags.size() },
+      indicators::option::ForegroundColor{indicators::Color::magenta},
+      indicators::option::PrefixText{ rsrc },
+      indicators::option::PostfixText{ "0/" + std::to_string( tags.size() ) }
+    };
+    // clang-format on
+
+  auto sync_bar_index = progress_bars.push_back( sync_bar );
+
+  auto tag_index = 0;
   for ( auto const& tag: tags ) {
     processes.emplace_back( [&]() -> void {
       Copy( rsrc, tag, src, dest );
@@ -81,6 +128,15 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
         processes.erase( proc_itr );
       }
     }
+
+//    try {
+      auto &sync_bar = progress_bars[ sync_bar_index ];
+      sync_bar.tick();
+      sync_bar.set_option( indicators::option::PostfixText{
+        std::to_string( ++tag_index ) + "/" + std::to_string( tags.size() )
+      });
+//    } catch ( std::system_error &e ) {
+//    }
   }
 
   for ( auto& process: processes ) {

@@ -5,6 +5,7 @@
 #include <OCI/Tags.hpp>
 #include <functional>
 #include <string>
+#include <regex>
 
 namespace OCI::Base {
   class Client {
@@ -42,6 +43,7 @@ namespace OCI::Base {
     virtual auto putManifest( Schema2::ImageManifest       const& im,  std::string      & target ) -> bool = 0;
 
     virtual auto tagList( std::string const& rsrc ) -> Tags = 0;
+    virtual auto tagList( std::string const& rsrc, std::regex const& re ) -> Tags = 0;
   protected:
   private:
   };

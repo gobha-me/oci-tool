@@ -12,8 +12,8 @@ std::mutex DIR_MUTEX;
 std::mutex DIR_MAP_MUT;
 std::mutex SEED_MUTEX;
 
-// clang-format off
 auto genUUID() -> std::string {
+  // clang-format off
   constexpr std::array< char, 62 > const CHARS( {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
@@ -297,7 +297,7 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
         std::filesystem::create_symlink( blob_path, image_path, ec );
 
         if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
-          spdlog::error( "OCI::Extensions::putBlob create_symlink( {} -> {} ) {} -> {}", ec.value(), ec.message(),
+          spdlog::error( "OCI::Extensions::Dir::putBlob create_symlink( {} -> {} ) {} -> {}", ec.value(), ec.message(),
                          blob_path.string(), image_path.string() );
         }
       }
@@ -496,13 +496,13 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const &ml, [[maybe
     auto im_path = manifest_list_dir_path.path() / im.digest / "ImageManifest.json";
 
     if ( not std::filesystem::exists( im_path ) ) {
-      spdlog::error( "OCI::Extensions::putManifest Unable to write ManifestList, missing ImageManifest: \n {}", im_path.string() );
+      spdlog::error( "OCI::Extensions::Dir::putManifest Unable to write ManifestList, missing ImageManifest: \n {}", im_path.string() );
       valid = false;
     }
   }
 
   if ( valid and not std::filesystem::exists( manifest_list_path ) ) {
-    spdlog::info( "OCI::Extensions::putManifest Schema2::ManifestList -> Writing file " );
+    spdlog::info( "OCI::Extensions::Dir::putManifest Schema2::ManifestList -> Writing file " );
 
     std::lock_guard< std::mutex > lg( DIR_MUTEX );
     std::ofstream manifest_list( manifest_list_path );
@@ -571,6 +571,12 @@ auto OCI::Extensions::Dir::tagList( std::string const &rsrc ) -> OCI::Tags {
     retVal.name = rsrc;
     retVal.tags = dir_map.at( rsrc ).tags;
   }
+
+  return retVal;
+}
+
+auto OCI::Extensions::Dir::tagList( std::string const &rsrc, std::regex const & /*re*/ ) -> OCI::Tags {
+  auto retVal = tagList( rsrc );
 
   return retVal;
 }
