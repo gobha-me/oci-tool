@@ -99,7 +99,6 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
 
   processes.reserve( THREAD_LIMIT );
 
-  spdlog::error( rsrc );
   // clang-format off
   indicators::ProgressBar sync_bar{
       indicators::option::BarWidth{60}, // NOLINT
@@ -115,13 +114,12 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
     };
     // clang-format on
 
-  //auto sync_bar_index = progress_bars.push_back( sync_bar );
   auto sync_bar_ref = progress_bars.push_back( sync_bar );
 
   auto tag_index = 0;
   for ( auto const& tag: tags ) {
     processes.emplace_back( [&]() -> void {
-      Copy( rsrc, tag, src, dest );
+      Copy( rsrc, tag, src, dest, progress_bars );
     } );
 
     while ( processes.size() == processes.capacity() ) {

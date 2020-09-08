@@ -46,8 +46,7 @@ auto main( int argc, char **argv ) -> int {
                                                 { 'u', "username" } );
   args::ValueFlag< std::string > dest_password(
       parser, "PASSWORD", "PASSWORD to authenticate to the destination registry", { 'p', "password" } );
-  args::Group group( // NOLINT(cppcoreguidelines-slicing)
-      parser, "", args::Group::Validators::All );
+  args::Group group( parser, "", args::Group::Validators::All ); // NOLINT(cppcoreguidelines-slicing)
   args::Positional< std::string > src_arg( group, "<proto>:<uri>", "Images source" );
   args::Positional< std::string > dest_arg( group, "<proto>:<uri>", "Images destination" );
   args::CompletionFlag            completion( parser, { "complete" } );

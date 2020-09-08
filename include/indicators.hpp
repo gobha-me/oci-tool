@@ -2300,7 +2300,7 @@ namespace indicators {
 namespace indicators {
   // It exists because the std::this_thread::get_id() is much slower(especially
   // under VS 2013) - Taken from spdlog
-  inline size_t thread_id() noexcept {
+  inline auto thread_id() noexcept -> size_t {
 #ifdef _WIN32
     return static_cast< size_t >( ::GetCurrentThreadId() );
 #elif defined( __linux__ )
@@ -2350,14 +2350,6 @@ namespace indicators {
       size_t bar_index_;
       std::reference_wrapper< DynamicProgress > dyn_pro_;
     };
-    //  template <typename... Indicators> explicit DynamicProgress(Indicators &... bars) {
-    //    bars_ = {bars...};
-    //    for (auto &bar : bars_) {
-    //      bar.get().multi_progress_mode_ = true;
-    //      ++total_count_;
-    //      ++incomplete_count_;
-    //    }
-    //  }
 
     auto operator[]( size_t index ) -> Indicator & {
       print_progress();
