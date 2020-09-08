@@ -126,7 +126,7 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
             indicators::option::End{" ]"},
             indicators::option::MaxProgress{ layer.size },
             indicators::option::ForegroundColor{indicators::Color::yellow},
-            indicators::option::PrefixText{ layer.digest.substr( layer.digest.size() - 10 ) },
+            indicators::option::PrefixText{ layer.digest.substr( layer.digest.size() - 10 ) }, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
             indicators::option::PostfixText{ "0/" + std::to_string( layer.size ) }
           };
         // clang-format on
@@ -139,7 +139,7 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
           data_sent += data_length;
 
           if ( dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length ) ) {
-            sync_bar_ref.get().tick();
+            sync_bar_ref.get().set_progress( data_sent );
             sync_bar_ref.get().set_option(
                 indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer.size ) } );
 
