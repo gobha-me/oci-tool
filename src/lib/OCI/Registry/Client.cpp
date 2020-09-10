@@ -89,7 +89,6 @@ OCI::Registry::Client::Client( Client const &other ) {
   _domain   = other._domain;
   _username = other._username;
   _password = other._password;
-  _ctr      = other._ctr;
 
   _cli = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
 
@@ -748,6 +747,14 @@ auto OCI::Registry::Client::pingResource( std::string const &rsrc ) -> bool {
   return HTTP_CODE( res->status ) == HTTP_CODE::OK;
 }
 
+auto OCI::Registry::Client::swap( Client &other ) -> void {
+  std::swap( _domain, other._domain );
+  std::swap( _username, other._username );
+  std::swap( _password, other._password );
+  std::swap( _cli, other._cli );
+}
+
+std::mutex TIME_ZONE_MUTEX;
 void OCI::Registry::from_json( nlohmann::json const &j, Client::TokenResponse &ctr ) {
   if ( j.find( "token" ) != j.end() ) {
     j.at( "token" ).get_to( ctr.token );
@@ -767,6 +774,8 @@ void OCI::Registry::from_json( nlohmann::json const &j, Client::TokenResponse &c
     std::tm           tm = {};
     std::stringstream ss( j.at( "issued_at" ).get< std::string >() );
     std::get_time( &tm, "%Y-%m-%dT%H:%M:%S" ); // EXAMPLE 2020-04-20T11:52:16.177118311Z
+    
+    std::lock_guard< std::mutex > lg( TIME_ZONE_MUTEX );
     ctr.issued_at = std::chrono::system_clock::from_time_t( std::mktime( &tm ) );
   } else {
     ctr.issued_at = std::chrono::system_clock::now();
@@ -775,12 +784,4 @@ void OCI::Registry::from_json( nlohmann::json const &j, Client::TokenResponse &c
   if ( j.find( "refresh_token" ) != j.end() ) {
     j.at( "refresh_token" ).get_to( ctr.refresh_token );
   }
-}
-
-auto OCI::Registry::Client::swap( Client &other ) -> void {
-  std::swap( _domain, other._domain );
-  std::swap( _username, other._username );
-  std::swap( _password, other._password );
-  std::swap( _ctr, other._ctr );
-  std::swap( _cli, other._cli );
 }

@@ -109,12 +109,31 @@ void OCI::Copy( Schema2::ManifestList &manifest_list, OCI::Base::Client *src, OC
   }
 } // OCI::Copy Schema2::ManifestList
 
+std::mutex WD_MUTEX;
 auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &target, OCI::Base::Client *src,
                 OCI::Base::Client *dest, ProgressBars &progress_bars ) -> bool {
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest );
+  static std::vector< std::string > working_digests;
 
   if ( image_manifest != dest_image_manifest ) {
     for ( auto const &layer : image_manifest.layers ) {
+      // Wait for the other thread to complete the download, will attempt if other thread failed
+      while ( true ) {
+        {
+          std::lock_guard< std::mutex > lg( WD_MUTEX );
+          auto wd_itr = std::find( working_digests.begin(), working_digests.end(), layer.digest );
+
+          if ( wd_itr == working_digests.end() ) {
+            working_digests.emplace_back( layer.digest );
+
+            break;
+          }
+        }
+
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for( 50ms );
+      }
+
       if ( not dest->hasBlob( image_manifest, target, layer.digest ) ) {
         // clang-format off
         indicators::ProgressBar sync_bar{
@@ -151,6 +170,28 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
 
         src->fetchBlob( image_manifest.name, layer.digest, call_back );
       }
+
+      std::lock_guard< std::mutex > lg( WD_MUTEX );
+      auto wd_itr = std::find( working_digests.begin(), working_digests.end(), layer.digest );
+      if ( wd_itr != working_digests.end() ) {
+        working_digests.erase( wd_itr );
+      }
+    }
+
+    while ( true ) {
+      {
+        std::lock_guard< std::mutex > lg( WD_MUTEX );
+        auto wd_itr = std::find( working_digests.begin(), working_digests.end(), image_manifest.config.digest );
+
+        if ( wd_itr == working_digests.end() ) {
+          working_digests.emplace_back( image_manifest.config.digest );
+
+          break;
+        }
+      }
+
+      using namespace std::chrono_literals;
+      std::this_thread::sleep_for( 50ms );
     }
 
     if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
@@ -166,6 +207,12 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
       };
 
       src->fetchBlob( image_manifest.name, image_manifest.config.digest, call_back );
+    }
+
+    std::lock_guard< std::mutex > lg( WD_MUTEX );
+    auto wd_itr = std::find( working_digests.begin(), working_digests.end(), image_manifest.config.digest );
+    if ( wd_itr != working_digests.end() ) {
+      working_digests.erase( wd_itr );
     }
   }
 

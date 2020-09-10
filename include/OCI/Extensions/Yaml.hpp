@@ -65,9 +65,11 @@ namespace OCI::Extensions {
     auto tagList( std::string const &rsrc ) -> OCI::Tags override;
     auto tagList( std::string const &rsrc, std::regex const &re ) -> OCI::Tags override;
 
+    auto swap( Yaml &other ) -> void;
   protected:
   private:
-    std::shared_ptr< OCI::Base::Client > _client;
+    mutable std::mutex                   _mutex;
+    std::unique_ptr< OCI::Base::Client > _client;
     std::string                          _current_domain;
     Catalog                              _catalog;
   };

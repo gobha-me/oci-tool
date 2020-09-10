@@ -48,8 +48,9 @@ OCI::Extensions::Yaml::Yaml( Yaml const &other ) {
   _catalog        = other._catalog;
   _current_domain = other._current_domain;
 
-  if ( other._client != nullptr ) {
-    _client = other._client->copy();
+  if ( not _current_domain.empty() ) {
+    _client = OCI::CLIENT_MAP.at( "docker" )( _current_domain, _catalog.credentials.at( _current_domain ).first,
+                                            _catalog.credentials.at( _current_domain ).second );
   }
 }
 
@@ -60,14 +61,7 @@ OCI::Extensions::Yaml::Yaml( Yaml &&other ) noexcept {
 }
 
 auto OCI::Extensions::Yaml::operator=( Yaml const &other ) -> Yaml & {
-  if ( this != &other ) {
-    _catalog        = other._catalog;
-    _current_domain = other._current_domain;
-
-    if ( other._client != nullptr ) {
-      _client = other._client->copy();
-    }
-  }
+  Yaml( other ).swap( *this );
 
   return *this;
 }
@@ -144,7 +138,7 @@ void OCI::Extensions::Yaml::fetchManifest( OCI::Schema2::ImageManifest &      im
   _client->fetchManifest( im, request );
 }
 
-auto OCI::Extensions::Yaml::putManifest( OCI::Schema1::ImageManifest const &, std::string const &target ) // NOLINT
+auto OCI::Extensions::Yaml::putManifest( OCI::Schema1::ImageManifest const &, std::string const & ) // NOLINT
     -> bool {
   spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
@@ -167,6 +161,7 @@ auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ImageManifest const &, st
   std::terminate();
 }
 
+std::mutex REGEX_MUTEX;
 auto OCI::Extensions::Yaml::tagList( std::string const &rsrc ) -> OCI::Tags {
   OCI::Tags retVal;
 
@@ -176,6 +171,7 @@ auto OCI::Extensions::Yaml::tagList( std::string const &rsrc ) -> OCI::Tags {
   } else if ( _catalog.tag_filter.empty() ) {
     retVal = _client->tagList( rsrc );
   } else {
+    std::lock_guard< std::mutex > lg( REGEX_MUTEX );
     std::regex tag_filter{ _catalog.tag_filter };
     retVal = _client->tagList( rsrc, tag_filter );
   }
@@ -187,4 +183,10 @@ auto OCI::Extensions::Yaml::tagList( std::string const &rsrc, std::regex const &
   auto retVal = tagList( rsrc );
 
   return retVal;
+}
+
+auto OCI::Extensions::Yaml::swap( Yaml &other ) -> void {
+  std::swap( _catalog, other._catalog );
+  std::swap( _current_domain, other._current_domain );
+  std::swap( _client, other._client );
 }

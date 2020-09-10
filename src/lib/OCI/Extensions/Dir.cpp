@@ -81,7 +81,7 @@ OCI::Extensions::Dir::Dir( std::string const &directory ) : _bytes_written( 0 ) 
   }
 
   if ( not _directory.is_directory() ) {
-    std::cerr << _directory.path() << " does not exist or is not a directory.\n";
+    spdlog::error( "{} does not exist or is not a directory.", _directory.path().c_str() );
     std::abort();
   }
 

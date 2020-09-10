@@ -2,11 +2,12 @@
 #include <OCI/Factory.hpp>
 #include <OCI/Sync.hpp>
 #include <Yaml.hpp>
-#include <args.hxx>
+#include <args.hxx> // https://github.com/Taywee/args
 #include <indicators.hpp>
 #include <iostream>
 #include <csignal>
-#include <spdlog/spdlog.h>
+#include <spdlog/spdlog.h> // https://github.com/gabime/spdlog
+#include <spdlog/sinks/basic_file_sink.h>
 
 class indicators_cursor_guard {
 public:
@@ -42,6 +43,7 @@ auto main( int argc, char **argv ) -> int {
   args::ArgumentParser           parser( "Multi architecture OCI sync tool" );
   args::HelpFlag                 help( parser, "help", "Display this help message", { 'h', "help" } );
   args::CounterFlag              verbose( parser, "VERBOSE", "increase logging", { 'v', "verbose" } );
+  args::ValueFlag< std::string > log_file( parser, "", "", { 'l', "log-file" } );
   args::ValueFlag< std::string > dest_username( parser, "USERNAME", "User to authenticate to the destination registry",
                                                 { 'u', "username" } );
   args::ValueFlag< std::string > dest_password(
@@ -63,15 +65,18 @@ auto main( int argc, char **argv ) -> int {
 
     return EXIT_FAILURE;
   } catch ( args::Completion &e ) {
-    std::cerr << e.what() << std::endl;
-    std::cerr << parser;
+    std::cerr << e.what();
 
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS;
   } catch ( args::ValidationError &e ) {
     std::cerr << e.what() << std::endl;
     std::cerr << parser;
 
     return EXIT_FAILURE;
+  }
+
+  if ( not log_file.Get().empty() ) {
+    spdlog::set_default_logger( spdlog::basic_logger_mt( "basic_logger", log_file.Get() ) );
   }
 
   switch ( verbose.Get() ) {
@@ -85,7 +90,12 @@ auto main( int argc, char **argv ) -> int {
     spdlog::set_level( spdlog::level::trace );
     break;
   default:
-    spdlog::set_level( spdlog::level::off );
+    if ( log_file.Get().empty() ) {
+      spdlog::set_level( spdlog::level::off );
+    } else {
+      spdlog::set_level( spdlog::level::err );
+    }
+
     break;
   }
 

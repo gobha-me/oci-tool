@@ -1521,24 +1521,31 @@ namespace indicators {
       {
         std::lock_guard< std::mutex > lock{ mutex_ };
         const auto                    type = get_value< details::ProgressBarOption::progress_type >();
-        if ( type == ProgressType::incremental )
+        if ( type == ProgressType::incremental ) {
           progress_ += 1;
-        else
+        } else {
           progress_ -= 1;
+        }
       }
       save_start_time();
       print_progress();
     }
 
-    size_t current() {
+    auto current() -> size_t {
       std::lock_guard< std::mutex > lock{ mutex_ };
       return std::min( progress_, size_t( get_value< details::ProgressBarOption::max_progress >() ) );
     }
 
-    bool is_completed() const { return get_value< details::ProgressBarOption::completed >(); }
+    [[nodiscard]] auto is_completed() const -> bool {
+      std::lock_guard< std::mutex > lock{ mutex_ };
+      return get_value< details::ProgressBarOption::completed >();
+    }
 
     void mark_as_completed() {
-      get_value< details::ProgressBarOption::completed >() = true;
+      {
+        std::lock_guard< std::mutex > lock{ mutex_ };
+        get_value< details::ProgressBarOption::completed >() = true;
+      }
       print_progress();
     }
 
@@ -1549,7 +1556,7 @@ namespace indicators {
     }
 
     template < details::ProgressBarOption id >
-    auto get_value() const -> decltype( ( details::get_value< id >( std::declval< const Settings & >() ).value ) ) {
+    [[nodiscard]] auto get_value() const -> decltype( ( details::get_value< id >( std::declval< const Settings & >() ).value ) ) {
       return details::get_value< id >( settings_ ).value;
     }
 
@@ -1557,7 +1564,7 @@ namespace indicators {
     Settings                                                      settings_;
     std::chrono::nanoseconds                                      elapsed_;
     std::chrono::time_point< std::chrono::high_resolution_clock > start_time_point_;
-    std::mutex                                                    mutex_;
+    mutable std::mutex                                            mutex_;
 
     template < typename Indicator, size_t count > friend class MultiProgress;
     template < typename Indicator > friend class DynamicProgress;
@@ -1671,7 +1678,7 @@ namespace indicators {
       details::ProgressScaleWriter writer{
           os, get_value< details::ProgressBarOption::bar_width >(), get_value< details::ProgressBarOption::fill >(),
           get_value< details::ProgressBarOption::lead >(), get_value< details::ProgressBarOption::remainder >() };
-      writer.write( double( progress_ ) / double( max_progress ) * 100.0f );
+      writer.write( double( progress_ ) / double( max_progress ) * 100.0F );
 
       os << get_value< details::ProgressBarOption::end >();
 
@@ -2234,27 +2241,31 @@ namespace indicators {
     }
 
     template < size_t index >
-    typename std::enable_if< ( index >= 0 && index < count ), void >::type set_progress( size_t value ) {
-      if ( !bars_[ index ].get().is_completed() )
+    auto set_progress( size_t value ) -> typename std::enable_if< ( index >= 0 && index < count ), void >::type {
+      if ( !bars_[ index ].get().is_completed() ) {
         bars_[ index ].get().set_progress( value );
+      }
       print_progress();
     }
 
     template < size_t index >
-    typename std::enable_if< ( index >= 0 && index < count ), void >::type set_progress( float value ) {
-      if ( !bars_[ index ].get().is_completed() )
+    auto set_progress( float value ) -> typename std::enable_if< ( index >= 0 && index < count ), void >::type {
+      if ( !bars_[ index ].get().is_completed() ) {
         bars_[ index ].get().set_progress( value );
+      }
       print_progress();
     }
 
-    template < size_t index > typename std::enable_if< ( index >= 0 && index < count ), void >::type tick() {
-      if ( !bars_[ index ].get().is_completed() )
+    template < size_t index >
+    auto tick() -> typename std::enable_if< ( index >= 0 && index < count ), void >::type {
+      if ( !bars_[ index ].get().is_completed() ) {
         bars_[ index ].get().tick();
+      }
       print_progress();
     }
 
     template < size_t index >
-    typename std::enable_if< ( index >= 0 && index < count ), bool >::type is_completed() const {
+    auto is_completed() const -> typename std::enable_if< ( index >= 0 && index < count ), bool >::type {
       return bars_[ index ].get().is_completed();
     }
 
@@ -2263,25 +2274,28 @@ namespace indicators {
     std::mutex                                         mutex_;
     std::vector< std::reference_wrapper< Indicator > > bars_;
 
-    bool _all_completed() {
+    auto _all_completed() -> bool {
       bool result{ true };
-      for ( size_t i = 0; i < count; ++i )
+      for ( size_t i = 0; i < count; ++i ) {
         result &= bars_[ i ].get().is_completed();
+      }
       return result;
     }
 
   public:
     void print_progress() {
       std::lock_guard< std::mutex > lock{ mutex_ };
-      if ( started_ )
+      if ( started_ ) {
         move_up( count );
+      }
       for ( auto &bar : bars_ ) {
         bar.get().print_progress( true );
         std::cout << "\n";
       }
       std::cout << termcolor::reset;
-      if ( !started_ )
+      if ( !started_ ) {
         started_ = true;
+      }
     }
   };
 
@@ -2296,6 +2310,7 @@ namespace indicators {
 #include <iostream>
 #include <mutex>
 #include <vector>
+#include <chrono>
 
 namespace indicators {
   // It exists because the std::this_thread::get_id() is much slower(especially
@@ -2328,7 +2343,8 @@ namespace indicators {
   public:
     class BarGuard {
     public:
-      BarGuard( size_t bar_index, DynamicProgress & dyn_pro ) : bar_index_( bar_index ), dyn_pro_( dyn_pro ) {}
+      BarGuard( size_t bar_index, DynamicProgress & dyn_pro ) : bar_index_( bar_index ), dyn_pro_( dyn_pro ), indicator_( dyn_pro_.get()[ bar_index_ ] ) {}
+
       BarGuard( BarGuard const& ) = delete;
       BarGuard( BarGuard&& other ) noexcept : bar_index_( other.bar_index_ ), dyn_pro_( std::move( other.dyn_pro_ ) ) {}
       ~BarGuard() {
@@ -2338,38 +2354,68 @@ namespace indicators {
       auto operator=( BarGuard const& ) = delete;
       auto operator=( BarGuard&& other ) noexcept -> BarGuard& {
         bar_index_ = other.bar_index_;
+        indicator_ = std::move( other.indicator_ );
         dyn_pro_   = std::move( other.dyn_pro_ );
 
         return *this;
       }
 
       auto get() -> Indicator& {
-        return dyn_pro_.get()[ bar_index_ ];
+        return indicator_;
+        //return dyn_pro_.get()[ bar_index_ ];
       }
     private:
       size_t bar_index_;
       std::reference_wrapper< DynamicProgress > dyn_pro_;
+      std::reference_wrapper< Indicator > indicator_;
     };
 
+    DynamicProgress() {
+      using namespace std::chrono_literals;
+      prt_thr_ = std::thread([&](){
+          while( run_thr_ ) {
+            print_progress();
+            std::this_thread::sleep_for( 500ms );
+          }
+        });
+    }
+
+    DynamicProgress( DynamicProgress const& ) = delete;
+    DynamicProgress( DynamicProgress && ) = delete;
+
+    ~DynamicProgress() {
+      run_thr_ = false;
+
+      prt_thr_.join();
+    }
+
+    auto operator=( DynamicProgress const& ) -> DynamicProgress& = delete;
+    auto operator=( DynamicProgress && ) -> DynamicProgress& = delete;
+
     auto operator[]( size_t index ) -> Indicator & {
-      print_progress();
+      //print_progress();
       std::lock_guard< std::mutex > lock{ mutex_ };
       return bars_.at( index ).get();
     }
 
     // need to return a lifetime guard
     auto push_back( Indicator &bar ) -> BarGuard {
-      std::lock_guard< std::mutex > lock{ mutex_ };
-      auto                          thr_id = thread_id();
+      auto thr_id = thread_id();
 
-      while ( bars_.find( thr_id ) != bars_.end() ) {
-        ++thr_id;
-      } // Still allow more then one bar per thread
+      {
+        std::lock_guard< std::mutex > lock{ mutex_ };
+        while ( bars_.find( thr_id ) != bars_.end() ) {
+          ++thr_id;
+        } // Still allow more then one bar per thread
+      }
 
       bar.multi_progress_mode_ = true;
       bar.dynamic_index_      = thr_id;
 
-      bars_.insert( { thr_id, bar } );
+      {
+        std::lock_guard< std::mutex > lock{ mutex_ };
+        bars_.insert( { thr_id, bar } );
+      }
 
       return BarGuard{ thr_id, *this };
     }
@@ -2398,6 +2444,8 @@ namespace indicators {
 
   private:
     Settings            settings_;
+    std::atomic< bool > run_thr_{ true };
+    std::thread         prt_thr_;
     std::atomic< bool > started_{ false };
     std::mutex          mutex_;
     std::map< size_t, std::reference_wrapper< Indicator > >
@@ -2434,9 +2482,6 @@ namespace indicators {
             ++incomplete_count_;
           }
         }
-        if ( !started_ ) {
-          started_ = true;
-        }
       } else {
         // Don't hide any bars
         if ( started_ ) {
@@ -2448,9 +2493,10 @@ namespace indicators {
           bar.second.get().print_progress( true );
           std::cout << "\n";
         }
-        if ( !started_ ) {
-          started_ = true;
-        }
+      }
+
+      if ( !started_ ) {
+        started_ = true;
       }
       total_count_ = bars_.size();
       std::cout << termcolor::reset;
