@@ -29,6 +29,28 @@ enum class HTTP_CODE {
   Service_Unavail   = 503,
 };
 
+template< class HTTP_CLIENT >
+class ToggleLocationGuard {
+  public:
+    ToggleLocationGuard( HTTP_CLIENT client, bool follow ) : _client( client), _follow( follow ) {
+      _client->set_follow_location( _follow );
+    }
+
+    ToggleLocationGuard( ToggleLocationGuard const & ) = delete;
+    ToggleLocationGuard( ToggleLocationGuard && ) = delete;
+    
+    ~ToggleLocationGuard() {
+      _client->set_follow_location( not _follow );
+    }
+
+    auto operator=( ToggleLocationGuard const & ) -> ToggleLocationGuard& = delete;
+    auto operator=( ToggleLocationGuard && ) -> ToggleLocationGuard& = delete;
+
+  private:
+    HTTP_CLIENT _client;
+    bool        _follow;
+};
+
 auto splitLocation( std::string location ) -> std::tuple< std::string, std::string, std::string > {
   std::string proto;
   std::string domain;
@@ -163,13 +185,18 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
     }
   } else {
     spdlog::error( "OCI::Registry::Client::auth not given header 'Www-Authenticate'" );
+
+    for ( auto const &header : headers ) {
+      spdlog::error( "{} -> {}", header.first, header.second );
+    }
   }
 }
 
 auto OCI::Registry::Client::authHeaders() const -> httplib::Headers {
   httplib::Headers retVal{};
 
-  if ( _ctr.token.empty() ) { // TODO: add test for if valid, based on _ctr.expires_in and _ctr.issued_at
+  if ( _ctr.token.empty() ) {
+  } else if ( ( _ctr.issued_at + _ctr.expires_in ) >= std::chrono::system_clock::now() ) {
   } else {
     retVal = httplib::Headers{
         { "Authorization", "Bearer " + _ctr.token } // only return this if token is valid
@@ -193,7 +220,7 @@ auto OCI::Registry::Client::copy() -> std::unique_ptr< OCI::Base::Client > {
 
 auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
                                        std::function< bool( const char *, uint64_t ) > &call_back ) -> bool {
-  _cli->set_follow_location( false );
+  ToggleLocationGuard< decltype( _cli ) > tlg{ _cli, false };
   bool retVal = true;
   auto client = _cli;
 
@@ -225,6 +252,7 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
 
   if ( res == nullptr ) {
     retVal = false; // FIXME: Retrying should work here
+    spdlog::error( "OCI::Registry::Client::fetchBlob {}\n client timeout (returned NULL)", location );
   } else {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::OK:
@@ -236,13 +264,12 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
     }
   }
 
-  _cli->set_follow_location( true );
-
   return retVal;
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sha ) -> bool {
-  _cli->set_follow_location( false );
+  ToggleLocationGuard< decltype( _cli ) > tlg{ _cli, false };
+
   auto client = _cli;
 
   auto location = "/v2/" + im.name + "/blobs/" + sha;
@@ -278,22 +305,20 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
       spdlog::error( "{} -> {}", header.first, header.second );
     }
   }
-  _cli->set_follow_location( true );
 
   return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std::string &target, SHA256 sha ) -> bool {
   (void)target;
+  ToggleLocationGuard< decltype( _cli ) > tlg{ _cli, false };
 
-  _cli->set_follow_location( false );
   auto client   = _cli;
   auto location = "/v2/" + im.name + "/blobs/" + sha;
   auto res      = client->Head( location.c_str(), authHeaders() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers,
-          "repository:" + im.name + ":pull" ); // auth modifies the headers, so should auth return headers???
+    auth( res->headers, "repository:" + im.name + ":pull" );
 
     res = client->Head( location.c_str(), authHeaders() );
   }
@@ -326,8 +351,6 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
       spdlog::error( "{} -> {}", header.first, header.second );
     }
   }
-
-  _cli->set_follow_location( true );
 
   return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
 }
