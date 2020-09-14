@@ -114,27 +114,40 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
                 OCI::Base::Client *dest, ProgressBars &progress_bars ) -> bool {
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest, image_manifest );
   static std::vector< std::string > working_digests;
+  auto layers = image_manifest.layers;
 
   if ( image_manifest != dest_image_manifest ) {
-    for ( auto const &layer : image_manifest.layers ) {
-      // Wait for the other thread to complete the download, will attempt if other thread failed
-      while ( true ) {
-        {
+    while ( not layers.empty() ) {
+      // Find image not being operated on by another thread
+      auto layer_itr = std::find_if( layers.begin(), layers.begin(), [&]( auto layer ) -> bool {
           std::lock_guard< std::mutex > lg( WD_MUTEX );
           auto wd_itr = std::find( working_digests.begin(), working_digests.end(), layer.digest );
 
           if ( wd_itr == working_digests.end() ) {
             working_digests.emplace_back( layer.digest );
 
-            break;
+            return true;
+          }
+
+          return false;
+        } );
+
+      if ( layer_itr == layers.end() ) {
+        // All images being downloaded by other threads
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for( 50ms );
+      } else if ( dest->hasBlob( image_manifest, target, layer_itr->digest ) ) {
+        // All ready have the layer move to next
+        {
+          std::lock_guard< std::mutex > lg( WD_MUTEX );
+          auto wd_itr = std::find( working_digests.begin(), working_digests.end(), layer_itr->digest );
+          if ( wd_itr != working_digests.end() ) {
+            working_digests.erase( wd_itr );
           }
         }
 
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for( 50ms );
-      }
-
-      if ( not dest->hasBlob( image_manifest, target, layer.digest ) ) {
+        layers.erase( layer_itr );
+      } else {
         // clang-format off
         indicators::ProgressBar sync_bar{
             indicators::option::BarWidth{60}, // NOLINT
@@ -143,13 +156,12 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
             indicators::option::Lead{"■"},
             indicators::option::Remainder{" "},
             indicators::option::End{" ]"},
-            indicators::option::MaxProgress{ layer.size },
+            indicators::option::MaxProgress{ layer_itr->size },
             indicators::option::ForegroundColor{indicators::Color::yellow},
-            indicators::option::PrefixText{ layer.digest.substr( layer.digest.size() - 10 ) }, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-            indicators::option::PostfixText{ "0/" + std::to_string( layer.size ) }
+            indicators::option::PrefixText{ layer_itr->digest.substr( layer_itr->digest.size() - 10 ) }, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+            indicators::option::PostfixText{ "0/" + std::to_string( layer_itr->size ) }
           };
         // clang-format on
-
         auto sync_bar_ref = progress_bars.push_back( sync_bar );
 
         uint64_t                                        data_sent = 0;
@@ -157,10 +169,10 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
                                                                            uint64_t    data_length ) -> bool {
           data_sent += data_length;
 
-          if ( dest->putBlob( image_manifest, target, layer.digest, layer.size, data, data_length ) ) {
+          if ( dest->putBlob( image_manifest, target, layer_itr->digest, layer_itr->size, data, data_length ) ) {
             sync_bar_ref.get().set_progress( data_sent );
             sync_bar_ref.get().set_option(
-                indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer.size ) } );
+                indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_itr->size ) } );
 
             return true;
           }
@@ -168,13 +180,17 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
           return false;
         };
 
-        src->fetchBlob( image_manifest.name, layer.digest, call_back );
-      }
+        src->fetchBlob( image_manifest.name, layer_itr->digest, call_back );
 
-      std::lock_guard< std::mutex > lg( WD_MUTEX );
-      auto wd_itr = std::find( working_digests.begin(), working_digests.end(), layer.digest );
-      if ( wd_itr != working_digests.end() ) {
-        working_digests.erase( wd_itr );
+        {
+          std::lock_guard< std::mutex > lg( WD_MUTEX );
+          auto wd_itr = std::find( working_digests.begin(), working_digests.end(), layer_itr->digest );
+          if ( wd_itr != working_digests.end() ) {
+            working_digests.erase( wd_itr );
+          }
+        }
+
+        layers.erase( layer_itr );
       }
     }
 
@@ -214,6 +230,7 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
     if ( wd_itr != working_digests.end() ) {
       working_digests.erase( wd_itr );
     }
+
   }
 
   return dest->putManifest( image_manifest, target );
