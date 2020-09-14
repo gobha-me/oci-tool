@@ -533,23 +533,27 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const &im, std::s
 
   for ( auto const &layer : im.layers ) {
     if ( not hasBlob( im, target, layer.digest ) ) {
+      spdlog::error( "OCI::Extensions::Dir::put Manifest Layer digest '{}' missing for {}:{}/{}", layer.digest, im.name,
+                     im.requestedTarget, im.requestedDigest );
       retVal = false;
     }
   }
 
-  if ( retVal and hasBlob( im, target, im.config.digest ) ) {
+  if ( not hasBlob( im, target, im.config.digest ) ) {
+    spdlog::error( "OCI::Extensions::Dir::put Manifest Config '{}' digest missing for {}:{}/{}", im.config.digest, im.name,
+                   im.requestedTarget, im.requestedDigest );
+    retVal = false;
+  }
+
+  if ( retVal ) {
     if ( std::filesystem::exists( image_manifest_path ) ) {
       retVal = false; // Because nothing changed
     } else {
-      spdlog::info( "OCI::Extensions::putManifest Schema::ImageManifest -> Writing file" );
+      spdlog::info( "OCI::Extensions::put Manifest Schema::ImageManifest -> Writing file" );
       std::ofstream image_manifest( image_manifest_path );
 
       image_manifest << std::setw( 2 ) << image_manifest_json;
     }
-  } else {
-    spdlog::error( "OCI::Extensions::Dir::putManifest Layer or Config digest missing for {}:{}/{}", im.name,
-                   im.requestedTarget, im.requestedDigest );
-    retVal = false;
   }
 
   return retVal;
