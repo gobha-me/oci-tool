@@ -2362,7 +2362,6 @@ namespace indicators {
 
       auto get() -> Indicator& {
         return indicator_;
-        //return dyn_pro_.get()[ bar_index_ ];
       }
     private:
       size_t bar_index_;
@@ -2392,13 +2391,7 @@ namespace indicators {
     auto operator=( DynamicProgress const& ) -> DynamicProgress& = delete;
     auto operator=( DynamicProgress && ) -> DynamicProgress& = delete;
 
-    auto operator[]( size_t index ) -> Indicator & {
-      //print_progress();
-      std::lock_guard< std::mutex > lock{ mutex_ };
-      return bars_.at( index ).get();
-    }
-
-    // need to return a lifetime guard
+    // Return a lifetime guard instead of an index into the underlining structure
     auto push_back( Indicator &bar ) -> BarGuard {
       auto thr_id = thread_id();
 
@@ -2410,7 +2403,7 @@ namespace indicators {
       }
 
       bar.multi_progress_mode_ = true;
-      bar.dynamic_index_      = thr_id;
+      bar.dynamic_index_       = thr_id;
 
       {
         std::lock_guard< std::mutex > lock{ mutex_ };
@@ -2463,9 +2456,13 @@ namespace indicators {
       return details::get_value< id >( settings_ ).value;
     }
 
-  public:
-    void print_progress() {
+    auto operator[]( size_t index ) -> Indicator & {
       std::lock_guard< std::mutex > lock{ mutex_ };
+      return bars_.at( index ).get();
+    }
+
+//  public:
+    void print_progress() {
       auto &hide_bar_when_complete = get_value< details::ProgressBarOption::hide_bar_when_complete >();
       if ( hide_bar_when_complete ) {
         // Hide completed bars
@@ -2474,12 +2471,16 @@ namespace indicators {
             std::cout << "\033[A\r\033[K" << std::flush;
           }
         }
-        incomplete_count_ = 0;
-        for ( auto &bar : bars_ ) {
-          if ( !bar.second.get().is_completed() ) {
-            bar.second.get().print_progress( true );
-            std::cout << "\n";
-            ++incomplete_count_;
+
+        {
+          std::lock_guard< std::mutex > lock{ mutex_ };
+          incomplete_count_ = 0;
+          for ( auto &bar : bars_ ) {
+            if ( !bar.second.get().is_completed() ) {
+              bar.second.get().print_progress( true );
+              std::cout << "\n";
+              ++incomplete_count_;
+            }
           }
         }
       } else {
@@ -2489,9 +2490,13 @@ namespace indicators {
             std::cout << "\x1b[A";
           }
         }
-        for ( auto &bar : bars_ ) {
-          bar.second.get().print_progress( true );
-          std::cout << "\n";
+
+        {
+          std::lock_guard< std::mutex > lock{ mutex_ };
+          for ( auto &bar : bars_ ) {
+            bar.second.get().print_progress( true );
+            std::cout << "\n";
+          }
         }
       }
 
