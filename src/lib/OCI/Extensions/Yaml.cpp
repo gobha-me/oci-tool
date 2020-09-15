@@ -84,6 +84,12 @@ auto OCI::Extensions::Yaml::catalog( std::string const &domain ) -> OCI::Catalog
                                             _catalog.credentials.at( domain ).second );
   _current_domain = domain;
 
+  for ( auto &repo : _catalog.catalogs.at( domain ).repositories ) {
+    if ( repo.find( '/' ) == std::string::npos ) {
+      repo.assign( "library/" + repo );
+    }
+  }
+
   return _catalog.catalogs.at( domain );
 }
 
