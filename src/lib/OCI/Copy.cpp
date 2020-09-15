@@ -167,14 +167,20 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
         uint64_t                                        data_sent = 0;
         std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
                                                                            uint64_t    data_length ) -> bool {
-          data_sent += data_length;
+          if ( data_length > 0 ) {
+            if ( dest->putBlob( image_manifest, target, layer_itr->digest, layer_itr->size, data, data_length ) ) {
+              data_sent += data_length;
 
-          if ( dest->putBlob( image_manifest, target, layer_itr->digest, layer_itr->size, data, data_length ) ) {
-            sync_bar_ref.get().set_progress( data_sent );
-            sync_bar_ref.get().set_option(
-                indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_itr->size ) } );
+              sync_bar_ref.get().set_progress( data_sent );
+              sync_bar_ref.get().set_option(
+                  indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_itr->size ) } );
 
-            return true;
+              return true;
+            } else {
+              spdlog::error( "Failed to write layer '{}:{}' to destination {} of {}", target, layer_itr->digest, data_sent, layer_itr->size );
+            }
+          } else {
+              spdlog::error( "No data recieved for layer '{}:{}' with {} bytes remaining", target, layer_itr->digest, data_sent, layer_itr->size - data_sent );
           }
 
           return false;
