@@ -567,6 +567,7 @@ namespace indicators {
   }
 
   static inline auto terminal_width() -> size_t { return terminal_size().second; }
+  static inline auto terminal_height() -> size_t { return terminal_size().first; }
 
 } // namespace indicators
 
@@ -1659,14 +1660,17 @@ namespace indicators {
         return;
       }
       auto now = std::chrono::high_resolution_clock::now();
-      if ( !get_value< details::ProgressBarOption::completed >() )
+      if ( !get_value< details::ProgressBarOption::completed >() ) {
         elapsed_ = std::chrono::duration_cast< std::chrono::nanoseconds >( now - start_time_point_ );
+      }
 
-      if ( get_value< details::ProgressBarOption::foreground_color >() != Color::unspecified )
+      if ( get_value< details::ProgressBarOption::foreground_color >() != Color::unspecified ) {
         details::set_stream_color( os, get_value< details::ProgressBarOption::foreground_color >() );
+      }
 
-      for ( auto &style : get_value< details::ProgressBarOption::font_styles >() )
+      for ( auto &style : get_value< details::ProgressBarOption::font_styles >() ) {
         details::set_font_style( os, style );
+      }
 
       const auto prefix_pair   = get_prefix_text();
       const auto prefix_text   = prefix_pair.first;
@@ -1693,7 +1697,7 @@ namespace indicators {
       const auto end_length     = get_value< details::ProgressBarOption::end >().size();
       const auto terminal_width = terminal_size().second;
       // prefix + bar_width + postfix should be <= terminal_width
-      const int remaining = terminal_width - ( prefix_length + start_length + bar_width + end_length + postfix_length );
+      const auto remaining = terminal_width - ( prefix_length + start_length + bar_width + end_length + postfix_length );
       if ( remaining > 0 ) {
         os << std::string( remaining, ' ' ) << "\r";
       } else if ( remaining < 0 ) {
@@ -1706,8 +1710,9 @@ namespace indicators {
         get_value< details::ProgressBarOption::completed >() = true;
       }
       if ( get_value< details::ProgressBarOption::completed >() &&
-           !from_multi_progress ) // Don't std::endl if calling from MultiProgress
+           !from_multi_progress ) {// Don't std::endl if calling from MultiProgress
         os << termcolor::reset << std::endl;
+      }
     }
   };
 
@@ -1848,7 +1853,7 @@ namespace indicators {
     }
 
     template < details::ProgressBarOption id >
-    auto get_value() const -> decltype( ( details::get_value< id >( std::declval< const Settings & >() ).value ) ) {
+    [[nodiscard]] auto get_value() const -> decltype( ( details::get_value< id >( std::declval< const Settings & >() ).value ) ) {
       return details::get_value< id >( settings_ ).value;
     }
 
@@ -1942,11 +1947,13 @@ namespace indicators {
         return;
       }
 
-      if ( get_value< details::ProgressBarOption::foreground_color >() != Color::unspecified )
+      if ( get_value< details::ProgressBarOption::foreground_color >() != Color::unspecified ) {
         details::set_stream_color( os, get_value< details::ProgressBarOption::foreground_color >() );
+      }
 
-      for ( auto &style : get_value< details::ProgressBarOption::font_styles >() )
+      for ( auto &style : get_value< details::ProgressBarOption::font_styles >() ) {
         details::set_font_style( os, style );
+      }
 
       const auto prefix_pair   = get_prefix_text();
       const auto prefix_text   = prefix_pair.first;
@@ -2400,15 +2407,12 @@ namespace indicators {
         while ( bars_.find( thr_id ) != bars_.end() ) {
           ++thr_id;
         } // Still allow more then one bar per thread
+
+        bars_.insert( { thr_id, bar } );
       }
 
       bar.multi_progress_mode_ = true;
       bar.dynamic_index_       = thr_id;
-
-      {
-        std::lock_guard< std::mutex > lock{ mutex_ };
-        bars_.insert( { thr_id, bar } );
-      }
 
       return BarGuard{ thr_id, *this };
     }
@@ -2439,12 +2443,10 @@ namespace indicators {
     Settings            settings_;
     std::atomic< bool > run_thr_{ true };
     std::thread         prt_thr_;
-    std::atomic< bool > started_{ false };
     std::mutex          mutex_;
     std::map< size_t, std::reference_wrapper< Indicator > >
                           bars_; // Threads close and references get invalidated, need to be able remove references of completed bars
-    std::atomic< size_t > total_count_{ 0 };
-    std::atomic< size_t > incomplete_count_{ 0 };
+    std::atomic< size_t > last_draw_height_{ 0 };
 
     template < details::ProgressBarOption id >
     auto get_value() -> decltype( ( details::get_value< id >( std::declval< Settings & >() ).value ) ) {
@@ -2461,50 +2463,32 @@ namespace indicators {
       return bars_.at( index ).get();
     }
 
-//  public:
     void print_progress() {
-      auto &hide_bar_when_complete = get_value< details::ProgressBarOption::hide_bar_when_complete >();
-      if ( hide_bar_when_complete ) {
-        // Hide completed bars
-        if ( started_ ) {
-          for ( size_t i = 0; i < incomplete_count_; ++i ) {
-            std::cout << "\033[A\r\033[K" << std::flush;
-          }
-        }
+      // Only print upto the height of the current display
+      for ( size_t i = 0; i != last_draw_height_; ++i ) {
+        std::cout << "\033[A\r\033[K";
+      }
 
-        {
-          std::lock_guard< std::mutex > lock{ mutex_ };
-          incomplete_count_ = 0;
-          for ( auto &bar : bars_ ) {
-            if ( !bar.second.get().is_completed() ) {
-              bar.second.get().print_progress( true );
-              std::cout << "\n";
-              ++incomplete_count_;
-            }
-          }
-        }
-      } else {
-        // Don't hide any bars
-        if ( started_ ) {
-          for ( size_t i = 0; i < total_count_; ++i ) {
-            std::cout << "\x1b[A";
-          }
-        }
-
-        {
-          std::lock_guard< std::mutex > lock{ mutex_ };
-          for ( auto &bar : bars_ ) {
+      {
+        std::lock_guard< std::mutex > lock{ mutex_ };
+        last_draw_height_ = 0;
+        for ( auto &bar : bars_ ) {
+          if ( last_draw_height_ < terminal_height() - 1 ) {
+            ++last_draw_height_;
             bar.second.get().print_progress( true );
             std::cout << "\n";
+          } else {
+            break;
           }
         }
-      }
 
-      if ( !started_ ) {
-        started_ = true;
+        std::cout << termcolor::reset;
+
+        if ( bars_.size() > last_draw_height_ ) {
+          std::cout << last_draw_height_ << "/" << bars_.size() << " Displayed.\r";
+          ++last_draw_height_;
+        }
       }
-      total_count_ = bars_.size();
-      std::cout << termcolor::reset;
     }
   };
 
