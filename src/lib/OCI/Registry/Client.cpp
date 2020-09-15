@@ -32,7 +32,7 @@ enum class HTTP_CODE {
 template< class HTTP_CLIENT >
 class ToggleLocationGuard {
   public:
-    ToggleLocationGuard( HTTP_CLIENT client, bool follow ) : _client( client), _follow( follow ) {
+    ToggleLocationGuard( HTTP_CLIENT client, bool follow ) : _client( client), _follow( follow ) { // NOLINT
       _client->set_follow_location( _follow );
     }
 
@@ -78,8 +78,6 @@ OCI::Registry::Client::Client( std::string const &location ) {
     _domain = resource;
   }
 
-  // auto domain = _domain;
-
   // in uri docker will translate to https
   // if docker.io use registry-1.docker.io as the site doesn't redirect
   if ( _domain == "docker.io" ) {
@@ -94,6 +92,7 @@ OCI::Registry::Client::Client( std::string const &location ) {
 
     if ( not ping() ) {
       spdlog::warn( "{} does not respond to the V2 API (secure/unsecure)", _domain );
+      std::terminate();
     }
   }
 
@@ -157,31 +156,46 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
     auto ncoma     = auth_hint.find( ',', coma + 1 );
 
     std::string location;
+    std::string proto;
+    std::string domain;
 
     auto realm    = auth_hint.substr( 0, coma );
     realm         = realm.substr( realm.find( '"' ) + 1, realm.length() - ( realm.find( '"' ) + 2 ) );
-    realm         = realm.substr( realm.find( '/' ) + 2 ); // remove proto
-    auto endpoint = realm.substr( realm.find( '/' ) );
-    realm         = realm.substr( 0, realm.find( '/' ) );
     auto service  = auth_hint.substr( coma + 1, ncoma - coma - 1 );
     service       = service.substr( service.find( '"' ) + 1, service.length() - ( service.find( '"' ) + 2 ) );
 
-    httplib::SSLClient client( realm, SSL_PORT );
+    std::tie( proto, domain, location ) = splitLocation( realm );
 
-    if ( not _username.empty() and not _password.empty() ) {
-      client.set_basic_auth( _username.c_str(), _password.c_str() );
+    std::shared_ptr< httplib::Client > client;
+
+    if ( proto == "https" ) {
+      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+    } else {
+      client = std::make_shared< httplib::SSLClient >( domain, DOCKER_PORT );
     }
 
-    location += endpoint + "?service=" + service + "&scope=" + scope;
+    if ( not _username.empty() and not _password.empty() ) {
+      client->set_basic_auth( _username.c_str(), _password.c_str() );
+    }
 
-    auto result = client.Get( location.c_str() );
+    location += "?service=" + service + "&scope=" + scope;
 
-    auto j = nlohmann::json::parse( result->body );
+    auto result = client->Get( location.c_str() );
 
-    if ( j.find( "token" ) == j.end() ) {
-      spdlog::error( "Auth Failed: {}", j.dump( 2 ) );
-    } else {
-      j.get_to( _ctr );
+    switch( HTTP_CODE( result->status ) ) {
+    case HTTP_CODE::OK: {
+        auto j = nlohmann::json::parse( result->body );
+
+        if ( j.find( "token" ) == j.end() ) {
+          spdlog::error( "Auth Failed: {}", j.dump( 2 ) );
+        } else {
+          j.get_to( _ctr );
+        }
+      }
+      break;
+    default:
+      spdlog::error( "Auth status: {} Location: {} Body: {}", result->status, location, result->body );
+      break;
     }
   } else {
     spdlog::error( "OCI::Registry::Client::auth not given header 'Www-Authenticate'" );
@@ -195,8 +209,7 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
 auto OCI::Registry::Client::authHeaders() const -> httplib::Headers {
   httplib::Headers retVal{};
 
-  if ( _ctr.token.empty() ) {
-  } else if ( ( _ctr.issued_at + _ctr.expires_in ) >= std::chrono::system_clock::now() ) {
+  if ( _ctr.token.empty() or ( _ctr.issued_at + _ctr.expires_in ) >= std::chrono::system_clock::now() ) {
   } else {
     retVal = httplib::Headers{
         { "Authorization", "Bearer " + _ctr.token } // only return this if token is valid
@@ -227,10 +240,15 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
   auto location = std::string( "/v2/" + rsrc + "/blobs/" + sha );
   auto res      = client->Head( location.c_str(), authHeaders() );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+  switch ( HTTP_CODE( res->status ) ) {
+  case HTTP_CODE::Unauthorized:
+  case HTTP_CODE::Forbidden:
     auth( res->headers, "repository:" + rsrc + ":pull" );
 
     res = client->Head( location.c_str(), authHeaders() );
+    break;
+  default:
+    break;
   }
 
   if ( res->has_header( "Location" ) ) {
@@ -248,10 +266,13 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
     }
   }
 
-  res = client->Get( location.c_str(), authHeaders(), call_back );
+  auto retries = 0;
+  do {
+    res = client->Get( location.c_str(), authHeaders(), call_back );
+  } while ( res == nullptr and ++retries != 3 );
 
   if ( res == nullptr ) {
-    retVal = false; // FIXME: Retrying should work here
+    retVal = false;
     spdlog::error( "OCI::Registry::Client::fetchBlob {}\n client timeout (returned NULL)", location );
   } else {
     switch ( HTTP_CODE( res->status ) ) {

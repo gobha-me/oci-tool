@@ -20,7 +20,7 @@ namespace OCI::Extensions {
       std::map< Domain, std::pair< Username, Password > > credentials;
       std::vector< Domain >                               domains;
       std::vector< std::string >                          architectures;
-      std::string                                          tag_filter;
+      std::string                                         tag_filter;
       std::map< Domain, std::map< RepoName, OCI::Tags > > tags;
     };
 

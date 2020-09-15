@@ -92,7 +92,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     TokenResponse _ctr;
 
-    bool _auth_retry = true;
+    bool _auth_retry{ true };
   };
 
   void from_json( nlohmann::json const &j, Client::TokenResponse &ctr );
