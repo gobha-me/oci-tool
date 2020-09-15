@@ -257,11 +257,17 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
     { // scoped so the file closes prior to any other operation
       std::ofstream blob( _temp_file, std::ios::app | std::ios::binary );
 
-      retVal = blob.write( blob_part, blob_part_size ).good();
+      if ( blob.good() ) {
+        retVal = blob.write( blob_part, blob_part_size ).good();
+      } else {
+        spdlog::error( "OCI::Extensions::Dir::putBlob Failed to open {}", _temp_file.c_str() );
+      }
     }
 
     if ( retVal ) {
       _bytes_written += blob_part_size;
+    } else {
+      spdlog::error( "OCI::Extensions::Dir::putBlob failed to write data to {}", _temp_file.c_str() );
     }
 
     if ( _bytes_written == total_size ) {
