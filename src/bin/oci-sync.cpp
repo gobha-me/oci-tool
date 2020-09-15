@@ -81,12 +81,15 @@ auto main( int argc, char **argv ) -> int {
 
   switch ( verbose.Get() ) {
   case 1:
-    spdlog::set_level( spdlog::level::info );
+    spdlog::set_level( spdlog::level::warn );
     break;
   case 2:
-    spdlog::set_level( spdlog::level::debug );
+    spdlog::set_level( spdlog::level::info );
     break;
   case 3:
+    spdlog::set_level( spdlog::level::debug );
+    break;
+  case 4:
     spdlog::set_level( spdlog::level::trace );
     break;
   default:
@@ -145,7 +148,6 @@ auto main( int argc, char **argv ) -> int {
   auto dest_location = dest_arg.Get().substr( dest_proto_itr + 1 );
 
   indicators::DynamicProgress< indicators::ProgressBar > progress_bars{};
-  progress_bars.set_option( indicators::option::HideBarWhenComplete{true} );
 
   auto destination = OCI::CLIENT_MAP.at( dest_proto )( dest_location, dest_username.Get(), dest_password.Get() );
 
