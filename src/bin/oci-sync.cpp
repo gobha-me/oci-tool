@@ -102,6 +102,7 @@ auto main( int argc, char **argv ) -> int {
     break;
   }
 
+  spdlog::flush_every( std::chrono::seconds( 1 ) );
   spdlog::set_pattern( "[%H:%M:%S] [%^%l%$] [thread %t] %v" );
 
   std::shared_ptr< OCI::Base::Client > source;
