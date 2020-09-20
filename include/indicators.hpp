@@ -1305,11 +1305,11 @@ namespace indicators::details {
 
     class ProgressScaleWriter {
     public:
-      ProgressScaleWriter( std::ostream &os, size_t bar_width, const std::string &fill, const std::string &lead,
-                           const std::string &remainder )
-          : os( os ), bar_width( bar_width ), fill( fill ), lead( lead ), remainder( remainder ) {}
+      ProgressScaleWriter( std::ostream &os, size_t bar_width, std::string fill, std::string lead,
+                           std::string remainder )
+          : os( os ), bar_width( bar_width ), fill(std::move( fill )), lead(std::move( lead )), remainder(std::move( remainder )) {}
 
-      std::ostream &write( float progress ) {
+      auto write( float progress ) -> std::ostream & {
         auto pos = static_cast< size_t >( progress * bar_width / 100.0 );
         for ( size_t i = 0, current_display_width = 0; i < bar_width; ) {
           std::string next;
@@ -1428,7 +1428,7 @@ namespace indicators {
                                                           void * >::type = nullptr >
     explicit ProgressBar( Args &&... args )
         : settings_(
-              details::get< details::ProgressBarOption::bar_width >( option::BarWidth{ 100 },
+              details::get< details::ProgressBarOption::bar_width >( option::BarWidth{ 100 }, // NOLINT
                                                                      std::forward< Args >( args )... ),
               details::get< details::ProgressBarOption::prefix_text >( option::PrefixText{},
                                                                        std::forward< Args >( args )... ),
@@ -1459,7 +1459,7 @@ namespace indicators {
                                                                        std::forward< Args >( args )... ),
               details::get< details::ProgressBarOption::min_progress >( option::MinProgress{ 0 },
                                                                         std::forward< Args >( args )... ),
-              details::get< details::ProgressBarOption::max_progress >( option::MaxProgress{ 100 },
+              details::get< details::ProgressBarOption::max_progress >( option::MaxProgress{ 100 }, // NOLINT
                                                                         std::forward< Args >( args )... ),
               details::get< details::ProgressBarOption::progress_type >(
                   option::ProgressType{ ProgressType::incremental }, std::forward< Args >( args )... ),
@@ -1469,10 +1469,11 @@ namespace indicators {
       // if progress is incremental, start from min_progress
       // else start from max_progress
       const auto type = get_value< details::ProgressBarOption::progress_type >();
-      if ( type == ProgressType::incremental )
+      if ( type == ProgressType::incremental ) {
         progress_ = get_value< details::ProgressBarOption::min_progress >();
-      else
+      } else {
         progress_ = get_value< details::ProgressBarOption::max_progress >();
+      }
     }
 
     template < typename T, details::ProgressBarOption id > void set_option( details::Setting< T, id > &&setting ) {
@@ -1646,8 +1647,38 @@ namespace indicators {
   public:
     void print_progress( bool from_multi_progress = false ) {
       std::lock_guard< std::mutex > lock{ mutex_ };
+      constexpr auto MIN_TERM_WIDTH  = 80;
+      constexpr auto BARWITH_MAX_PER = 0.6;
 
-      auto &os = get_value< details::ProgressBarOption::stream >();
+      auto &os        = get_value< details::ProgressBarOption::stream >();
+      auto bar_width  = get_value< details::ProgressBarOption::bar_width >();
+      auto term_width = terminal_width() < MIN_TERM_WIDTH ? MIN_TERM_WIDTH : terminal_width();
+
+      if ( bar_width > ( term_width * BARWITH_MAX_PER ) ) {
+        bar_width = ( term_width * BARWITH_MAX_PER );
+      }
+
+      const auto max_str_len = ( term_width - bar_width ) / 2;
+
+      auto prefix_pair   = get_prefix_text();
+      auto prefix_text   = prefix_pair.first;
+      auto prefix_length = prefix_pair.second;
+
+      if ( prefix_length > max_str_len ) {
+        prefix_text = prefix_text.substr( 0, max_str_len - 3 );
+        prefix_text += "...";
+        prefix_length = prefix_text.length();
+      }
+
+      auto postfix_pair   = get_postfix_text();
+      auto postfix_text   = postfix_pair.first;
+      auto postfix_length = postfix_pair.second;
+
+      if ( postfix_length > max_str_len ) {
+        postfix_text = postfix_text.substr( 0, max_str_len - 3 );
+        postfix_text += "...";
+        postfix_length = postfix_text.length();
+      }
 
       const auto type         = get_value< details::ProgressBarOption::progress_type >();
       const auto min_progress = get_value< details::ProgressBarOption::min_progress >();
@@ -1672,33 +1703,31 @@ namespace indicators {
         details::set_font_style( os, style );
       }
 
-      const auto prefix_pair   = get_prefix_text();
-      const auto prefix_text   = prefix_pair.first;
-      const auto prefix_length = prefix_pair.second;
+      // PREFIX TEXT
       os << prefix_text;
 
       os << get_value< details::ProgressBarOption::start >();
 
+      // BAR
       details::ProgressScaleWriter writer{
-          os, get_value< details::ProgressBarOption::bar_width >(), get_value< details::ProgressBarOption::fill >(),
+          os, bar_width, get_value< details::ProgressBarOption::fill >(),
           get_value< details::ProgressBarOption::lead >(), get_value< details::ProgressBarOption::remainder >() };
-      writer.write( double( progress_ ) / double( max_progress ) * 100.0F );
+      writer.write( double( progress_ ) / double( max_progress ) * 100.0F ); // NOLINT
 
       os << get_value< details::ProgressBarOption::end >();
 
-      const auto postfix_pair   = get_postfix_text();
-      const auto postfix_text   = postfix_pair.first;
-      const auto postfix_length = postfix_pair.second;
+      // POSTFIX TEXT
       os << postfix_text;
 
       // Get length of prefix text and postfix text
       const auto start_length   = get_value< details::ProgressBarOption::start >().size();
-      const auto bar_width      = get_value< details::ProgressBarOption::bar_width >();
+      //const auto bar_width      = get_value< details::ProgressBarOption::bar_width >();
       const auto end_length     = get_value< details::ProgressBarOption::end >().size();
       const auto terminal_width = terminal_size().second;
       // prefix + bar_width + postfix should be <= terminal_width
       const auto remaining = terminal_width - ( prefix_length + start_length + bar_width + end_length + postfix_length );
-      if ( remaining > 0 ) {
+
+      if ( remaining > 0 and remaining < terminal_width ) {
         os << std::string( remaining, ' ' ) << "\r";
       } else if ( remaining < 0 ) {
         // Do nothing. Maybe in the future truncate postfix with ...
@@ -2356,6 +2385,7 @@ namespace indicators {
       BarGuard( BarGuard&& other ) noexcept : bar_index_( other.bar_index_ ), dyn_pro_( std::move( other.dyn_pro_ ) ) {}
       ~BarGuard() {
         dyn_pro_.get().erase( bar_index_ );
+        dyn_pro_.get().print_progress();
       }
 
       auto operator=( BarGuard const& ) = delete;
@@ -2381,7 +2411,7 @@ namespace indicators {
       prt_thr_ = std::thread([&](){
           while( run_thr_ ) {
             print_progress();
-            std::this_thread::sleep_for( 500ms );
+            std::this_thread::sleep_for( 250ms );
           }
         });
     }
