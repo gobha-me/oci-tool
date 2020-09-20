@@ -150,7 +150,7 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
       } else {
         // clang-format off
         indicators::ProgressBar sync_bar{
-            indicators::option::BarWidth{60}, // NOLINT
+            indicators::option::BarWidth{60}, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
             indicators::option::Start{"["},
             indicators::option::Fill{"■"},
             indicators::option::Lead{"■"},
@@ -165,6 +165,7 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
         auto sync_bar_ref = progress_bars.push_back( sync_bar );
 
         uint64_t                                        data_sent = 0;
+        bool                                            failed    = false;
         std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
                                                                            uint64_t    data_length ) -> bool {
           if ( data_length > 0 ) {
@@ -175,13 +176,23 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
               sync_bar_ref.get().set_option(
                   indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_itr->size ) } );
 
+              failed = false;
+
               return true;
-            } else {
-              spdlog::error( "Failed to write layer '{}:{}' to destination {} of {}", target, layer_itr->digest, data_sent, layer_itr->size );
             }
+
+            spdlog::error( "Failed to write layer '{}:{}' to destination {} of {}", target, layer_itr->digest, data_sent, layer_itr->size );
           } else {
-              spdlog::error( "No data recieved for layer '{}:{}' with {} bytes remaining", target, layer_itr->digest, data_sent, layer_itr->size - data_sent );
+            if ( data_length == 0 and not failed ) {
+              spdlog::warn( "Retry not data recieved '{}:{}' to destination {} of {}", target, layer_itr->digest, data_sent, layer_itr->size );
+
+              failed = true;
+
+              return true;
+            }
           }
+
+          spdlog::error( "No data recieved for layer '{}:{}' with {} bytes remaining of {}", target, layer_itr->digest, data_sent, layer_itr->size - data_sent, layer_itr->size );
 
           return false;
         };
