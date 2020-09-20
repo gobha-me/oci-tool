@@ -5,7 +5,7 @@
 #include <spdlog/spdlog.h>
 
 void OCI::Sync( OCI::Extensions::Yaml* src, OCI::Base::Client* dest, indicators::DynamicProgress< indicators::ProgressBar >& progress_bars ) {
-  constexpr auto THREAD_LIMIT = 10;
+  constexpr auto THREAD_LIMIT = 6;
   std::vector< std::thread > processes;
   std::vector< std::thread::id > finished_threads;
   std::mutex vft_lock;
@@ -125,7 +125,7 @@ void OCI::Sync( std::string const& rsrc, OCI::Base::Client* src, OCI::Base::Clie
 }
 
 void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags, OCI::Base::Client* src, OCI::Base::Client* dest, indicators::DynamicProgress< indicators::ProgressBar >& progress_bars ) {
-  constexpr auto THREAD_LIMIT = 2;
+  constexpr auto THREAD_LIMIT = 3;
   std::vector< std::thread > processes;
   std::vector< std::thread::id > finished_threads;
   std::mutex vft_lock;
@@ -134,7 +134,7 @@ void OCI::Sync( std::string const& rsrc, std::vector< std::string > const& tags,
 
   // clang-format off
   indicators::ProgressBar sync_bar{
-      indicators::option::BarWidth{60}, // NOLINT
+      indicators::option::BarWidth{80}, // NOLINT
       indicators::option::Start{"["},
       indicators::option::Fill{"■"},
       indicators::option::Lead{"■"},
