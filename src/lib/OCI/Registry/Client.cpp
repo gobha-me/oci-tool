@@ -240,6 +240,11 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
   auto location = std::string( "/v2/" + rsrc + "/blobs/" + sha );
   auto res      = client->Head( location.c_str(), authHeaders() );
 
+  if ( res == nullptr ) {
+    spdlog::error( "OCI::Registry::Client::fetchBlob failed to get redirect for {}:{}, returned NULL", rsrc, sha );
+    return false;
+  }
+
   switch ( HTTP_CODE( res->status ) ) {
   case HTTP_CODE::Unauthorized:
   case HTTP_CODE::Forbidden:
