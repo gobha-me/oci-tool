@@ -2385,7 +2385,7 @@ namespace indicators {
       BarGuard( BarGuard&& other ) noexcept : bar_index_( other.bar_index_ ), dyn_pro_( std::move( other.dyn_pro_ ) ) {}
       ~BarGuard() {
         dyn_pro_.get().erase( bar_index_ );
-        dyn_pro_.get().print_progress();
+        //dyn_pro_.get().print_progress();
       }
 
       auto operator=( BarGuard const& ) = delete;
