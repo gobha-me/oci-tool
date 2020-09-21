@@ -210,6 +210,14 @@ auto OCI::Extensions::Dir::hasBlob( Schema2::ImageManifest const &im, std::strin
 
   if ( std::filesystem::exists( image_path ) ) {
     retVal = true;
+  } else {
+    auto blob_path = _blobs_dir.path() / sha;
+
+    retVal = createSymlink( blob_path, image_path );
+
+    if ( retVal ) {
+      spdlog::info( "OCI::Extensions::Dir::hasBlob image {} already exists, created link to {}", sha, image_path.string() );
+    }
   }
 
   return retVal;
@@ -294,20 +302,7 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
   }
 
   if ( complete ) {
-    if ( not std::filesystem::exists( image_path ) ) {
-      std::lock_guard< std::mutex > lg( DIR_MUTEX );
-
-      if ( not std::filesystem::exists( image_path ) ) {
-        std::error_code ec;
-
-        std::filesystem::create_symlink( blob_path, image_path, ec );
-
-        if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
-          spdlog::error( "OCI::Extensions::Dir::putBlob create_symlink( {} -> {} ) {} -> {}", ec.value(), ec.message(),
-                         blob_path.string(), image_path.string() );
-        }
-      }
-    }
+    createSymlink( blob_path, image_path );
 
     if ( not _temp_file.empty() and std::filesystem::exists( _temp_file ) ) {
       std::filesystem::remove( _temp_file );
@@ -648,4 +643,38 @@ auto OCI::Extensions::Dir::dirMap() -> DirMap const & {
   }
 
   return retVal[ _directory.path().string() ];
+}
+
+auto OCI::Extensions::Dir::createSymlink( std::filesystem::path &blob_path, std::filesystem::path &image_path ) -> bool {
+  auto retVal = false;
+
+  if ( std::filesystem::exists( blob_path ) ) {
+    if ( not std::filesystem::exists( image_path.parent_path() ) ) {
+      std::lock_guard< std::mutex > lg( DIR_MUTEX );
+
+      if ( not std::filesystem::exists( image_path.parent_path() ) ) {
+        std::filesystem::create_directories( image_path.parent_path() );
+        spdlog::info( "OCI::Extensions::Dir::createSymlink created dirictory {}", image_path.parent_path().string() );
+      }
+    }
+
+    if ( not std::filesystem::exists( image_path ) ) {
+      std::lock_guard< std::mutex > lg( DIR_MUTEX );
+
+      if ( not std::filesystem::exists( image_path ) ) {
+        std::error_code ec;
+
+        std::filesystem::create_symlink( blob_path, image_path, ec );
+
+        if ( ec and ec.value() != 17 ) { // NOLINT FILE EXISTS
+          spdlog::error( "OCI::Extensions::Dir::createSymlink create_symlink( {} -> {} ) {} -> {}", ec.value(), ec.message(),
+                         blob_path.string(), image_path.string() );
+        } else {
+          retVal = true;
+        }
+      }
+    }
+  }
+
+  return retVal;
 }

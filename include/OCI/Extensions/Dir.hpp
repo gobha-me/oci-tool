@@ -59,6 +59,7 @@ namespace OCI::Extensions {
       auto tagList( std::string const &rsrc, std::regex const &re ) -> OCI::Tags override;
     protected:
       auto dirMap() -> DirMap const&;
+      static auto createSymlink( std::filesystem::path &blob_path, std::filesystem::path &image_path ) -> bool;
     private:
       uint64_t                         _bytes_written;
       std::filesystem::directory_entry _directory;
