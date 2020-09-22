@@ -32,7 +32,7 @@ auto genUUID() -> std::string {
   std::uniform_int_distribution<> dis( 0, CHARS.size() - 1 );
 
   for ( std::uint16_t index = 0; index != WORD_SIZE; index++ ) {
-    retVal += CHARS[ dis( generator ) ]; // NOLINT
+    retVal += CHARS.at( dis( generator ) );
   }
 
   return retVal;
@@ -240,9 +240,9 @@ auto OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest &im, const std:
 auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::string const &target, SHA256 const &blob_sha,
                                     std::uintmax_t total_size, const char *blob_part, uint64_t blob_part_size )
     -> bool {
-  auto retVal = false;
-  auto complete = false;
-  auto blob_path = _blobs_dir.path() / blob_sha;
+  auto retVal     = false;
+  auto clean_file = false;
+  auto blob_path  = _blobs_dir.path() / blob_sha;
   auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain /
                                                           ( im.name + ":" + im.requestedTarget ) / target );
   auto image_path = image_dir_path.path() / blob_sha;
@@ -256,7 +256,8 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
   }
 
   if ( std::filesystem::exists( blob_path ) ) {
-    complete = true;
+    clean_file = true;
+    retVal     = true;
   } else {
     if ( _temp_file.empty() ) {
       _temp_file = _temp_dir.path() / genUUID();
@@ -286,22 +287,18 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
           if ( not std::filesystem::exists( blob_path ) ) {
             std::filesystem::copy_file( _temp_file, blob_path );
           }
-
-          complete = true;
         }
       } else {
         spdlog::error( "OCI::Extensions::Dir Removed dirty file, file did not validate" );
 
-        std::filesystem::remove( _temp_file );
-        _temp_file.clear();
-        _bytes_written = 0;
-
         retVal = false;
       }
+
+      clean_file = true;
     }
   }
 
-  if ( complete ) {
+  if ( clean_file ) {
     createSymlink( blob_path, image_path );
 
     if ( not _temp_file.empty() and std::filesystem::exists( _temp_file ) ) {

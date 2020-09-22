@@ -137,7 +137,7 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
         using namespace std::chrono_literals;
         std::this_thread::sleep_for( 50ms );
       } else if ( dest->hasBlob( image_manifest, target, layer_itr->digest ) ) {
-        // All ready have the layer move to next
+        // Already have the layer move to next
         {
           std::lock_guard< std::mutex > lg( WD_MUTEX );
           auto wd_itr = std::find( working_digests.begin(), working_digests.end(), layer_itr->digest );
@@ -184,7 +184,7 @@ auto OCI::Copy( Schema2::ImageManifest const &image_manifest, std::string &targe
             spdlog::error( "Failed to write layer '{}:{}' to destination {} of {}", target, layer_itr->digest, data_sent, layer_itr->size );
           } else {
             if ( data_length == 0 and not failed ) {
-              spdlog::warn( "Retry not data recieved '{}:{}' to destination {} of {}", target, layer_itr->digest, data_sent, layer_itr->size );
+              spdlog::warn( "Retry no data recieved '{}:{}' to destination {} of {}", target, layer_itr->digest, data_sent, layer_itr->size );
 
               failed = true;
 
