@@ -2347,6 +2347,7 @@ namespace indicators {
 #include <mutex>
 #include <vector>
 #include <chrono>
+#include <condition_variable>
 
 namespace indicators {
   // It exists because the std::this_thread::get_id() is much slower(especially
@@ -2409,9 +2410,14 @@ namespace indicators {
     DynamicProgress() {
       using namespace std::chrono_literals;
       prt_thr_ = std::thread([&](){
+          size_t bar_count = 0;
           while( run_thr_ ) {
+            { // Wake on a change or timeout
+              std::unique_lock< std::mutex > ul( mutex_ );
+              cv_.wait_for( ul, 250ms, [&]() { return bars_.size() != bar_count; } );
+              bar_count = bars_.size();
+            }
             print_progress();
-            std::this_thread::sleep_for( 250ms );
           }
         });
     }
@@ -2443,6 +2449,7 @@ namespace indicators {
 
       bar.multi_progress_mode_ = true;
       bar.dynamic_index_       = thr_id;
+      cv_.notify_all();
 
       return BarGuard{ thr_id, *this };
     }
@@ -2451,6 +2458,7 @@ namespace indicators {
       std::lock_guard< std::mutex > lock{ mutex_ };
 
       bars_.erase( bars_.find( index ) );
+      cv_.notify_all();
     }
 
     template < typename T, details::ProgressBarOption id > void set_option( details::Setting< T, id > &&setting ) {
@@ -2470,10 +2478,11 @@ namespace indicators {
     }
 
   private:
-    Settings            settings_;
-    std::atomic< bool > run_thr_{ true };
-    std::thread         prt_thr_;
-    std::mutex          mutex_;
+    Settings                settings_;
+    std::atomic< bool >     run_thr_{ true };
+    std::thread             prt_thr_;
+    std::mutex              mutex_;
+    std::condition_variable cv_;
     std::map< size_t, std::reference_wrapper< Indicator > >
                           bars_; // Threads close and references get invalidated, need to be able remove references of completed bars
     std::atomic< size_t > last_draw_height_{ 0 };
@@ -2494,30 +2503,28 @@ namespace indicators {
     }
 
     void print_progress() {
+      std::lock_guard< std::mutex > lock{ mutex_ };
       // Only print upto the height of the current display
       for ( size_t i = 0; i != last_draw_height_; ++i ) {
         std::cout << "\033[A\r\033[K";
       }
 
-      {
-        std::lock_guard< std::mutex > lock{ mutex_ };
-        last_draw_height_ = 0;
-        for ( auto &bar : bars_ ) {
-          if ( last_draw_height_ < terminal_height() - 1 ) {
-            ++last_draw_height_;
-            bar.second.get().print_progress( true );
-            std::cout << "\n";
-          } else {
-            break;
-          }
-        }
-
-        std::cout << termcolor::reset;
-
-        if ( bars_.size() > last_draw_height_ ) {
-          std::cout << last_draw_height_ << "/" << bars_.size() << " Displayed.\r";
+      last_draw_height_ = 0;
+      for ( auto &bar : bars_ ) {
+        if ( last_draw_height_ < terminal_height() - 1 ) {
           ++last_draw_height_;
+          bar.second.get().print_progress( true );
+          std::cout << "\n";
+        } else {
+          break;
         }
+      }
+
+      std::cout << termcolor::reset;
+
+      if ( bars_.size() > last_draw_height_ ) {
+        std::cout << last_draw_height_ << "/" << bars_.size() << " Displayed.\r";
+        ++last_draw_height_;
       }
     }
   };
