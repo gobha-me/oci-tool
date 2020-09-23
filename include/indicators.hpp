@@ -2504,28 +2504,26 @@ namespace indicators {
 
     void print_progress() {
       std::lock_guard< std::mutex > lock{ mutex_ };
-      // Only print upto the height of the current display
+      // Clear previous screen
       for ( size_t i = 0; i != last_draw_height_; ++i ) {
-        std::cout << "\033[A\r\033[K";
+        std::cout << "\r\033[K\033[A"; // clear current line first, then move cursor up one line
       }
 
       last_draw_height_ = 0;
       for ( auto &bar : bars_ ) {
-        if ( last_draw_height_ < terminal_height() - 1 ) {
-          ++last_draw_height_;
+        // Only print upto the height of the current display
+        if ( last_draw_height_++ < terminal_height() - 1 ) { // Increment once
           bar.second.get().print_progress( true );
           std::cout << "\n";
         } else {
+          std::cout << termcolor::reset;
+          std::cout << last_draw_height_ << "/" << bars_.size() << " Displayed.\r";
+
           break;
         }
       }
 
-      std::cout << termcolor::reset;
-
-      if ( bars_.size() > last_draw_height_ ) {
-        std::cout << last_draw_height_ << "/" << bars_.size() << " Displayed.\r";
-        ++last_draw_height_;
-      }
+      std::cout << std::flush;
     }
   };
 
