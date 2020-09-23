@@ -1,7 +1,6 @@
 #include <OCI/Extensions/Yaml.hpp>
 #include <OCI/Factory.hpp>
 #include <OCI/Sync.hpp>
-#include <Yaml.hpp>
 #include <args.hxx> // https://github.com/Taywee/args
 #include <indicators.hpp>
 #include <iostream>
