@@ -121,6 +121,13 @@ OCI::Extensions::Dir::Dir( OCI::Extensions::Dir &&other ) noexcept {
   _temp_dir = std::move( other._temp_dir );
 }
 
+OCI::Extensions::Dir::~Dir() {
+  if ( not _temp_file.empty() and std::filesystem::exists( _temp_file ) ) {
+    spdlog::error( "OCI::Extensions::Dir::~Dir cleaning up left over file {}", _temp_file.string() );
+    std::filesystem::remove( _temp_file );
+  }
+}
+
 auto OCI::Extensions::Dir::operator=( Dir const &other ) -> Dir & {
   Dir( other ).swap( *this );
 

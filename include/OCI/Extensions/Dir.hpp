@@ -26,7 +26,7 @@ namespace OCI::Extensions {
       Dir( Dir const& other );
       Dir( Dir&& other ) noexcept;
 
-      ~Dir() override = default;
+      ~Dir() override;
 
       auto operator=( Dir const& other ) -> Dir&;
       auto operator=( Dir&& other ) noexcept -> Dir&;
