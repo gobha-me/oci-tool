@@ -147,18 +147,17 @@ auto main( int argc, char **argv ) -> int {
   auto dest_proto    = dest_arg.Get().substr( 0, dest_proto_itr );
   auto dest_location = dest_arg.Get().substr( dest_proto_itr + 1 );
 
-  indicators::DynamicProgress< indicators::ProgressBar > progress_bars{};
-
   auto destination = OCI::CLIENT_MAP.at( dest_proto )( dest_location, dest_username.Get(), dest_password.Get() );
 
   // a 'resource', but without will use source which assumes _catalog is implemented or available
 
+  OCI::Sync sync{};
   if ( src_proto == "yaml" ) {
     auto source = OCI::Extensions::Yaml( src_location );
-    OCI::Sync( &source, destination.get(), progress_bars );
+    sync.execute( &source, destination.get() );
   } else {
     auto source = OCI::CLIENT_MAP.at( src_proto )( src_location, src_password, src_password );
-    OCI::Sync( source.get(), destination.get(), progress_bars );
+    sync.execute( source.get(), destination.get() );
   }
 
   return EXIT_SUCCESS;

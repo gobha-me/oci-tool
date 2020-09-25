@@ -4,12 +4,20 @@
 #include <OCI/Extensions/Yaml.hpp>
 
 namespace OCI {
-  void Sync( OCI::Extensions::Yaml *src, OCI::Base::Client *dest, ProgressBars &progress_bars );
+  class Sync {
+  public:
+    Sync();
 
-  void Sync( OCI::Base::Client *src, OCI::Base::Client *dest, ProgressBars &progress_bars );
+    auto execute( OCI::Extensions::Yaml *src, OCI::Base::Client *dest ) -> void;
+    auto execute( OCI::Base::Client *src, OCI::Base::Client *dest ) -> void;
+  protected:
+    auto execute( std::string const &rsrc ) -> void;
+    auto execute( std::string const &rsrc, std::vector< std::string > const &tags ) -> void;
+  private:
+    std::shared_ptr< gobha::SimpleThreadManager > _stm{ nullptr };
+    std::shared_ptr< ProgressBars > _progress_bars{nullptr};
 
-  void Sync( std::string const &rsrc, OCI::Base::Client *src, OCI::Base::Client *dest, ProgressBars &progress_bars );
-
-  void Sync( std::string const &rsrc, std::vector< std::string > const &tags, OCI::Base::Client *src,
-             OCI::Base::Client *dest, ProgressBars &progress_bars );
+    OCI::Base::Client * _src{nullptr};
+    OCI::Base::Client * _dest{nullptr};
+  };
 } // namespace OCI

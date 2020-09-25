@@ -193,6 +193,11 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
         }
       }
       break;
+    case HTTP_CODE::Service_Unavail:
+      std::this_thread::yield();
+      spdlog::warn( "OCI::Registry::Client::auth Service Unavailable retrying Location: {} Body: {}", location, result->body );
+      auth( headers, scope );
+      break;
     default:
       spdlog::error( "Auth status: {} Location: {} Body: {}", result->status, location, result->body );
       break;
