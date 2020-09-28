@@ -267,7 +267,11 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
     retVal     = true;
   } else {
     if ( _temp_file.empty() ) {
+      std::lock_guard< std::mutex > lg( DIR_MUTEX );
       _temp_file = _temp_dir.path() / genUUID();
+      while ( std::filesystem::exists( _temp_file ) ) {
+        _temp_file = _temp_dir.path() / genUUID();
+      }
     }
 
     { // scoped so the file closes prior to any other operation

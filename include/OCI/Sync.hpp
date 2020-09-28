@@ -14,10 +14,8 @@ namespace OCI {
     auto execute( std::string const &rsrc ) -> void;
     auto execute( std::string const &rsrc, std::vector< std::string > const &tags ) -> void;
   private:
+    std::unique_ptr< Copy > _copier{nullptr};
     std::shared_ptr< gobha::SimpleThreadManager > _stm{ nullptr };
     std::shared_ptr< ProgressBars > _progress_bars{nullptr};
-
-    OCI::Base::Client * _src{nullptr};
-    OCI::Base::Client * _dest{nullptr};
   };
 } // namespace OCI

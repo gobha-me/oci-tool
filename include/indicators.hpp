@@ -1806,7 +1806,7 @@ namespace indicators {
     DynamicProgress() = default;
 
     DynamicProgress( DynamicProgress const& ) = delete;
-    DynamicProgress( DynamicProgress && /*other*/ ) noexcept {} 
+    DynamicProgress( DynamicProgress && /*other*/ ) = delete;
 
     ~DynamicProgress() {
       if ( started_ ) {

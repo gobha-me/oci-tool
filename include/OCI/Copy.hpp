@@ -9,18 +9,26 @@
 #include <string>
 
 namespace OCI {
-  using ProgressBars = indicators::DynamicProgress< indicators::ProgressBar >;
+  using ProgressBars   = indicators::DynamicProgress< indicators::ProgressBar >;
+  using STM_ptr        = std::shared_ptr< gobha::SimpleThreadManager >;
+  using PB_ptr         = std::shared_ptr< ProgressBars >;
+  using WorkingDigests = std::vector< std::string >;
+  using WD_ptr         = std::shared_ptr< WorkingDigests >;
+
+  auto getIndicator( size_t max_progress, std::string const& prefix, indicators::Color color = indicators::Color::white ) -> indicators::ProgressBar;
 
   class Copy {
   public:
-    Copy();
+    Copy( OCI::Base::Client * source, OCI::Base::Client * destination );
     Copy( Copy const& ) = delete;
     Copy( Copy && ) = delete;
+
+    ~Copy();
 
     auto operator=( Copy const& ) = delete;
     auto operator=( Copy && ) = delete;
 
-    auto execute( std::string const &rsrc, std::string const &target, OCI::Base::Client *src, OCI::Base::Client *dest ) -> void;
+    auto execute( std::string const &rsrc, std::string const &target ) -> void;
     auto execute( Schema1::ImageManifest const &image_manifest ) -> void;
     auto execute( Schema1::SignedImageManifest const &image_manifest ) -> void;
     auto execute( Schema2::ManifestList &manifest_list ) -> void;
@@ -28,13 +36,15 @@ namespace OCI {
 
     friend class Sync;
   protected:
-    static auto getIndicator( size_t max_progress, std::string const& prefix, indicators::Color color = indicators::Color::white ) -> indicators::ProgressBar;
+    Copy();
+    Copy( OCI::Base::Client * source, OCI::Base::Client * destination, STM_ptr stm, PB_ptr progress_bars );
+    Copy( Copy &copier, OCI::Base::Client * source, OCI::Base::Client * destination );
   private:
-    std::shared_ptr< gobha::SimpleThreadManager > _stm{nullptr};
-    std::shared_ptr< ProgressBars > _progress_bars{nullptr};
+    STM_ptr _stm{nullptr};
+    PB_ptr  _progress_bars{nullptr};
 
-    static std::mutex                 _wd_mutex;
-    static std::vector< std::string > _working_digests;
+    std::mutex _wd_mutex;
+    WD_ptr     _working_digests{nullptr};
 
     OCI::Base::Client * _src{nullptr};
     OCI::Base::Client * _dest{nullptr};
