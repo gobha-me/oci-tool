@@ -96,6 +96,7 @@ namespace gobha {
       bool enqueued{ false };
       
       while ( not enqueued ) {
+        std::this_thread::yield();
         std::lock_guard< std::mutex > fg_lg( _fq_mutex );
         
         if ( _func_queue.size() < _func_queue_limit ) {

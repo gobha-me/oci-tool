@@ -1902,6 +1902,7 @@ namespace indicators {
       prt_thr_ = std::thread([&](){
           size_t bar_count = 0;
           while( run_thr_ ) {
+            std::this_thread::yield();
             { // Wake on a change or timeout
               std::unique_lock< std::mutex > ul( mutex_ );
               cv_.wait_for( ul, 250ms, [&]() { return bars_.size() != bar_count; } );
