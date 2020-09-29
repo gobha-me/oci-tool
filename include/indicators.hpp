@@ -1553,7 +1553,6 @@ namespace indicators {
     template < typename Indicator, size_t count > friend class MultiProgress;
     template < typename Indicator > friend class DynamicProgress;
     std::atomic< bool >   multi_progress_mode_{ false };
-    std::atomic< size_t > dynamic_index_{ 0 };
 
     void save_start_time() {
       auto &show_elapsed_time   = get_value< details::ProgressBarOption::show_elapsed_time >();
@@ -1742,37 +1741,13 @@ namespace indicators {
 #include <condition_variable>
 
 namespace indicators {
-  // It exists because the std::this_thread::get_id() is much slower(especially
-  // under VS 2013) - Taken from spdlog
-  inline auto thread_id() noexcept -> size_t {
-#ifdef _WIN32
-    return static_cast< size_t >( ::GetCurrentThreadId() );
-#elif defined( __linux__ )
-    return static_cast< size_t >( ::syscall( SYS_gettid ) );
-#elif defined( _AIX ) || defined( __DragonFly__ ) || defined( __FreeBSD__ )
-    return static_cast< size_t >( ::pthread_getthreadid_np() );
-#elif defined( __NetBSD__ )
-    return static_cast< size_t >( ::_lwp_self() );
-#elif defined( __OpenBSD__ )
-    return static_cast< size_t >( ::getthrid() );
-#elif defined( __sun )
-    return static_cast< size_t >( ::thr_self() );
-#elif __APPLE__
-    uint64_t tid;
-    pthread_threadid_np( nullptr, &tid );
-    return static_cast< size_t >( tid );
-#else // Default to standard C++11 (other Unix)
-    return static_cast< size_t >( std::hash< std::thread::id >()( std::this_thread::get_id() ) );
-#endif
-  }
-
   template < typename Indicator > class DynamicProgress {
     using Settings = std::tuple< option::HideBarWhenComplete >;
 
   public:
     class BarGuard {
     public:
-      BarGuard( size_t bar_index, DynamicProgress * dyn_pro ) : bar_index_( bar_index ), dyn_pro_( dyn_pro ) {}
+      BarGuard( std::chrono::system_clock::time_point bar_index, DynamicProgress * dyn_pro ) : bar_index_( bar_index ), dyn_pro_( dyn_pro ) {}
 
       BarGuard( BarGuard const& ) = delete;
       BarGuard( BarGuard&& other ) noexcept : bar_index_( other.bar_index_ ), dyn_pro_( std::move( other.dyn_pro_ ) ) {
@@ -1799,7 +1774,7 @@ namespace indicators {
       }
     private:
       bool   value_held_{true};
-      size_t bar_index_;
+      std::chrono::system_clock::time_point bar_index_;
       DynamicProgress * dyn_pro_;
     };
 
@@ -1821,7 +1796,7 @@ namespace indicators {
 
     // Return a lifetime guard instead of an index into the underlining structure
     auto push_back( Indicator &bar ) -> BarGuard {
-      auto thr_id = thread_id();
+      auto clock = std::chrono::system_clock::now();
       {
         std::lock_guard< std::mutex > lock{ mutex_ };
 
@@ -1829,21 +1804,20 @@ namespace indicators {
           startManager();
         }
 
-        while ( bars_.find( thr_id ) != bars_.end() ) {
-          ++thr_id;
+        while ( bars_.find( clock ) != bars_.end() ) {
+          clock = std::chrono::system_clock::now();
         } // Still allow more then one bar per thread
 
-        bars_.insert( { thr_id, bar } );
+        bars_.insert( { clock, bar } );
       }
 
       bar.multi_progress_mode_ = true;
-      bar.dynamic_index_       = thr_id;
       cv_.notify_all();
 
-      return std::move( BarGuard{ thr_id, this } );
+      return std::move( BarGuard{ clock, this } );
     }
 
-    void erase( size_t index ) {
+    void erase( std::chrono::system_clock::time_point index ) {
       std::lock_guard< std::mutex > lock{ mutex_ };
 
       bars_.erase( bars_.find( index ) );
@@ -1874,7 +1848,7 @@ namespace indicators {
     std::thread             prt_thr_;
     std::mutex              mutex_;
     std::condition_variable cv_;
-    std::map< size_t, std::reference_wrapper< Indicator > >
+    std::map< std::chrono::system_clock::time_point, std::reference_wrapper< Indicator > >
                           bars_; // Threads close and references get invalidated, need to be able remove references of completed bars
     std::atomic< size_t > last_draw_height_{ 0 };
 
@@ -1893,7 +1867,7 @@ namespace indicators {
       return bars_.at( index ).get();
     }
 
-    auto at( size_t index ) -> Indicator & {
+    auto at( std::chrono::system_clock::time_point index ) -> Indicator & {
       std::lock_guard< std::mutex > lock{ mutex_ };
       return bars_.at( index );
     }
