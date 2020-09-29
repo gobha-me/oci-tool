@@ -27,20 +27,38 @@ namespace gobha {
     std::reference_wrapper< std::atomic< size_t > > _counter;
   };
 
+  class DelayedCall {
+  public:
+    explicit DelayedCall( std::function< void() > &&func ) : _func( func ) {}
+    DelayedCall( DelayedCall const & ) = delete;
+    DelayedCall( DelayedCall && ) = delete;
+    ~DelayedCall() {
+      _func();
+    }
+
+    auto operator=( DelayedCall const& ) = delete;
+    auto operator=( DelayedCall && ) = delete;
+  protected:
+  private:
+    std::function< void() > _func;
+  };
+
   class SimpleThreadManager {
   public:
     SimpleThreadManager() : SimpleThreadManager( std::thread::hardware_concurrency() * 2 ) {}
 
     explicit SimpleThreadManager( size_t thr_count ) : _capacity( thr_count ) {
       _thrs.reserve( _capacity );
+      _func_queue_limit = _capacity / 4;
 
       startManager();
     }
 
     SimpleThreadManager( SimpleThreadManager const& ) = delete;
     SimpleThreadManager( SimpleThreadManager && other ) noexcept {
-      _capacity = other._capacity;
-      _thrs     = std::move( other._thrs );
+      _capacity         = other._capacity;
+      _func_queue_limit = other._func_queue_limit;
+      _thrs             = std::move( other._thrs );
     }
 
     ~SimpleThreadManager() {
@@ -62,7 +80,7 @@ namespace gobha {
       {
         std::lock_guard< std::mutex > fg_lg( _fq_mutex );
         
-        if ( _func_queue.size() < _capacity / 4 ) { // NOLINT
+        if ( _func_queue.size() < _func_queue_limit ) {
           enqueued = true;
           _func_queue.push_back( func );
           _cv.notify_all();
@@ -80,7 +98,7 @@ namespace gobha {
       while ( not enqueued ) {
         std::lock_guard< std::mutex > fg_lg( _fq_mutex );
         
-        if ( _func_queue.size() < _capacity / 4 ) { // NOLINT
+        if ( _func_queue.size() < _func_queue_limit ) {
           enqueued = true;
           _func_queue.push_back( func );
           _cv.notify_all();
@@ -114,12 +132,15 @@ namespace gobha {
                 if ( has_func ) {
                   func();
                 }
+
+                std::this_thread::yield();
               }
           } );
         }
       }
     }
   private:
+    size_t                               _func_queue_limit;
     bool                                 _started{ false };
     std::atomic< bool >                  _run_thr{ true };
     size_t                               _capacity;
