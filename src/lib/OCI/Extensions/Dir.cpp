@@ -144,7 +144,11 @@ auto OCI::Extensions::Dir::operator=( Dir &&other ) noexcept -> Dir & {
 }
 
 auto OCI::Extensions::Dir::copy() -> std::unique_ptr< OCI::Base::Client > {
-  return std::make_unique< OCI::Extensions::Dir >( *this );
+  auto uc = std::make_unique< OCI::Extensions::Dir >( *this );
+
+  uc->_temp_file.clear();
+
+  return uc;
 }
 
 auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {

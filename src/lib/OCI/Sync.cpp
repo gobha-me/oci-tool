@@ -36,7 +36,7 @@ void OCI::Sync::execute( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
 
     while ( repo_thr_count != 0 ) {
       using namespace std::chrono_literals;
-      std::this_thread::sleep_for( 150ms );
+      std::this_thread::sleep_for( 250ms );
     }
   }
 }
@@ -79,6 +79,6 @@ void OCI::Sync::execute( std::string const& rsrc, std::vector< std::string > con
 
   while ( thread_count != 0 ) {
     using namespace std::chrono_literals;
-    std::this_thread::sleep_for( 150ms );
+    std::this_thread::sleep_for( 250ms );
   }
 }
