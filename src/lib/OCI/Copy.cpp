@@ -141,11 +141,18 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
       }
 
       if ( layer_itr == layers.end() ) {
+        // This is just a "busy" loop, with a pause, waiting for blobs to be ready to create symlinks
+        //   is there a way to "toss" this into a wait thread, so we can free this one for another operation
+        //   considering the magnitude of the number of possible Projects -> tags -> blobs how do we avoid
+        //   thread bombing the running host
         spdlog::trace( "OCI::Copy::execute All images being downloaded by other threads sleeping" );
         using namespace std::chrono_literals;
-        std::this_thread::sleep_for( 250ms );
+
+        std::this_thread::yield();
+        std::unique_lock< std::mutex > ul( _wd_mutex );
+        _finish_download.wait_for( ul, 15s );
       } else if ( dest->hasBlob( image_manifest, target, layer_itr->digest ) ) {
-        spdlog::warn( "OCI::Copy::execute Already have the layer move to next {}:{}", target, layer_itr->digest );
+        spdlog::debug( "OCI::Copy::execute Already have the layer move to next {}:{}", target, layer_itr->digest );
         {
           std::lock_guard< std::mutex > lg( _wd_mutex );
           auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer_itr->digest );
@@ -161,7 +168,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         auto digest     = layer_itr->digest;
         auto layer_size = layer_itr->size;
 
-        _stm->execute( [&image_manifest, &target, &layers, &layers_mutex, digest, layer_size, this]() {
+        _stm->execute( [image_manifest, target, digest, layer_size, this]() {
           const auto digest_trunc  = 10;
           auto indicator           = getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow );
           auto sync_bar_ref        = _progress_bars->push_back( indicator );
@@ -170,10 +177,19 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           uint64_t data_sent       = 0;
           bool     failed          = false;
 
+          gobha::DelayedCall clear_wd( [digest, this]() {
+            std::lock_guard< std::mutex > lg( _wd_mutex );
+            auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
+            if ( wd_itr != _working_digests->end() ) {
+              _working_digests->erase( wd_itr );
+              _finish_download.notify_all();
+            }
+          } );
+
           std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
                                                                              uint64_t    data_length ) -> bool {
             if ( data_length > 0 ) {
-              if ( _dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
+              if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
                 data_sent += data_length;
 
                 sync_bar_ref.get().set_progress( data_sent );
@@ -202,44 +218,14 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           };
 
           src->fetchBlob( image_manifest.name, digest, call_back );
-
-          { // FIXME: CREATE A GUARD FOR THIS - IF THREAD EXITS EARLY THIS WILL CAUSE AN INFINITE LOOP
-            std::lock_guard< std::mutex > lg( layers_mutex );
-            auto layer_itr = std::find_if( layers.begin(), layers.end(), [&digest]( auto layer ) -> bool { return layer.digest == digest; } );
-
-            if ( layer_itr != layers.end() ) {
-              layers.erase( layer_itr );
-            }
-          }
-
-          { // FIXME: WITHOUT A GUARD THIS VECTOR WILL JUST GROW TO THE NUMBER OF UNIQUE BINARIES IN THE DOWN LIST
-            std::lock_guard< std::mutex > lg( _wd_mutex );
-            auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
-            if ( wd_itr != _working_digests->end() ) {
-              _working_digests->erase( wd_itr );
-            }
-          }
         } );
+
+        std::lock_guard< std::mutex > lg( layers_mutex );
+        layers.erase( layer_itr );
       }
 
       std::lock_guard< std::mutex > lg( layers_mutex );
       layers_empty = layers.empty();
-    }
-
-    while ( true ) {
-      {
-        std::lock_guard< std::mutex > lg( _wd_mutex );
-        auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), image_manifest.config.digest );
-
-        if ( wd_itr == _working_digests->end() ) {
-          _working_digests->emplace_back( image_manifest.config.digest );
-
-          break;
-        }
-      }
-
-      using namespace std::chrono_literals;
-      std::this_thread::sleep_for( 50ms );
     }
 
     if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
@@ -256,13 +242,6 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
 
       src->fetchBlob( image_manifest.name, image_manifest.config.digest, call_back );
     }
-
-    std::lock_guard< std::mutex > lg( _wd_mutex );
-    auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), image_manifest.config.digest );
-    if ( wd_itr != _working_digests->end() ) {
-      _working_digests->erase( wd_itr );
-    }
-
   }
 
   return dest->putManifest( image_manifest, target );

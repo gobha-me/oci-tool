@@ -38,12 +38,12 @@ namespace OCI {
   protected:
     Copy();
     Copy( OCI::Base::Client * source, OCI::Base::Client * destination, STM_ptr stm, PB_ptr progress_bars );
-    Copy( Copy &copier, OCI::Base::Client * source, OCI::Base::Client * destination );
   private:
     STM_ptr _stm{nullptr};
     PB_ptr  _progress_bars{nullptr};
 
     std::mutex _wd_mutex;
+    std::condition_variable _finish_download;
     WD_ptr     _working_digests{nullptr};
 
     OCI::Base::Client * _src{nullptr};
