@@ -1,6 +1,6 @@
 #include <OCI/Registry/Client.hpp>
+#include <digestpp/algorithm/sha2.hpp>
 #include <memory>
-#include <picosha2.h>
 #include <spdlog/spdlog.h>
 #include <sstream>
 
@@ -698,15 +698,15 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::
 
   auto im_str = j.dump();
 
-  target = "sha256:" + picosha2::hash256_hex_string( im_str );
+  target = "sha256:" + digestpp::sha256().absorb( im_str ).hexdigest();
 
   auto res =
-      _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(), im.mediaType.c_str() );
+      _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im_str, im.mediaType.c_str() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
     auth( res->headers, "repository:" + im.name + ":push" );
 
-    res = _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(),
+    res = _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im_str,
                      im.mediaType.c_str() );
   }
 

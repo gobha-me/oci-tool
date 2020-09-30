@@ -2,7 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
-#include <picosha2.h>
+#include <digestpp/algorithm/sha2.hpp>
 #include <random>
 #include <set>
 #include <spdlog/spdlog.h>
@@ -42,10 +42,8 @@ auto validateFile( std::string const &sha, std::filesystem::path const &file ) -
 
   if ( std::filesystem::exists( file ) ) {
     std::ifstream blob( file, std::ios::binary );
-    std::vector< unsigned char > hash( picosha2::k_digest_size );
-    picosha2::hash256( blob, hash.begin(), hash.end() );
 
-    std::string sha256_str = picosha2::bytes_to_hex_string( hash.begin(), hash.end() );
+    std::string sha256_str = digestpp::sha256().absorb( blob ).hexdigest();
 
     if ( sha == "sha256:" + sha256_str ) {
       retVal = true;
