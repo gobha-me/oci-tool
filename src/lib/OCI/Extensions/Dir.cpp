@@ -1,9 +1,8 @@
 #include <OCI/Extensions/Dir.hpp>
-#include <botan/hash.h>
-#include <botan/hex.h>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <picosha2.h>
 #include <random>
 #include <set>
 #include <spdlog/spdlog.h>
@@ -40,21 +39,13 @@ auto genUUID() -> std::string {
 
 auto validateFile( std::string const &sha, std::filesystem::path const &file ) -> bool {
   bool retVal = false;
-  constexpr auto BUFFSIZE = 4096;
 
   if ( std::filesystem::exists( file ) ) {
-    auto sha256( Botan::HashFunction::create( "SHA-256" ) );
-
     std::ifstream blob( file, std::ios::binary );
-    std::vector< uint8_t > buf( BUFFSIZE );
+    std::vector< unsigned char > hash( picosha2::k_digest_size );
+    picosha2::hash256( blob, hash.begin(), hash.end() );
 
-    while ( blob.good() ) {
-      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() ); // NOLINT
-      size_t readcount = blob.gcount();
-      sha256->update( buf.data(), readcount );
-    }
-
-    std::string sha256_str = Botan::hex_encode( sha256->final(), false );
+    std::string sha256_str = picosha2::bytes_to_hex_string( hash.begin(), hash.end() );
 
     if ( sha == "sha256:" + sha256_str ) {
       retVal = true;

@@ -1899,7 +1899,7 @@ namespace indicators {
     auto startManager() -> void {
       using namespace std::chrono_literals;
       started_ = true;
-      prt_thr_ = std::thread([&](){
+      prt_thr_ = std::thread( [&]() {
           size_t bar_count = 0;
           while( run_thr_ ) {
             std::this_thread::yield();
@@ -1910,7 +1910,7 @@ namespace indicators {
             }
             print_progress();
           }
-        });
+        } );
     }
   };
 
