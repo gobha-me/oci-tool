@@ -22,7 +22,7 @@ void OCI::Sync::execute( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
     for ( auto const& repo : catalog.repositories ) {
       repo_thr_count++;
 
-      _stm->background( [&repo, &src, &repo_thr_count, &sync_bar_ref, &repo_index, &catalog_total, this]() {
+      _stm->background( [&src, &repo_thr_count, &sync_bar_ref, &repo_index, &catalog_total, repo, this]() {
         gobha::CountGuard cg( repo_thr_count );
         execute( repo, src->copy()->tagList( repo ).tags );
 
@@ -66,7 +66,7 @@ void OCI::Sync::execute( std::string const& rsrc, std::vector< std::string > con
   for ( auto const& tag: tags ) {
     thread_count++;
 
-    _stm->execute( [&rsrc, &tag, total_tags, &thread_count, &tag_index, &sync_bar_ref, this]() -> void {
+    _stm->execute( [ &rsrc, &thread_count, &tag_index, &sync_bar_ref, tag, total_tags, this ]() -> void {
       gobha::CountGuard cg( thread_count );
       _copier->execute( rsrc, tag );
 

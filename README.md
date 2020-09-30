@@ -3,12 +3,11 @@ This spawned from the need of doing a multi arch sync, which requires a multi ar
  and learn how REST interfaces can be implemented, so going the 'hard' route was a personal choice
 
 ### DEPENDENCIES
-Attempted to have this only require few dependacies (libraries) and be mostly header only for external stuff.
-This failed with SHA256 digest validation.  If someone knows of a good one, that works I am all ears. until then
-ensure libbotan-2 (dev) is installed.
-
-spdlog, currently using the library version, 'sudo apt install spdlog', will copy the source tree into this project
-at some point in the near future
+On RHEL 7 enable rhel-server-rhscl-7-rpms repo and install devtoolset-9-gcc-c++, ensure to 
+```
+$ scl enable devtoolset-9 bash
+```
+prior to running a build.  The Tool Set is also required for a runtime environment for the version of libstdc++.
 
 ### BUILD
 Release build
@@ -28,7 +27,8 @@ $ make
 
 ### EXAMPLES
 ```
-oci-sync yaml:<yaml-file> dir:<path>
+oci-sync --help
+oci-sync -vl err.log yaml:<yaml-file> dir:<path>
 oci-sync yaml:<yaml-file> docker://<domain|ip>
 oci-sync dir:<path>/<domain> docker://<domain|ip>
 ```
