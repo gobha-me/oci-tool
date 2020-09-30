@@ -1,7 +1,6 @@
 #include <OCI/Registry/Client.hpp>
-#include <botan/hash.h>
-#include <botan/hex.h>
 #include <memory>
+#include <picosha2.h>
 #include <spdlog/spdlog.h>
 #include <sstream>
 
@@ -698,13 +697,8 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::
   nlohmann::json j( im );
 
   auto im_str = j.dump();
-  auto im_digest( Botan::HashFunction::create( "SHA-256" ) );
-  im_digest->update( im_str );
 
-  target = "sha256:" + Botan::hex_encode( im_digest->final() );
-  std::for_each( target.begin(), target.end(), []( char &c ) {
-    c = std::tolower( c ); // NOLINT - narrowing warning, but unsigned char for the lambda doesn't build, so which is it
-  } );
+  target = "sha256:" + picosha2::hash256_hex_string( im_str );
 
   auto res =
       _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(), im.mediaType.c_str() );
