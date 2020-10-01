@@ -15,7 +15,6 @@ if ( EXISTS "/usr/bin/clang++" )
 elseif( EXISTS "/opt/rh/devtoolset-9/root/usr/bin/g++" )
   set(CMAKE_CXX_COMPILER "/opt/rh/devtoolset-9/root/usr/bin/g++")
   set(CMAKE_CXX_FLAGS                "-Wall -std=c++17")
-  include_directories(include)
 endif()
 
 #set(CMAKE_CXX_FLAGS_DEBUG          "-O1 -fsanitize=thread -g -D_GLIBCXX_DEBUG")
@@ -31,7 +30,8 @@ add_executable(oci-sync src/bin/oci-sync.cpp ${OCI_SRC} yaml/Yaml.cpp)
 
 if ( ${CMAKE_MAJOR_VERSION} GREATER "3" )
   target_include_directories(oci-sync PUBLIC include)
-  target_link_libraries(oci-sync pthread ssl crypto)
 else()
-  target_link_libraries(oci-sync pthread ssl crypto)
+  include_directories(include)
 endif()
+
+target_link_libraries(oci-sync pthread ssl crypto)

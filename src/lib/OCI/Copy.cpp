@@ -84,17 +84,15 @@ void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
     for ( auto &manifest : manifest_list.manifests ) {
       thread_count++;
 
-      _stm->execute( [ & ]() -> void {
+      _stm->execute( [ &thread_count, &manifest, manifest_list, this ]() -> void {
         gobha::CountGuard cg( thread_count );
         Schema2::ImageManifest im_request;
 
-        auto local_manifest_list   = manifest_list;
-        im_request.name            = local_manifest_list.name;
-        im_request.requestedTarget = local_manifest_list.requestedTarget;
+        im_request.name            = manifest_list.name;
+        im_request.requestedTarget = manifest_list.requestedTarget;
         im_request.requestedDigest = manifest.digest;
 
         auto source         = _src->copy();
-        auto destination    = _dest->copy();
         auto image_manifest = Manifest< Schema2::ImageManifest >( source.get(), im_request );
 
         execute( image_manifest, manifest.digest );
@@ -103,7 +101,7 @@ void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
 
     while ( thread_count != 0 ) {
       using namespace std::chrono_literals;
-      std::this_thread::sleep_for( 150ms );
+      std::this_thread::sleep_for( 250ms );
     }
 
     _dest->copy()->putManifest( manifest_list, manifest_list.requestedTarget );
@@ -168,6 +166,11 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         auto digest     = layer_itr->digest;
         auto layer_size = layer_itr->size;
 
+        gobha::DelayedCall clear_layer( [&layers_mutex, &layer_itr, &layers]() {
+          std::lock_guard< std::mutex > lg( layers_mutex );
+          layers.erase( layer_itr );
+        } );
+
         _stm->execute( [image_manifest, target, digest, layer_size, this]() {
           const auto digest_trunc  = 10;
           auto indicator           = getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow );
@@ -219,9 +222,6 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
 
           src->fetchBlob( image_manifest.name, digest, call_back );
         } );
-
-        std::lock_guard< std::mutex > lg( layers_mutex );
-        layers.erase( layer_itr );
       }
 
       std::lock_guard< std::mutex > lg( layers_mutex );
