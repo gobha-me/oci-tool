@@ -19,6 +19,10 @@ void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::ImageManife
       }
     }
   }
+
+  if ( j.find( "raw_str" ) != j.end() ) {
+    j.at( "raw_str" ).get_to( im.raw_str );
+  }
 }
 
 void OCI::Schema1::from_json( const nlohmann::json& j, OCI::Schema1::SignedImageManifest& sim ) {
@@ -41,6 +45,7 @@ void OCI::Schema1::to_json( nlohmann::json& j, OCI::Schema1::ImageManifest const
     { "architecture", im.architecture },
     { "name", im.name },
     { "fsLayers", im.fsLayers },
-    { "history", im.history }
+    { "history", im.history },
+    { "raw_str", im.raw_str }
   };
 }

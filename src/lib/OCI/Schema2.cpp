@@ -17,22 +17,23 @@ auto OCI::Schema2::operator!=( ImageManifest::Layer const& iml1, ImageManifest::
 }
 
 auto OCI::Schema2::operator==( ManifestList const& ml1, ManifestList const& ml2 ) -> bool {
-  bool retVal = true;
+//  bool retVal = true;
+  auto retVal = ml1.raw_str == ml2.raw_str;
 
-  if ( ml1.name == ml2.name ) {
-    for ( auto const& m: ml1.manifests ) {
-      auto ml2_m_itr = std::find_if( ml2.manifests.begin(), ml2.manifests.end(), [m]( ManifestList::Manifest const& x ) {
-          return m.digest == x.digest;
-        } );
-
-      if ( ml2_m_itr == ml2.manifests.end() ) {
-        retVal = false;
-        break;
-      }
-    }
-  } else {
-    retVal = false;
-  }
+//  if ( ml1.name == ml2.name ) {
+//    for ( auto const& m: ml1.manifests ) {
+//      auto ml2_m_itr = std::find_if( ml2.manifests.begin(), ml2.manifests.end(), [m]( ManifestList::Manifest const& x ) {
+//          return m.digest == x.digest;
+//        } );
+//
+//      if ( ml2_m_itr == ml2.manifests.end() ) {
+//        retVal = false;
+//        break;
+//      }
+//    }
+//  } else {
+//    retVal = false;
+//  }
 
   return retVal;
 }
@@ -43,6 +44,10 @@ auto OCI::Schema2::operator!=( ManifestList const& ml1, ManifestList const& ml2 
 
 void OCI::Schema2::from_json( const nlohmann::json& j, ManifestList& ml ) {
   j.at( "schemaVersion" ).get_to( ml.schemaVersion );
+
+  if ( j.find( "raw_str" ) != j.end() ) {
+    j.at( "raw_str" ).get_to( ml.raw_str );
+  }
 
   if ( j.find( "manifests" ) != j.end() ) {
     ml.manifests = j.at( "manifests" ).get< std::vector< ManifestList::Manifest > >();
@@ -83,6 +88,7 @@ void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList& ml ) {
   nlohmann::json jm = ml.manifests;
 
   j[ "manifests" ] = jm;
+  j[ "raw_str"   ] = ml.raw_str;
 }
 
 void OCI::Schema2::to_json( nlohmann::json& j, const ManifestList::Manifest& mlm ) {
@@ -128,6 +134,10 @@ void OCI::Schema2::from_json( const nlohmann::json& j, ImageManifest& im ) {
     if ( j.find( "layers" ) != j.end() ) {
       im.layers = j.at( "layers" ).get< std::vector< ImageManifest::Layer > >();
     }
+
+    if ( j.find( "raw_str" ) != j.end() ) {
+      j.at( "raw_str" ).get_to( im.raw_str );
+    }
   }
 }
 
@@ -150,7 +160,8 @@ void OCI::Schema2::to_json( nlohmann::json& j, const ImageManifest& im ) {
         { "size", im.config.size },
         { "digest", im.config.digest }
       }},
-      { "layers", im.layers }
+      { "layers", im.layers },
+      { "raw_str", im.raw_str }
   };
 }
 

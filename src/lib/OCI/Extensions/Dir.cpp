@@ -519,7 +519,7 @@ auto OCI::Extensions::Dir::putManifest( Schema2::ManifestList const &ml, [[maybe
   return retVal;
 } // OCI::Extensions::Dir::putManifest Schema2::ManifestList
 
-auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const &im, std::string &target ) -> bool {
+auto OCI::Extensions::Dir::putManifest( Schema2::ImageManifest const &im, std::string const &target ) -> bool {
   bool retVal = true;
   auto image_dir_path = std::filesystem::directory_entry( _tree_root.path() / im.originDomain /
                                                           ( im.name + ":" + im.requestedTarget ) / target );

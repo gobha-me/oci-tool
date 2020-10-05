@@ -7,13 +7,14 @@
 
 namespace OCI::Schema1 { // https://docs.docker.com/registry/spec/api/
   struct ImageManifest {
-    std::string mediaType = "application/vnd.docker.distribution.manifest.v1+json"; // not part of the json object, this is part of the interface
-    std::string name;
-    std::string originDomain;
-    std::string requestedTarget;
-    std::string tag;
-    std::string architecture;
-    std::string schemaVersion;
+    const std::string mediaType = "application/vnd.docker.distribution.manifest.v1+json"; // not part of the json object, this is part of the interface
+    std::string       name;
+    std::string       originDomain;
+    std::string       requestedTarget;
+    std::string       tag;
+    std::string       architecture;
+    std::string       schemaVersion;
+    std::string       raw_str;
     std::vector< std::pair< std::string, std::string > > fsLayers;
     std::vector< std::pair< std::string, std::string > > history;
   };
@@ -26,7 +27,7 @@ namespace OCI::Schema1 { // https://docs.docker.com/registry/spec/api/
       std::string protected_; // protected is a keyword :P
     };
 
-    std::string               mediaType = "application/vnd.docker.distribution.manifest.v1+prettyjws";
+    const std::string         mediaType = "application/vnd.docker.distribution.manifest.v1+prettyjws";
     std::vector< Signature >  signatures;
   };
 
