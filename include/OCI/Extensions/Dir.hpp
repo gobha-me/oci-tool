@@ -48,10 +48,10 @@ namespace OCI::Extensions {
       void fetchManifest( Schema2::ManifestList       & ml,  Schema2::ManifestList        const& request ) override;
       void fetchManifest( Schema2::ImageManifest      & im,  Schema2::ImageManifest       const& request ) override;
 
-      auto putManifest( Schema1::ImageManifest const& im,        std::string const& target ) -> bool override;
+      auto putManifest( Schema1::ImageManifest       const& im,  std::string const& target ) -> bool override;
       auto putManifest( Schema1::SignedImageManifest const& sim, std::string const& target ) -> bool override;
-      auto putManifest( Schema2::ManifestList const& ml,         std::string const& target ) -> bool override;
-      auto putManifest( Schema2::ImageManifest const& im,        std::string&       target ) -> bool override;
+      auto putManifest( Schema2::ManifestList        const& ml,  std::string const& target ) -> bool override;
+      auto putManifest( Schema2::ImageManifest       const& im,  std::string const& target ) -> bool override;
 
       auto swap( Dir &other ) -> void;
 

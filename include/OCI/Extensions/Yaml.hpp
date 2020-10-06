@@ -60,7 +60,7 @@ namespace OCI::Extensions {
     auto putManifest( Schema1::ImageManifest const &im, std::string const &target ) -> bool override;
     auto putManifest( Schema1::SignedImageManifest const &sim, std::string const &target ) -> bool override;
     auto putManifest( Schema2::ManifestList const &ml, std::string const &target ) -> bool override;
-    auto putManifest( Schema2::ImageManifest const &im, std::string &target ) -> bool override;
+    auto putManifest( Schema2::ImageManifest const &im, std::string const &target ) -> bool override;
 
     auto tagList( std::string const &rsrc ) -> OCI::Tags override;
     auto tagList( std::string const &rsrc, std::regex const &re ) -> OCI::Tags override;

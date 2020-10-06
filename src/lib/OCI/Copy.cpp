@@ -84,7 +84,7 @@ void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
     for ( auto &manifest : manifest_list.manifests ) {
       thread_count++;
 
-      _stm->execute( [ &thread_count, &manifest, manifest_list, this ]() -> void {
+      _stm->execute( [ &thread_count, manifest, manifest_list, this ]() -> void {
         gobha::CountGuard cg( thread_count );
         Schema2::ImageManifest im_request;
 
@@ -108,7 +108,7 @@ void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
   }
 } // OCI::Copy Schema2::ManifestList
 
-auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::string &target ) -> bool {
+auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::string const &target ) -> bool {
   auto src                 = _src->copy();
   auto dest                = _dest->copy();
   auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest.get(), image_manifest );
@@ -172,14 +172,6 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         } );
 
         _stm->execute( [image_manifest, target, digest, layer_size, this]() {
-          const auto digest_trunc  = 10;
-          auto indicator           = getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow );
-          auto sync_bar_ref        = _progress_bars->push_back( indicator );
-          auto dest                = _dest->copy();
-          auto src                 = _src->copy();
-          uint64_t data_sent       = 0;
-          bool     failed          = false;
-
           gobha::DelayedCall clear_wd( [digest, this]() {
             std::lock_guard< std::mutex > lg( _wd_mutex );
             auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
@@ -188,6 +180,14 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
               _finish_download.notify_all();
             }
           } );
+
+          const auto digest_trunc  = 10;
+          auto indicator           = getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow );
+          auto sync_bar_ref        = _progress_bars->push_back( indicator );
+          auto dest                = _dest->copy();
+          auto src                 = _src->copy();
+          uint64_t data_sent       = 0;
+          bool     failed          = false;
 
           std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
                                                                              uint64_t    data_length ) -> bool {

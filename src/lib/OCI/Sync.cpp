@@ -46,9 +46,26 @@ void OCI::Sync::execute( OCI::Base::Client* src, OCI::Base::Client* dest ) {
   _copier->_dest = dest;
 
   auto const catalog = src->catalog();
+  auto indicator     = getIndicator( catalog.repositories.size(), "Source Repos", indicators::Color::cyan );
+  auto sync_bar_ref  = _progress_bars->push_back( indicator );
+
+  auto                  catalog_total  = catalog.repositories.size();
+  std::atomic< size_t > repo_thr_count = 0;
+  auto                  repo_index     = 0;
 
   for ( auto const& repo : catalog.repositories ) {
-    execute( repo, src->copy()->tagList( repo ).tags );
+    repo_thr_count++;
+
+    _stm->background( [&src, &repo_thr_count, &sync_bar_ref, &repo_index, &catalog_total, repo, this]() {
+      gobha::CountGuard cg( repo_thr_count );
+
+      execute( repo, src->copy()->tagList( repo ).tags );
+
+      sync_bar_ref.get().tick();
+      sync_bar_ref.get().set_option( indicators::option::PostfixText{
+      	std::to_string( ++repo_index ) + "/" + std::to_string( catalog_total )
+    	} );
+    } );
   }
 }
 
@@ -66,7 +83,7 @@ void OCI::Sync::execute( std::string const& rsrc, std::vector< std::string > con
   for ( auto const& tag: tags ) {
     thread_count++;
 
-    _stm->execute( [ &rsrc, &thread_count, &tag_index, &sync_bar_ref, tag, total_tags, this ]() -> void {
+    _stm->execute( [ &thread_count, &tag_index, &sync_bar_ref, rsrc, tag, total_tags, this ]() -> void {
       gobha::CountGuard cg( thread_count );
       _copier->execute( rsrc, tag );
 

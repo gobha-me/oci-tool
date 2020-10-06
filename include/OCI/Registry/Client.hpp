@@ -56,7 +56,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     auto putManifest( Schema1::ImageManifest const &im, std::string const &target ) -> bool override;
     auto putManifest( Schema1::SignedImageManifest const &sim, std::string const &target ) -> bool override;
     auto putManifest( Schema2::ManifestList const &ml, std::string const &target ) -> bool override;
-    auto putManifest( Schema2::ImageManifest const &im, std::string &target ) -> bool override;
+    auto putManifest( Schema2::ImageManifest const &im, std::string const &target ) -> bool override;
 
     auto tagList( std::string const &rsrc ) -> Tags override;
     auto tagList( std::string const &rsrc, std::regex const& re ) -> Tags override;
@@ -78,12 +78,12 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     [[nodiscard]] auto authHeaders() const -> httplib::Headers;
     auto               authExpired() -> bool;
     auto fetchManifest( const std::string &mediaType, const std::string &resource, const std::string &target )
-        -> nlohmann::json;
+        -> std::string const;
 
   private:
     bool                               _secure_con{false};
-    std::shared_ptr< httplib::Client > _cli;
-    std::unique_ptr< httplib::Client > _patch_cli;
+    std::shared_ptr< httplib::Client > _cli{ nullptr };
+    std::unique_ptr< httplib::Client > _patch_cli{ nullptr };
     std::string                        _domain; // Required for making copies
     std::string                        _username;
     std::string                        _password;

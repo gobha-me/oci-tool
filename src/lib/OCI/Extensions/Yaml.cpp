@@ -162,7 +162,7 @@ auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ManifestList const &, std
   std::terminate();
 }
 
-auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ImageManifest const &, std::string &target ) -> bool { // NOLINT
+auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ImageManifest const &, std::string const &target ) -> bool { // NOLINT
   spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }

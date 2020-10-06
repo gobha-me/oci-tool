@@ -32,7 +32,7 @@ namespace OCI {
     auto execute( Schema1::ImageManifest const &image_manifest ) -> void;
     auto execute( Schema1::SignedImageManifest const &image_manifest ) -> void;
     auto execute( Schema2::ManifestList &manifest_list ) -> void;
-    auto execute( Schema2::ImageManifest const &image_manifest, std::string &target ) -> bool;
+    auto execute( Schema2::ImageManifest const &image_manifest, std::string const &target ) -> bool;
 
     friend class Sync;
   protected:

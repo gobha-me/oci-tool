@@ -64,7 +64,7 @@ auto splitLocation( std::string location ) -> std::tuple< std::string, std::stri
   return { proto, domain, uri };
 }
 
-OCI::Registry::Client::Client() : _cli( nullptr ), _patch_cli( nullptr ) {}
+OCI::Registry::Client::Client() = default;
 OCI::Registry::Client::Client( std::string const &location ) {
   auto resource = location;
 
@@ -98,7 +98,6 @@ OCI::Registry::Client::Client( std::string const &location ) {
     _secure_con = true;
   }
 
-  _patch_cli = nullptr;
   _cli->set_follow_location( true );
 }
 
@@ -545,7 +544,8 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest &im, Schema1::ImageManifest const &request ) {
-  auto json_body = fetchManifest( im.mediaType, request.name, request.requestedTarget );
+  im.raw_str     = fetchManifest( im.mediaType, request.name, request.requestedTarget );
+  auto json_body = nlohmann::json::parse( im.raw_str );
 
   json_body.get_to( im );
 
@@ -558,7 +558,8 @@ void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest &im, Schema1::
 
 void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest &      sim,
                                            Schema1::SignedImageManifest const &request ) {
-  auto json_body = fetchManifest( sim.mediaType, request.name, request.requestedTarget );
+  sim.raw_str     = fetchManifest( sim.mediaType, request.name, request.requestedTarget );
+  auto json_body = nlohmann::json::parse( sim.raw_str );
 
   json_body.get_to( sim );
 
@@ -570,50 +571,58 @@ void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest &      s
 }
 
 void OCI::Registry::Client::fetchManifest( Schema2::ManifestList &ml, Schema2::ManifestList const &request ) {
-  auto json_body = fetchManifest( ml.mediaType, request.name, request.requestedTarget );
+  ml.raw_str     = fetchManifest( ml.mediaType, request.name, request.requestedTarget );
 
-  if ( not json_body.empty() ) {
-    json_body.get_to( ml );
+  if ( not ml.raw_str.empty() ) {
+    auto json_body = nlohmann::json::parse( ml.raw_str );
 
-    if ( ml.name.empty() ) {
-      ml.name = request.name;
+    if ( not json_body.empty() ) {
+      json_body.get_to( ml );
+
+      if ( ml.name.empty() ) {
+        ml.name = request.name;
+      }
+
+      if ( request.originDomain.empty() ) {
+        ml.originDomain = _domain;
+      } else {
+        ml.originDomain = request.originDomain;
+      }
+
+      ml.requestedTarget = request.requestedTarget;
     }
-
-    if ( request.originDomain.empty() ) {
-      ml.originDomain = _domain;
-    } else {
-      ml.originDomain = request.originDomain;
-    }
-
-    ml.requestedTarget = request.requestedTarget;
   }
 }
 
 void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest &im, Schema2::ImageManifest const &request ) {
-  auto json_body = fetchManifest( im.mediaType, request.name, request.requestedDigest );
+  im.raw_str     = fetchManifest( im.mediaType, request.name, request.requestedDigest );
 
-  json_body.get_to( im );
+  if ( not im.raw_str.empty() ) {
+    auto json_body = nlohmann::json::parse( im.raw_str );
 
-  if ( im.name.empty() ) {
-    im.name = request.name;
+    json_body.get_to( im );
+
+    if ( im.name.empty() ) {
+      im.name = request.name;
+    }
+
+    if ( request.originDomain.empty() ) {
+      im.originDomain = _domain;
+    } else {
+      im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
+    }
+
+    im.requestedTarget = request.requestedTarget;
+    im.requestedDigest = request.requestedDigest;
   }
-
-  if ( request.originDomain.empty() ) {
-    im.originDomain = _domain;
-  } else {
-    im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
-  }
-
-  im.requestedTarget = request.requestedTarget;
-  im.requestedDigest = request.requestedDigest;
 }
 
 auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const std::string &resource,
-                                           const std::string &target ) -> nlohmann::json {
+                                           const std::string &target ) -> std::string const {
   auto location = "/v2/" + resource + "/manifests/" + target;
   auto headers  = authHeaders();
 
-  nlohmann::json retVal;
+  std::string retVal;
 
   headers.emplace( "Accept", mediaType );
 
@@ -630,7 +639,7 @@ auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const s
       retVal = fetchManifest( mediaType, resource, target ); // Hopefully this doesn't spiral into an infinite auth loop
       break;
     case HTTP_CODE::OK:
-      retVal = nlohmann::json::parse( res->body );
+      retVal = res->body;
       break;
     case HTTP_CODE::Not_Found:
       spdlog::warn( "OCI::Registry::Client::fetchManifest request Manifest Not_Found {} {}:{}", mediaType, resource,
@@ -667,15 +676,14 @@ auto OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest &sim
 
 auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const std::string &target ) -> bool {
   bool           retVal = false;
-  nlohmann::json j( ml );
 
   auto res =
-      _cli->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(), ml.mediaType.c_str() );
+      _cli->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str, ml.mediaType.c_str() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
     auth( res->headers, "repository:" + ml.name + ":push" );
 
-    res = _cli->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), j.dump(),
+    res = _cli->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str,
                      ml.mediaType.c_str() );
   }
 
@@ -694,21 +702,16 @@ auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const 
   return retVal;
 }
 
-auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::string &target ) -> bool {
+auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::string const &target ) -> bool {
   bool           retVal = false;
-  nlohmann::json j( im );
-
-  auto im_str = j.dump();
-
-  target = "sha256:" + digestpp::sha256().absorb( im_str ).hexdigest();
 
   auto res =
-      _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im_str, im.mediaType.c_str() );
+      _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im.raw_str, im.mediaType.c_str() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
     auth( res->headers, "repository:" + im.name + ":push" );
 
-    res = _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im_str,
+    res = _cli->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im.raw_str,
                      im.mediaType.c_str() );
   }
 
@@ -723,7 +726,7 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::
       spdlog::error( "{} -> {}", header.first, header.second );
     }
     spdlog::error( " Body: {}", res->body );
-    spdlog::error( j.dump( 2 ) );
+    spdlog::error( im.raw_str );
   }
 
   return retVal;
