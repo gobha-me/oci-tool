@@ -9,23 +9,24 @@ constexpr std::uint16_t HTTP_PORT   = 80;
 constexpr std::uint16_t DOCKER_PORT = 5000;
 
 enum class HTTP_CODE {
-  OK                = 200,
-  Created           = 201,
-  Accepted          = 202,
-  No_Content        = 204,
-  Moved             = 301,
-  Found             = 302,
-  Temp_Redirect     = 307,
-  Perm_Redirect     = 308,
-  Bad_Request       = 400,
-  Unauthorized      = 401,
-  Forbidden         = 403,
-  Not_Found         = 404,
-  Too_Many_Requests = 429,
-  Inter_Srv_Err     = 500,
-  Not_Implemented   = 501,
-  Bad_Gateway       = 502,
-  Service_Unavail   = 503,
+  OK                    = 200,
+  Created               = 201,
+  Accepted              = 202,
+  No_Content            = 204,
+  Moved                 = 301,
+  Found                 = 302,
+  Temp_Redirect         = 307,
+  Perm_Redirect         = 308,
+  Bad_Request           = 400,
+  Unauthorized          = 401,
+  Forbidden             = 403,
+  Not_Found             = 404,
+  Too_Many_Requests     = 429,
+  Client_Closed_Request = 499,
+  Inter_Srv_Err         = 500,
+  Not_Implemented       = 501,
+  Bad_Gateway           = 502,
+  Service_Unavail       = 503,
 };
 
 template< class HTTP_CLIENT >
@@ -93,6 +94,8 @@ OCI::Registry::Client::Client( std::string const &location ) {
       spdlog::warn( "{} does not respond to the V2 API (secure/unsecure)", _domain );
       std::terminate();
     }
+  } else {
+    _secure_con = true;
   }
 
   _patch_cli = nullptr;
@@ -106,13 +109,14 @@ OCI::Registry::Client::Client( std::string const &location, std::string username
 }
 
 OCI::Registry::Client::Client( Client const &other ) {
-  _domain   = other._domain;
-  _username = other._username;
-  _password = other._password;
+  _domain     = other._domain;
+  _username   = other._username;
+  _password   = other._password;
+  _secure_con = other._secure_con;
 
-  _cli = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
-
-  if ( not ping() ) {
+  if ( _secure_con ) {
+    _cli = std::make_shared< httplib::SSLClient >( _domain, SSL_PORT );
+  } else {
     _cli = std::make_shared< httplib::Client >( _domain, DOCKER_PORT );
   }
 
@@ -492,9 +496,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
         headers.emplace( "Content-Length", std::to_string( blob_part_size ) );
 
         // Not documented, but is part of the API
-        httplib::ContentProvider content_provider = [ & ]( size_t offset, size_t length, httplib::DataSink &sink ) {
-          (void)offset;
-          (void)length;
+        httplib::ContentProvider content_provider = [ &blob_part, &blob_part_size ]( [[maybe_unused]] size_t offset, [[maybe_unused]] size_t length, httplib::DataSink &sink ) {
           sink.write( blob_part, blob_part_size );
         };
 
@@ -770,10 +772,14 @@ auto OCI::Registry::Client::ping() -> bool {
 
   if ( res == nullptr ) { // Most likely an invalid domain or port
     retVal = false;
+
+    spdlog::error( "OCI::Registry::Client::ping recieved NULL on reponce" );
   } else {
     if ( res->has_header( "Docker-Distribution-Api-Version" ) ) {
       if ( res->get_header_value( "Docker-Distribution-Api-Version" ) != "registry/2.0" ) {
         retVal = false;
+
+        spdlog::trace( "OCI::Registry::Client::ping Docker-Distribution-Api-Version = {}", res->get_header_value( "Docker-Distribution-Api-Version" ) );
       }
     } else {
       retVal = false;

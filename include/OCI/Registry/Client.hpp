@@ -81,6 +81,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
         -> nlohmann::json;
 
   private:
+    bool                               _secure_con{false};
     std::shared_ptr< httplib::Client > _cli;
     std::unique_ptr< httplib::Client > _patch_cli;
     std::string                        _domain; // Required for making copies
