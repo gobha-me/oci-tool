@@ -118,7 +118,8 @@ OCI::Extensions::Dir::~Dir() {
 }
 
 auto OCI::Extensions::Dir::operator=( Dir const &other ) -> Dir & {
-  Dir( other ).swap( *this );
+  Dir temp( other );
+  *this = std::move( temp );
 
   return *this;
 }
@@ -140,14 +141,16 @@ auto OCI::Extensions::Dir::copy() -> std::unique_ptr< OCI::Base::Client > {
   return uc;
 }
 
-auto OCI::Extensions::Dir::catalog() -> OCI::Catalog {
-  Catalog retVal;
+auto OCI::Extensions::Dir::catalog() -> const OCI::Catalog& {
+  static Catalog retVal;
   auto const &dir_map = dirMap(); // Can I efficiently replace this with a directory query
 
-  retVal.repositories.resize( dir_map.size() );
+  if ( retVal.repositories.empty() ) {
+    //retVal.repositories.resize( dir_map.size() ); // map size is twice the number of actual repos??? what
 
-  std::transform( dir_map.begin(), dir_map.end(), back_inserter( retVal.repositories ),
-                  []( auto const &pair ) { return pair.first; } );
+    std::transform( dir_map.begin(), dir_map.end(), back_inserter( retVal.repositories ),
+                    []( auto const &pair ) { return pair.first; } );
+  }
 
   return retVal;
 }

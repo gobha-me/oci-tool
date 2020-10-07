@@ -31,7 +31,7 @@ namespace OCI::Extensions {
       auto operator=( Dir const& other ) -> Dir&;
       auto operator=( Dir&& other ) noexcept -> Dir&;
 
-      auto catalog() -> OCI::Catalog override;
+      auto catalog() -> const OCI::Catalog& override;
 
       auto copy() -> std::unique_ptr< OCI::Base::Client > override;
 

@@ -34,7 +34,7 @@ namespace OCI::Extensions {
     auto operator=( Yaml const &other ) -> Yaml &;
     auto operator=( Yaml &&other ) noexcept -> Yaml &;
 
-    auto catalog() -> OCI::Catalog override;
+    auto catalog() -> const OCI::Catalog& override;
     auto catalog( std::string const &domain ) -> OCI::Catalog;
 
     auto copy() -> std::unique_ptr< OCI::Base::Client > override;

@@ -13,7 +13,7 @@ OCI::Copy::Copy( Base::Client * source, Base::Client * destination, STM_ptr stm,
 
 OCI::Copy::~Copy() = default;
 
-auto OCI::Copy::execute( std::string const &rsrc, std::string const &target ) -> void {
+auto OCI::Copy::execute( std::string const rsrc, std::string const target ) -> void {
   Schema2::ManifestList ml_request;
 
   ml_request.name            = rsrc;
@@ -81,30 +81,43 @@ void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
   std::atomic< size_t > thread_count = 0;
 
   if ( manifest_list != dest_manifest_list ) {
-    for ( auto &manifest : manifest_list.manifests ) {
-      thread_count++;
+    if ( manifest_list.manifests.empty() ) {
+      spdlog::error( "OCI::Copy::execute Schema2::ManifestList is empty" );
+    } else {
+      for ( auto const &manifest : manifest_list.manifests ) {
+        thread_count++;
 
-      _stm->execute( [ &thread_count, manifest, manifest_list, this ]() -> void {
-        gobha::CountGuard cg( thread_count );
-        Schema2::ImageManifest im_request;
+        _stm->execute( [ &thread_count, manifest, manifest_list, this ]() -> void {
+          spdlog::trace( "OCI::Copy::execute Schema2::ManifestList functor entry '{}'", manifest_list.name );
 
-        im_request.name            = manifest_list.name;
-        im_request.requestedTarget = manifest_list.requestedTarget;
-        im_request.requestedDigest = manifest.digest;
+          gobha::DelayedCall dec_count( [ &thread_count, manifest_list ]() {
+              spdlog::trace( "OCI::Copy::execute '{}' finished decrementing count", manifest_list.name );
+              --thread_count;
+            } );
+          Schema2::ImageManifest im_request;
 
-        auto source         = _src->copy();
-        auto image_manifest = Manifest< Schema2::ImageManifest >( source.get(), im_request );
+          im_request.name            = manifest_list.name;
+          im_request.requestedTarget = manifest_list.requestedTarget;
+          im_request.requestedDigest = manifest.digest;
 
-        execute( image_manifest, manifest.digest );
-      } );
+          auto image_manifest = Manifest< Schema2::ImageManifest >( _src->copy().get(), im_request );
+
+          spdlog::trace( "OCI::Copy::execute collected Schema2::ImageManifest forward execution" );
+          execute( image_manifest, manifest.digest );
+        } );
+      }
+
+      spdlog::trace( "OCI::Copy::execute Schema2::ManifestList all Schema2::ImageManifests are queued" );
+
+      while ( thread_count != 0 ) {
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for( 250ms );
+      }
+
+      _dest->copy()->putManifest( manifest_list, manifest_list.requestedTarget );
+
+      spdlog::debug( "OCI::Copy::execute completed ManifestList for '{}'", manifest_list.name );
     }
-
-    while ( thread_count != 0 ) {
-      using namespace std::chrono_literals;
-      std::this_thread::sleep_for( 250ms );
-    }
-
-    _dest->copy()->putManifest( manifest_list, manifest_list.requestedTarget );
   }
 } // OCI::Copy Schema2::ManifestList
 
@@ -123,6 +136,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
     while ( not layers_empty ) {
       // Find image not being operated on by another thread
       {
+        spdlog::trace( "OCI::Copy::execute finding a dependant layer that is not in progress" );
         std::lock_guard< std::mutex > lg( layers_mutex );
         layer_itr = std::find_if( layers.begin(), layers.end(), [this]( auto layer ) -> bool {
             std::lock_guard< std::mutex > lg( _wd_mutex );
@@ -220,6 +234,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             return false;
           };
 
+          spdlog::trace( "OCI::Copy::execute ready to start copy or layer '{}'", digest );
           src->fetchBlob( image_manifest.name, digest, call_back );
         } );
       }

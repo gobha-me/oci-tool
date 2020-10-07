@@ -28,7 +28,7 @@ namespace OCI {
     auto operator=( Copy const& ) = delete;
     auto operator=( Copy && ) = delete;
 
-    auto execute( std::string const &rsrc, std::string const &target ) -> void;
+    auto execute( std::string const rsrc, std::string const target ) -> void;
     auto execute( Schema1::ImageManifest const &image_manifest ) -> void;
     auto execute( Schema1::SignedImageManifest const &image_manifest ) -> void;
     auto execute( Schema2::ManifestList &manifest_list ) -> void;

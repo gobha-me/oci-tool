@@ -31,7 +31,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     void auth( httplib::Headers const &headers, std::string const &scope );
 
-    auto catalog() -> OCI::Catalog override;
+    auto catalog() -> const OCI::Catalog& override;
 
     auto copy() -> std::unique_ptr< OCI::Base::Client > override;
 

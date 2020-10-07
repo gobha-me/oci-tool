@@ -61,7 +61,8 @@ OCI::Extensions::Yaml::Yaml( Yaml &&other ) noexcept {
 }
 
 auto OCI::Extensions::Yaml::operator=( Yaml const &other ) -> Yaml & {
-  Yaml( other ).swap( *this );
+  Yaml temp( other );
+  *this = std::move( temp );
 
   return *this;
 }
@@ -74,7 +75,7 @@ auto OCI::Extensions::Yaml::operator=( Yaml &&other ) noexcept -> Yaml & {
   return *this;
 }
 
-auto OCI::Extensions::Yaml::catalog() -> OCI::Catalog {
+auto OCI::Extensions::Yaml::catalog() -> const OCI::Catalog& {
   spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }

@@ -151,13 +151,23 @@ auto main( int argc, char **argv ) -> int {
 
   // a 'resource', but without will use source which assumes _catalog is implemented or available
 
-  OCI::Sync sync{};
-  if ( src_proto == "yaml" ) {
-    auto source = OCI::Extensions::Yaml( src_location );
-    sync.execute( &source, destination.get() );
-  } else {
-    auto source = OCI::CLIENT_MAP.at( src_proto )( src_location, src_password, src_password );
-    sync.execute( source.get(), destination.get() );
+  try {
+    OCI::Sync sync{};
+    if ( src_proto == "yaml" ) {
+      auto source = OCI::Extensions::Yaml( src_location );
+      sync.execute( &source, destination.get() );
+    } else {
+      auto source = OCI::CLIENT_MAP.at( src_proto )( src_location, src_password, src_password );
+      sync.execute( source.get(), destination.get() );
+    }
+  } catch ( std::exception const &e ) { // Catch all, Doing this allows stack unwinding on any exception
+    std::cerr << "Unhandled exception occured!! " << e.what() << std::endl;
+
+    return EXIT_FAILURE;
+  } catch ( ... ) {
+    std::cerr << "Unhandled exception occured!! " << std::endl;
+
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

@@ -11,61 +11,72 @@
 namespace gobha {
   class CountGuard {
   public:
-    explicit CountGuard( std::atomic< size_t > &counter ) : _counter( counter ) {}
+    explicit CountGuard( std::atomic< size_t > &counter ) : counter_( counter ) {}
 
     CountGuard( CountGuard const & ) = delete;
     CountGuard( CountGuard && ) = delete;
 
     ~CountGuard() {
-      --_counter.get();
+      --counter_.get();
     }
 
     auto operator=( CountGuard const & ) -> CountGuard & = delete;
     auto operator=( CountGuard && ) -> CountGuard & = delete;
   protected:
   private:
-    std::reference_wrapper< std::atomic< size_t > > _counter;
+    std::reference_wrapper< std::atomic< size_t > > counter_;
   };
 
   class DelayedCall {
   public:
-    explicit DelayedCall( std::function< void() > &&func ) : _func( func ) {}
+    explicit DelayedCall( std::function< void() > &&func ) : func_( func ) {}
     DelayedCall( DelayedCall const & ) = delete;
     DelayedCall( DelayedCall && ) = delete;
     ~DelayedCall() {
-      _func();
+      func_();
     }
 
     auto operator=( DelayedCall const& ) = delete;
     auto operator=( DelayedCall && ) = delete;
   protected:
   private:
-    std::function< void() > _func;
+    std::function< void() > func_;
   };
 
   class SimpleThreadManager {
   public:
     SimpleThreadManager() : SimpleThreadManager( std::thread::hardware_concurrency() * 2 ) {}
 
-    explicit SimpleThreadManager( size_t thr_count ) : _capacity( thr_count ) {
-      _thrs.reserve( _capacity );
-      _func_queue_limit = _capacity / 4;
+    explicit SimpleThreadManager( size_t thr_count ) : capacity_( thr_count ) {
+      thrs_.reserve( capacity_ );
 
       startManager();
     }
 
     SimpleThreadManager( SimpleThreadManager const& ) = delete;
     SimpleThreadManager( SimpleThreadManager && other ) noexcept {
-      _capacity         = other._capacity;
-      _func_queue_limit = other._func_queue_limit;
-      _thrs             = std::move( other._thrs );
+      capacity_         = other.capacity_;
+      f_func_queue_     = std::move( other.f_func_queue_ );
+      b_func_queue_     = std::move( other.b_func_queue_ );
+      thrs_             = std::move( other.thrs_ );
     }
 
     ~SimpleThreadManager() {
-      _run_thr = false;
+      using namespace std::chrono_literals;
+      auto completed = false;
 
-      if ( _started ) {
-        for ( auto &thr : _thrs ) {
+      while ( not completed ) {
+        std::unique_lock< std::mutex > ul( fq_mutex_ );
+
+        cv_.wait_for( ul, 250ms );
+
+        completed = f_func_queue_.empty() and b_func_queue_.empty();
+      }
+
+      run_thr_ = false;
+
+      if ( started_ ) {
+        for ( auto &thr : thrs_ ) {
           thr.join();
         }
       }
@@ -78,60 +89,66 @@ namespace gobha {
       bool enqueued{ false };
 
       {
-        std::lock_guard< std::mutex > fg_lg( _fq_mutex );
+        std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
         
-        if ( _func_queue.size() < _func_queue_limit ) {
+        if ( running_count_ < capacity_ ) {
+          spdlog::trace( "gobha::SimpleThreadManger enqueuing execute task" );
           enqueued = true;
-          _func_queue.push_back( func );
-          _cv.notify_all();
+          f_func_queue_.push_back( func );
+          cv_.notify_all();
         }
       }
 
       if ( not enqueued ) {
+        spdlog::trace( "gobha::SimpleThreadManger queue limit reached, executing task in current context" );
         func();
       }
     }
 
     auto background( std::function< void() >&& func ) -> void {
-      bool enqueued{ false };
+      spdlog::trace( "gobha::SimpleThreadManger enqueuing background task" );
+      std::this_thread::yield();
+      std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
       
-      while ( not enqueued ) {
-        std::this_thread::yield();
-        std::lock_guard< std::mutex > fg_lg( _fq_mutex );
-        
-        if ( _func_queue.size() < _func_queue_limit ) {
-          enqueued = true;
-          _func_queue.push_back( func );
-          _cv.notify_all();
-        }
-      }
+      b_func_queue_.push_back( func );
+      cv_.notify_all();
     }
   protected:
     auto startManager() -> void {
       using namespace std::chrono_literals;
 
-      if ( not _started ) {
-        _started = true;
+      if ( not started_ ) {
+        started_ = true;
 
-        for ( size_t thr_limit = 0; thr_limit != _thrs.capacity(); ++thr_limit ) {
-          _thrs.emplace_back( [this]() {
-              while ( _run_thr ) {
+        for ( size_t thr_limit = 0; thr_limit != thrs_.capacity(); ++thr_limit ) {
+          thrs_.emplace_back( [ this ]() {
+              while ( run_thr_ ) {
                 std::function< void() > func;
                 bool has_func = false;
 
                 {
-                  std::unique_lock< std::mutex > ul( _fq_mutex );
-                  _cv.wait_for( ul, 250ms, [this]() { return _func_queue.empty(); } );
+                  std::unique_lock< std::mutex > ul( fq_mutex_ );
+                  cv_.wait_for( ul, 250ms, [this]() -> bool { return not f_func_queue_.empty() or not b_func_queue_.empty(); } );
 
-                  if ( not _func_queue.empty() ) {
+                  if ( not f_func_queue_.empty() ) {
+                    spdlog::trace( "gobha::SimpleThreadManger dequeuing Foreground task" );
+
                     has_func = true;
-                    func = _func_queue.front();
-                    _func_queue.pop_front();
+                    func = f_func_queue_.front();
+                    f_func_queue_.pop_front();
+                  } else if ( not b_func_queue_.empty() ) {
+                    spdlog::trace( "gobha::SimpleThreadManger dequeuing Background task" );
+
+                    has_func = true;
+                    func = b_func_queue_.front();
+                    b_func_queue_.pop_front();
                   }
                 }
 
                 if ( has_func ) {
+                  ++running_count_;
                   func();
+                  --running_count_;
                 }
 
                 std::this_thread::yield();
@@ -141,13 +158,14 @@ namespace gobha {
       }
     }
   private:
-    size_t                               _func_queue_limit;
-    bool                                 _started{ false };
-    std::atomic< bool >                  _run_thr{ true };
-    size_t                               _capacity;
-    std::vector< std::thread >           _thrs;
-    std::list< std::function< void() > > _func_queue;
-    std::condition_variable              _cv;
-    std::mutex                           _fq_mutex;
+    bool                                 started_{ false };
+    std::atomic< bool >                  run_thr_{ true };
+    std::atomic< size_t >                running_count_{ 0 };
+    size_t                               capacity_;
+    std::vector< std::thread >           thrs_;
+    std::list< std::function< void() > > f_func_queue_;
+    std::list< std::function< void() > > b_func_queue_;
+    std::condition_variable              cv_;
+    std::mutex                           fq_mutex_;
   };
 } // namespace gobha

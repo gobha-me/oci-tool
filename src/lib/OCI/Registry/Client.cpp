@@ -3,6 +3,7 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <sstream>
+#include <stdexcept>
 
 constexpr std::uint16_t SSL_PORT    = 443;
 constexpr std::uint16_t HTTP_PORT   = 80;
@@ -91,8 +92,7 @@ OCI::Registry::Client::Client( std::string const &location ) {
     _cli = std::make_shared< httplib::Client >( _domain, DOCKER_PORT );
 
     if ( not ping() ) {
-      spdlog::warn( "{} does not respond to the V2 API (secure/unsecure)", _domain );
-      std::terminate();
+      std::runtime_error( _domain + " does not respond to the V2 API (secure/unsecure)" );
     }
   } else {
     _secure_con = true;
@@ -184,25 +184,30 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
 
     auto result = client->Get( location.c_str() );
 
-    switch( HTTP_CODE( result->status ) ) {
-    case HTTP_CODE::OK: {
-        auto j = nlohmann::json::parse( result->body );
+    if ( result != nullptr ) {
+      switch( HTTP_CODE( result->status ) ) {
+      case HTTP_CODE::OK: {
+          auto j = nlohmann::json::parse( result->body );
 
-        if ( j.find( "token" ) == j.end() ) {
-          spdlog::error( "Auth Failed: {}", j.dump( 2 ) );
-        } else {
-          j.get_to( _ctr );
+          if ( j.find( "token" ) == j.end() ) {
+            spdlog::error( "Auth Failed: {}", j.dump( 2 ) );
+          } else {
+            j.get_to( _ctr );
+          }
         }
+        break;
+      case HTTP_CODE::Service_Unavail:
+        std::this_thread::yield();
+        spdlog::warn( "OCI::Registry::Client::auth Service Unavailable retrying Location: {}", location );
+        auth( headers, scope );
+        break;
+      default:
+        spdlog::error( "Auth status: {} Location: {} Body: {}", result->status, location, result->body );
+        break;
       }
-      break;
-    case HTTP_CODE::Service_Unavail:
-      std::this_thread::yield();
-      spdlog::warn( "OCI::Registry::Client::auth Service Unavailable retrying Location: {}", location );
-      auth( headers, scope );
-      break;
-    default:
-      spdlog::error( "Auth status: {} Location: {} Body: {}", result->status, location, result->body );
-      break;
+    } else {
+      // FIXME: throw here, this could be retried by caller
+      spdlog::error( "OCI::Registry::Client::auth recieved NULL '{}'", location );
     }
   } else {
     spdlog::error( "OCI::Registry::Client::auth not given header 'Www-Authenticate'" );
@@ -226,8 +231,8 @@ auto OCI::Registry::Client::authHeaders() const -> httplib::Headers {
   return retVal;
 }
 
-auto OCI::Registry::Client::catalog() -> OCI::Catalog {
-  Catalog retVal;
+auto OCI::Registry::Client::catalog() -> const OCI::Catalog& {
+  static Catalog retVal;
 
   spdlog::warn( "OCI::Registry::Client::catalog Not implemented" );
 
@@ -437,41 +442,46 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
 
       break;
     case HTTP_CODE::Unauthorized:
+      // FIXME: throw here instead and have the caller make the decision on what to do
       if ( _auth_retry ) {
+        spdlog::error( "Recieved unauthorized attempting to push {}:{} Auth Retry: {}", target, blob_sha, _auth_retry );
+
         _auth_retry = false;
 
         auth( res->headers, "repository:" + im.name + ":push" );
 
         retVal = putBlob( im, target, blob_sha, total_size, blob_part, blob_part_size );
       } else {
-        _auth_retry = true;
+        has_error = true;
       }
 
       break;
-    case HTTP_CODE::Accepted: {
-      std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
+    case HTTP_CODE::Accepted:
+      {
+        std::tie( proto, domain, _patch_location ) = splitLocation( res->get_header_value( "Location" ) );
+        spdlog::trace( "OCI::Registry::Client::putBlob Accepted _patch_location: {}", _patch_location );
 
-      if ( _patch_cli == nullptr ) {
-        if ( proto == "https" ) {
-          port = SSL_PORT;
-        } else {
-          port = HTTP_PORT;
-        }
+        if ( _patch_cli == nullptr ) {
+          if ( proto == "https" ) {
+            port = SSL_PORT;
+          } else {
+            port = HTTP_PORT;
+          }
 
-        auto has_alt_port = domain.find( ':' );
+          auto has_alt_port = domain.find( ':' );
 
-        if ( has_alt_port != std::string::npos ) {
-          port   = std::stoul( domain.substr( has_alt_port + 1 ) );
-          domain = domain.substr( 0, has_alt_port );
-        }
+          if ( has_alt_port != std::string::npos ) {
+            port   = std::stoul( domain.substr( has_alt_port + 1 ) );
+            domain = domain.substr( 0, has_alt_port );
+          }
 
-        if ( proto == "https" ) {
-          _patch_cli = std::make_unique< httplib::SSLClient >( domain, port );
-        } else {
-          _patch_cli = std::make_unique< httplib::Client >( domain, port );
+          if ( proto == "https" ) {
+            _patch_cli = std::make_unique< httplib::SSLClient >( domain, port );
+          } else {
+            _patch_cli = std::make_unique< httplib::Client >( domain, port );
+          }
         }
       }
-    }
 
       if ( chunk_sent ) {
         retVal = true;
@@ -481,8 +491,13 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
         res = _patch_cli->Get( ( _patch_location ).c_str(), headers );
       }
 
+      _auth_retry = true;
+
       break;
     case HTTP_CODE::No_Content: {
+      spdlog::trace( "OCI::Registry::Client::putBlob No_Content _patch_location: {}", _patch_location );
+      _auth_retry = true;
+
       if ( chunk_sent ) {
         has_error = true;
       } else {
@@ -571,7 +586,7 @@ void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest &      s
 }
 
 void OCI::Registry::Client::fetchManifest( Schema2::ManifestList &ml, Schema2::ManifestList const &request ) {
-  ml.raw_str     = fetchManifest( ml.mediaType, request.name, request.requestedTarget );
+  ml.raw_str = fetchManifest( ml.mediaType, request.name, request.requestedTarget );
 
   if ( not ml.raw_str.empty() ) {
     auto json_body = nlohmann::json::parse( ml.raw_str );
@@ -633,19 +648,27 @@ auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const s
   } else {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::Unauthorized:
-      auth( res->headers,
-            "repository:" + resource + ":pull" ); // auth modifies the headers, so should auth return headers???
+      spdlog::warn( "OCI::Registry::Client::fetchManifest recieved HTTP_CODE::Unauthorized for '{}'", location );
 
-      retVal = fetchManifest( mediaType, resource, target ); // Hopefully this doesn't spiral into an infinite auth loop
+      if ( _auth_retry ) {
+        _auth_retry = false;
+        auth( res->headers, "repository:" + resource + ":pull" ); // auth modifies the headers, so should auth return headers???
+
+        retVal = fetchManifest( mediaType, resource, target );
+      }
+
       break;
     case HTTP_CODE::OK:
+      _auth_retry = true;
       retVal = res->body;
       break;
     case HTTP_CODE::Not_Found:
+      _auth_retry = true;
       spdlog::warn( "OCI::Registry::Client::fetchManifest request Manifest Not_Found {} {}:{}", mediaType, resource,
                     target );
       break;
     default:
+      _auth_retry = true;
       spdlog::error( "OCI::Registry::Client::fetchManifest {}\n  Status: {} Body: {}", location, res->status,
                      res->body );
     }

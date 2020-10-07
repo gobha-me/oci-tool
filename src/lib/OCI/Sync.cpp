@@ -23,7 +23,10 @@ void OCI::Sync::execute( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
       repo_thr_count++;
 
       _stm->background( [&src, &repo_thr_count, &sync_bar_ref, &repo_index, &catalog_total, repo, this]() {
-        gobha::CountGuard cg( repo_thr_count );
+        gobha::DelayedCall dec_count( [&repo_thr_count, repo]() {
+            spdlog::trace( "OCI::Sync::execute '{}' finished decrementing count", repo );
+            --repo_thr_count;
+          } );
         execute( repo, src->copy()->tagList( repo ).tags );
 
         sync_bar_ref.get().tick();
@@ -38,6 +41,8 @@ void OCI::Sync::execute( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
       using namespace std::chrono_literals;
       std::this_thread::sleep_for( 250ms );
     }
+
+    spdlog::debug( "OCI::Sync::execute completed all repos for '{}'", domain );
   }
 }
 
@@ -57,7 +62,10 @@ void OCI::Sync::execute( OCI::Base::Client* src, OCI::Base::Client* dest ) {
     repo_thr_count++;
 
     _stm->background( [&src, &repo_thr_count, &sync_bar_ref, &repo_index, &catalog_total, repo, this]() {
-      gobha::CountGuard cg( repo_thr_count );
+      gobha::DelayedCall dec_count( [&repo_thr_count, repo]() {
+          spdlog::trace( "OCI::Sync::execute '{}' finished decrementing count", repo );
+          --repo_thr_count;
+        } );
 
       execute( repo, src->copy()->tagList( repo ).tags );
 
@@ -67,6 +75,13 @@ void OCI::Sync::execute( OCI::Base::Client* src, OCI::Base::Client* dest ) {
     	} );
     } );
   }
+
+  while ( repo_thr_count != 0 ) {
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for( 250ms );
+  }
+
+  spdlog::debug( "OCI::Sync::execute completed all repos" );
 }
 
 void OCI::Sync::execute( std::string const& rsrc ) {
@@ -84,7 +99,12 @@ void OCI::Sync::execute( std::string const& rsrc, std::vector< std::string > con
     thread_count++;
 
     _stm->execute( [ &thread_count, &tag_index, &sync_bar_ref, rsrc, tag, total_tags, this ]() -> void {
-      gobha::CountGuard cg( thread_count );
+      gobha::DelayedCall dec_count( [ &thread_count, rsrc ]() {
+          spdlog::trace( "OCI::Sync::execute '{}' finished decrementing count", rsrc );
+          --thread_count;
+        } );
+
+      spdlog::trace( "OCI::Sync::execute -> forward to instance of OCI::Copy '{}:{}'", rsrc, tag );
       _copier->execute( rsrc, tag );
 
       sync_bar_ref.get().tick();
@@ -98,4 +118,6 @@ void OCI::Sync::execute( std::string const& rsrc, std::vector< std::string > con
     using namespace std::chrono_literals;
     std::this_thread::sleep_for( 250ms );
   }
+
+  spdlog::debug( "OCI::Sync::execute completed all tags for '{}'", rsrc );
 }

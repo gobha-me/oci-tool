@@ -20,7 +20,7 @@ namespace OCI::Base {
     auto operator=( Client const& ) -> Client& = default;
     auto operator=( Client && ) -> Client& = default;
 
-    virtual auto catalog() -> OCI::Catalog = 0;
+    virtual auto catalog() -> const OCI::Catalog& = 0;
 
     virtual auto copy() -> std::unique_ptr< Client > = 0;
 
