@@ -1458,6 +1458,8 @@ namespace indicators {
       }
     }
 
+    ProgressBar( ProgressBar const& other ) : progress_( other.progress_ ), settings_( other.settings_ ), multi_progress_mode_( other.multi_progress_mode_.load() ) {}
+
     template < typename T, details::ProgressBarOption id > void set_option( details::Setting< T, id > &&setting ) {
       static_assert( !std::is_same< T, typename std::decay< decltype(
                                            details::get_value< id >( std::declval< Settings >() ) ) >::type >::value,
@@ -1755,7 +1757,8 @@ namespace indicators {
       }
       ~BarGuard() {
         if ( value_held_ ) {
-          dyn_pro_->erase( bar_index_ );
+          dyn_pro_->at( bar_index_ ).mark_as_completed();
+//          dyn_pro_->erase( bar_index_ );
         }
       }
 
@@ -1795,10 +1798,11 @@ namespace indicators {
     auto operator=( DynamicProgress && ) -> DynamicProgress& = delete;
 
     // Return a lifetime guard instead of an index into the underlining structure
-    auto push_back( Indicator &bar ) -> BarGuard {
+    auto push_back( Indicator &&bar ) -> BarGuard {
       auto clock = std::chrono::system_clock::now();
       {
         std::lock_guard< std::mutex > lock{ mutex_ };
+        bar.multi_progress_mode_ = true;
 
         if ( not started_ ) {
           startManager();
@@ -1808,10 +1812,9 @@ namespace indicators {
           clock = std::chrono::system_clock::now();
         } // Still allow more then one bar per thread
 
-        bars_.insert( { clock, bar } );
+        bars_.insert( { clock, std::make_unique< Indicator >( bar ) } );
       }
 
-      bar.multi_progress_mode_ = true;
       cv_.notify_all();
 
       return std::move( BarGuard{ clock, this } );
@@ -1848,7 +1851,7 @@ namespace indicators {
     std::thread             prt_thr_;
     std::mutex              mutex_;
     std::condition_variable cv_;
-    std::map< std::chrono::system_clock::time_point, std::reference_wrapper< Indicator > >
+    std::map< std::chrono::system_clock::time_point, std::unique_ptr< Indicator > >
                           bars_; // Threads close and references get invalidated, need to be able remove references of completed bars
     std::atomic< size_t > last_draw_height_{ 0 };
 
@@ -1864,12 +1867,12 @@ namespace indicators {
 
     auto operator[]( size_t index ) -> Indicator & {
       std::lock_guard< std::mutex > lock{ mutex_ };
-      return bars_.at( index ).get();
+      return *bars_.at( index ).get();
     }
 
     auto at( std::chrono::system_clock::time_point index ) -> Indicator & {
       std::lock_guard< std::mutex > lock{ mutex_ };
-      return bars_.at( index );
+      return *bars_.at( index ).get();
     }
 
     void print_progress() {
@@ -1880,16 +1883,31 @@ namespace indicators {
       }
 
       last_draw_height_ = 0;
-      for ( auto &bar : bars_ ) {
-        // Only print upto the height of the current display
-        if ( last_draw_height_++ < terminal_height() - 1 ) { // Increment once
-          bar.second.get().print_progress( true );
-          std::cout << "\n";
-        } else {
-          std::cout << termcolor::reset;
-          std::cout << last_draw_height_ - 1 << "/" << bars_.size() << " Displayed.\r";
 
-          break;
+      auto index = 0;
+      for ( auto bar_it = bars_.begin(); bar_it != bars_.end(); ++bar_it ) {
+        if ( bar_it->second->is_completed() ) {
+          --index;
+          bars_.erase( bar_it );
+          bar_it = bars_.begin();
+
+          if ( not bars_.empty() ) {
+            for ( auto fast_forward = 0; fast_forward != index; ++ fast_forward ) {
+              ++bar_it;
+            }
+          }
+        } else {
+          ++index;
+
+          if ( last_draw_height_++ < terminal_height() - 1 ) { // Increment once
+            bar_it->second->print_progress( true );
+            std::cout << "\n";
+          } else {
+            std::cout << termcolor::reset;
+            std::cout << last_draw_height_ - 1 << "/" << bars_.size() << " Displayed.\r";
+
+            break;
+          }
         }
       }
 

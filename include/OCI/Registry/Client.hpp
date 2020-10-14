@@ -81,19 +81,19 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
         -> std::string const;
 
   private:
-    bool                               _secure_con{false};
-    std::shared_ptr< httplib::Client > _cli{ nullptr };
-    std::unique_ptr< httplib::Client > _patch_cli{ nullptr };
-    std::string                        _domain; // Required for making copies
-    std::string                        _username;
-    std::string                        _password;
+    bool                               secure_con_{false};
+    std::shared_ptr< httplib::Client > cli_{ nullptr };
+    std::unique_ptr< httplib::Client > patch_cli_{ nullptr };
+    std::string                        domain_; // Required for making copies
+    std::string                        username_;
+    std::string                        password_;
     //    std::string _resource; // <namespace>/<repo name>
     //    std::string _requested_target; // tag or digest
-    std::string _patch_location;
+    std::string patch_location_;
 
-    TokenResponse _ctr;
+    TokenResponse ctr_;
 
-    bool _auth_retry{ true };
+    bool auth_retry_{ true };
   };
 
   void from_json( nlohmann::json const &j, Client::TokenResponse &ctr );

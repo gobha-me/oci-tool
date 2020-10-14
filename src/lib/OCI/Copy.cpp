@@ -77,189 +77,204 @@ void OCI::Copy::execute( const Schema1::SignedImageManifest &image_manifest ) {
 }
 
 void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
-  auto dest_manifest_list = Manifest< Schema2::ManifestList >( _dest->copy().get(), manifest_list );
-  std::atomic< size_t > thread_count = 0;
+  try {
+    auto dest_manifest_list = Manifest< Schema2::ManifestList >( _dest->copy().get(), manifest_list );
+    std::atomic< size_t > thread_count = 0;
 
-  if ( manifest_list != dest_manifest_list ) {
-    if ( manifest_list.manifests.empty() ) {
-      spdlog::error( "OCI::Copy::execute Schema2::ManifestList is empty" );
-    } else {
-      for ( auto const &manifest : manifest_list.manifests ) {
-        thread_count++;
+    if ( manifest_list != dest_manifest_list ) {
+      if ( manifest_list.manifests.empty() ) {
+        spdlog::error( "OCI::Copy::execute Schema2::ManifestList is empty" );
+      } else {
+        for ( auto const &manifest : manifest_list.manifests ) {
+          thread_count++;
 
-        _stm->execute( [ &thread_count, manifest, manifest_list, this ]() -> void {
-          spdlog::trace( "OCI::Copy::execute Schema2::ManifestList functor entry '{}'", manifest_list.name );
+          _stm->execute( [ &thread_count, manifest, manifest_list, this ]() -> void {
+            spdlog::trace( "OCI::Copy::execute Schema2::ManifestList functor entry '{}'", manifest_list.name );
 
-          gobha::DelayedCall dec_count( [ &thread_count, manifest_list ]() {
-              spdlog::trace( "OCI::Copy::execute '{}' finished decrementing count", manifest_list.name );
-              --thread_count;
-            } );
-          Schema2::ImageManifest im_request;
+            gobha::DelayedCall dec_count( [ &thread_count, manifest_list ]() {
+                spdlog::trace( "OCI::Copy::execute '{}' finished decrementing count", manifest_list.name );
+                --thread_count;
+              } );
+            Schema2::ImageManifest im_request;
 
-          im_request.name            = manifest_list.name;
-          im_request.requestedTarget = manifest_list.requestedTarget;
-          im_request.requestedDigest = manifest.digest;
+            im_request.name            = manifest_list.name;
+            im_request.requestedTarget = manifest_list.requestedTarget;
+            im_request.requestedDigest = manifest.digest;
 
-          auto image_manifest = Manifest< Schema2::ImageManifest >( _src->copy().get(), im_request );
+            auto image_manifest = Manifest< Schema2::ImageManifest >( _src->copy().get(), im_request );
 
-          spdlog::trace( "OCI::Copy::execute collected Schema2::ImageManifest forward execution" );
-          execute( image_manifest, manifest.digest );
-        } );
+            spdlog::trace( "OCI::Copy::execute collected Schema2::ImageManifest forward execution" );
+            execute( image_manifest, manifest.digest );
+          } );
+        }
+
+        spdlog::trace( "OCI::Copy::execute Schema2::ManifestList all Schema2::ImageManifests are queued" );
+
+        while ( thread_count != 0 ) {
+          using namespace std::chrono_literals;
+          std::this_thread::sleep_for( 250ms );
+        }
+
+        _dest->copy()->putManifest( manifest_list, manifest_list.requestedTarget );
+
+        spdlog::debug( "OCI::Copy::execute completed ManifestList for '{}'", manifest_list.name );
       }
-
-      spdlog::trace( "OCI::Copy::execute Schema2::ManifestList all Schema2::ImageManifests are queued" );
-
-      while ( thread_count != 0 ) {
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for( 250ms );
-      }
-
-      _dest->copy()->putManifest( manifest_list, manifest_list.requestedTarget );
-
-      spdlog::debug( "OCI::Copy::execute completed ManifestList for '{}'", manifest_list.name );
     }
+  } catch ( std::runtime_error const &e ) {
+    spdlog::error( e.what() );
   }
 } // OCI::Copy Schema2::ManifestList
 
 auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::string const &target ) -> bool {
-  auto src                 = _src->copy();
-  auto dest                = _dest->copy();
-  auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest.get(), image_manifest );
-  auto layers              = image_manifest.layers;
-  
-  std::mutex layers_mutex;
+  auto src  = _src->copy();
+  auto dest = _dest->copy();
 
-  if ( image_manifest != dest_image_manifest ) {
-    std::atomic< bool > layers_empty = layers.empty();
-    auto layer_itr = layers.begin();
+  try {
+    auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest.get(), image_manifest );
+    auto layers              = image_manifest.layers;
+    
+    std::mutex layers_mutex;
 
-    while ( not layers_empty ) {
-      // Find image not being operated on by another thread
-      {
-        spdlog::trace( "OCI::Copy::execute finding a dependant layer that is not in progress" );
-        std::lock_guard< std::mutex > lg( layers_mutex );
-        layer_itr = std::find_if( layers.begin(), layers.end(), [this]( auto layer ) -> bool {
-            std::lock_guard< std::mutex > lg( _wd_mutex );
-            auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer.digest );
+    if ( image_manifest != dest_image_manifest ) {
+      std::atomic< bool > layers_empty = layers.empty();
+      auto layer_itr = layers.begin();
 
-            if ( wd_itr == _working_digests->end() ) {
-              _working_digests->push_back( layer.digest );
-
-              return true;
-            }
-
-            return false;
-          } );
-      }
-
-      if ( layer_itr == layers.end() ) {
-        // This is just a "busy" loop, with a pause, waiting for blobs to be ready to create symlinks
-        //   is there a way to "toss" this into a wait thread, so we can free this one for another operation
-        //   considering the magnitude of the number of possible Projects -> tags -> blobs how do we avoid
-        //   thread bombing the running host
-        spdlog::trace( "OCI::Copy::execute All images being downloaded by other threads sleeping" );
-        using namespace std::chrono_literals;
-
-        std::this_thread::yield();
-        std::unique_lock< std::mutex > ul( _wd_mutex );
-        _finish_download.wait_for( ul, 15s );
-      } else if ( dest->hasBlob( image_manifest, target, layer_itr->digest ) ) {
-        spdlog::debug( "OCI::Copy::execute Already have the layer move to next {}:{}", target, layer_itr->digest );
+      while ( not layers_empty ) {
+        // Find image not being operated on by another thread
         {
-          std::lock_guard< std::mutex > lg( _wd_mutex );
-          auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer_itr->digest );
-          if ( wd_itr != _working_digests->end() ) {
-            _working_digests->erase( wd_itr );
+          spdlog::trace( "OCI::Copy::execute finding a dependant layer that is not in progress" );
+          std::lock_guard< std::mutex > lg( layers_mutex );
+          layer_itr = std::find_if( layers.begin(), layers.end(), [this]( auto layer ) -> bool {
+              std::lock_guard< std::mutex > lg( _wd_mutex );
+              auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer.digest );
+
+              if ( wd_itr == _working_digests->end() ) {
+                _working_digests->push_back( layer.digest );
+
+                return true;
+              }
+
+              return false;
+            } );
+        }
+
+        if ( layer_itr == layers.end() ) {
+          // This is just a "busy" loop, with a pause, waiting for blobs to be ready to create symlinks
+          //   is there a way to "toss" this into a wait thread, so we can free this one for another operation
+          //   considering the magnitude of the number of possible Projects -> tags -> blobs how do we avoid
+          //   thread bombing the running host
+          spdlog::trace( "OCI::Copy::execute All images being downloaded by other threads sleeping" );
+          using namespace std::chrono_literals;
+
+          std::this_thread::yield();
+          std::unique_lock< std::mutex > ul( _wd_mutex );
+          _finish_download.wait_for( ul, 15s );
+        } else if ( dest->hasBlob( image_manifest, target, layer_itr->digest ) ) {
+          spdlog::debug( "OCI::Copy::execute Already have the layer move to next {}:{}", target, layer_itr->digest );
+          {
+            std::lock_guard< std::mutex > lg( _wd_mutex );
+            auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer_itr->digest );
+            if ( wd_itr != _working_digests->end() ) {
+              _working_digests->erase( wd_itr );
+            }
           }
+
+          std::lock_guard< std::mutex > lg( layers_mutex );
+          layers.erase( layer_itr );
+        } else {
+          spdlog::debug( "OCI::Copy::execute layer doesn't exist, retrieving {}:{}", target, layer_itr->digest );
+          auto digest     = layer_itr->digest;
+          auto layer_size = layer_itr->size;
+
+          gobha::DelayedCall clear_layer( [&layers_mutex, &layer_itr, &layers]() {
+            std::lock_guard< std::mutex > lg( layers_mutex );
+            layers.erase( layer_itr );
+          } );
+
+          _stm->execute( [image_manifest, target, digest, layer_size, this]() {
+            gobha::DelayedCall clear_wd( [digest, this]() {
+              std::lock_guard< std::mutex > lg( _wd_mutex );
+              auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
+              if ( wd_itr != _working_digests->end() ) {
+                _working_digests->erase( wd_itr );
+                _finish_download.notify_all();
+              }
+            } );
+
+            const auto digest_trunc  = 10;
+//            auto indicator           = getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow );
+            auto sync_bar_ref        = _progress_bars->push_back( getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow ) );
+            auto dest                = _dest->copy();
+            auto src                 = _src->copy();
+            uint64_t data_sent       = 0;
+            bool     failed          = false;
+
+            std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
+                                                                               uint64_t    data_length ) -> bool {
+              try {
+                if ( data_length > 0 ) {
+                  if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
+                    data_sent += data_length;
+
+                    sync_bar_ref.get().set_progress( data_sent );
+                    sync_bar_ref.get().set_option(
+                        indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_size ) } );
+
+                    failed = false;
+
+                    return true;
+                  }
+
+                  spdlog::error( "OCI::Copy::execute Failed to write layer '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
+                } else {
+                  if ( data_length == 0 and not failed ) {
+                    spdlog::warn( "OCI::Copy::execute Retry no data recieved '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
+
+                    failed = true;
+
+                    return true;
+                  }
+                }
+              } catch ( std::runtime_error const& e ) {
+                spdlog::error( e.what() );
+              }
+
+              spdlog::error( "OCI::Copy::execute No data recieved for layer '{}:{}' with {} bytes remaining of {}", target, digest, data_sent, layer_size - data_sent, layer_size );
+
+              return false;
+            };
+
+            spdlog::trace( "OCI::Copy::execute ready to start copy or layer '{}'", digest );
+            src->fetchBlob( image_manifest.name, digest, call_back );
+          } );
         }
 
         std::lock_guard< std::mutex > lg( layers_mutex );
-        layers.erase( layer_itr );
-      } else {
-        spdlog::debug( "OCI::Copy::execute layer doesn't exist, retrieving {}:{}", target, layer_itr->digest );
-        auto digest     = layer_itr->digest;
-        auto layer_size = layer_itr->size;
-
-        gobha::DelayedCall clear_layer( [&layers_mutex, &layer_itr, &layers]() {
-          std::lock_guard< std::mutex > lg( layers_mutex );
-          layers.erase( layer_itr );
-        } );
-
-        _stm->execute( [image_manifest, target, digest, layer_size, this]() {
-          gobha::DelayedCall clear_wd( [digest, this]() {
-            std::lock_guard< std::mutex > lg( _wd_mutex );
-            auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
-            if ( wd_itr != _working_digests->end() ) {
-              _working_digests->erase( wd_itr );
-              _finish_download.notify_all();
-            }
-          } );
-
-          const auto digest_trunc  = 10;
-          auto indicator           = getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow );
-          auto sync_bar_ref        = _progress_bars->push_back( indicator );
-          auto dest                = _dest->copy();
-          auto src                 = _src->copy();
-          uint64_t data_sent       = 0;
-          bool     failed          = false;
-
-          std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
-                                                                             uint64_t    data_length ) -> bool {
-            if ( data_length > 0 ) {
-              if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
-                data_sent += data_length;
-
-                sync_bar_ref.get().set_progress( data_sent );
-                sync_bar_ref.get().set_option(
-                    indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_size ) } );
-
-                failed = false;
-
-                return true;
-              }
-
-              spdlog::error( "Failed to write layer '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
-            } else {
-              if ( data_length == 0 and not failed ) {
-                spdlog::warn( "Retry no data recieved '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
-
-                failed = true;
-
-                return true;
-              }
-            }
-
-            spdlog::error( "No data recieved for layer '{}:{}' with {} bytes remaining of {}", target, digest, data_sent, layer_size - data_sent, layer_size );
-
-            return false;
-          };
-
-          spdlog::trace( "OCI::Copy::execute ready to start copy or layer '{}'", digest );
-          src->fetchBlob( image_manifest.name, digest, call_back );
-        } );
+        layers_empty = layers.empty();
       }
 
-      std::lock_guard< std::mutex > lg( layers_mutex );
-      layers_empty = layers.empty();
+      if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
+        spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );
+
+        uint64_t                                        data_sent = 0;
+        std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
+                                                                           uint64_t    data_length ) -> bool {
+          data_sent += data_length;
+
+          return dest->putBlob( image_manifest, target, image_manifest.config.digest, image_manifest.config.size, data,
+                                data_length );
+        };
+
+        src->fetchBlob( image_manifest.name, image_manifest.config.digest, call_back );
+      }
     }
 
-    if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
-      spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );
-
-      uint64_t                                        data_sent = 0;
-      std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
-                                                                         uint64_t    data_length ) -> bool {
-        data_sent += data_length;
-
-        return dest->putBlob( image_manifest, target, image_manifest.config.digest, image_manifest.config.size, data,
-                              data_length );
-      };
-
-      src->fetchBlob( image_manifest.name, image_manifest.config.digest, call_back );
-    }
+    return dest->putManifest( image_manifest, target );
+  } catch ( std::runtime_error const &e ) {
+    spdlog::error( e.what() );
   }
 
-  return dest->putManifest( image_manifest, target );
+  return false;
 } // OCI::Copy Schema2::ImageManifest
 
 auto OCI::getIndicator( size_t max_progress, std::string const& prefix, indicators::Color color ) -> indicators::ProgressBar {

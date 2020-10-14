@@ -6,7 +6,6 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#include <spdlog/spdlog.h>
 
 namespace gobha {
   class CountGuard {
@@ -92,7 +91,6 @@ namespace gobha {
         std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
         
         if ( running_count_ < capacity_ ) {
-          spdlog::trace( "gobha::SimpleThreadManger enqueuing execute task" );
           enqueued = true;
           f_func_queue_.push_back( func );
           cv_.notify_all();
@@ -100,13 +98,11 @@ namespace gobha {
       }
 
       if ( not enqueued ) {
-        spdlog::trace( "gobha::SimpleThreadManger queue limit reached, executing task in current context" );
         func();
       }
     }
 
     auto background( std::function< void() >&& func ) -> void {
-      spdlog::trace( "gobha::SimpleThreadManger enqueuing background task" );
       std::this_thread::yield();
       std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
       
@@ -131,14 +127,10 @@ namespace gobha {
                   cv_.wait_for( ul, 250ms, [this]() -> bool { return not f_func_queue_.empty() or not b_func_queue_.empty(); } );
 
                   if ( not f_func_queue_.empty() ) {
-                    spdlog::trace( "gobha::SimpleThreadManger dequeuing Foreground task" );
-
                     has_func = true;
                     func = f_func_queue_.front();
                     f_func_queue_.pop_front();
                   } else if ( not b_func_queue_.empty() ) {
-                    spdlog::trace( "gobha::SimpleThreadManger dequeuing Background task" );
-
                     has_func = true;
                     func = b_func_queue_.front();
                     b_func_queue_.pop_front();
