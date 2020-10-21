@@ -192,7 +192,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           } );
 
           _stm->execute( [image_manifest, target, digest, layer_size, this]() {
-            gobha::DelayedCall clear_wd( [digest, this]() {
+            gobha::DelayedCall clear_wd( [ digest, this ]() {
               std::lock_guard< std::mutex > lg( _wd_mutex );
               auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
               if ( wd_itr != _working_digests->end() ) {
@@ -202,7 +202,6 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             } );
 
             const auto digest_trunc  = 10;
-//            auto indicator           = getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow );
             auto sync_bar_ref        = _progress_bars->push_back( getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow ) );
             auto dest                = _dest->copy();
             auto src                 = _src->copy();
@@ -211,32 +210,28 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
 
             std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
                                                                                uint64_t    data_length ) -> bool {
-              try {
-                if ( data_length > 0 ) {
-                  if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
-                    data_sent += data_length;
+              if ( data_length > 0 ) {
+                if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
+                  data_sent += data_length;
 
-                    sync_bar_ref.get().set_progress( data_sent );
-                    sync_bar_ref.get().set_option(
-                        indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_size ) } );
+                  sync_bar_ref.get().set_progress( data_sent );
+                  sync_bar_ref.get().set_option(
+                      indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_size ) } );
 
-                    failed = false;
+                  failed = false;
 
-                    return true;
-                  }
-
-                  spdlog::error( "OCI::Copy::execute Failed to write layer '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
-                } else {
-                  if ( data_length == 0 and not failed ) {
-                    spdlog::warn( "OCI::Copy::execute Retry no data recieved '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
-
-                    failed = true;
-
-                    return true;
-                  }
+                  return true;
                 }
-              } catch ( std::runtime_error const& e ) {
-                spdlog::error( e.what() );
+
+                spdlog::error( "OCI::Copy::execute Failed to write layer '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
+              } else {
+                if ( data_length == 0 and not failed ) {
+                  spdlog::warn( "OCI::Copy::execute Retry no data recieved '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
+
+                  failed = true;
+
+                  return true;
+                }
               }
 
               spdlog::error( "OCI::Copy::execute No data recieved for layer '{}:{}' with {} bytes remaining of {}", target, digest, data_sent, layer_size - data_sent, layer_size );
@@ -245,7 +240,12 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             };
 
             spdlog::trace( "OCI::Copy::execute ready to start copy or layer '{}'", digest );
-            src->fetchBlob( image_manifest.name, digest, call_back );
+
+            try {
+              src->fetchBlob( image_manifest.name, digest, call_back );
+            } catch ( std::runtime_error const& e ) {
+              spdlog::error( e.what() );
+            }
           } );
         }
 
