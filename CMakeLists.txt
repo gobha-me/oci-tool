@@ -18,7 +18,7 @@ elseif( EXISTS "/opt/rh/devtoolset-9/root/usr/bin/g++" )
 endif()
 
 #set(CMAKE_CXX_FLAGS_DEBUG          "-O1 -fsanitize=thread -g -D_GLIBCXX_DEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG          "-O1 -g -D_GLIBCXX_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG          "-g -D_GLIBCXX_DEBUG")
 set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE        "-O4 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g")
