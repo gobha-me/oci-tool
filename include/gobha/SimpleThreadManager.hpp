@@ -6,6 +6,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 namespace gobha {
   class CountGuard {
@@ -32,6 +33,7 @@ namespace gobha {
     DelayedCall( DelayedCall const & ) = delete;
     DelayedCall( DelayedCall && ) = delete;
     ~DelayedCall() {
+      spdlog::trace( "gobha::DelayedCall left scope calling function" );
       func_();
     }
 
@@ -118,6 +120,8 @@ namespace gobha {
 
         for ( size_t thr_limit = 0; thr_limit != thrs_.capacity(); ++thr_limit ) {
           thrs_.emplace_back( [ this ]() {
+              spdlog::trace( "gobha::SimpleThreadManger Thread Starting" );
+
               while ( run_thr_ ) {
                 std::function< void() > func;
                 bool has_func = false;
@@ -127,10 +131,12 @@ namespace gobha {
                   cv_.wait_for( ul, 250ms, [this]() -> bool { return not f_func_queue_.empty() or not b_func_queue_.empty(); } );
 
                   if ( not f_func_queue_.empty() ) {
+                    spdlog::trace( "gobha::SimpleThreadManger Pulling foreground work" );
                     has_func = true;
                     func = f_func_queue_.front();
                     f_func_queue_.pop_front();
                   } else if ( not b_func_queue_.empty() ) {
+                    spdlog::trace( "gobha::SimpleThreadManger Pulling background work" );
                     has_func = true;
                     func = b_func_queue_.front();
                     b_func_queue_.pop_front();
@@ -140,11 +146,14 @@ namespace gobha {
                 if ( has_func ) {
                   ++running_count_;
                   func();
+                  spdlog::trace( "gobha::SimpleThreadManger finished work" );
                   --running_count_;
                 }
 
                 std::this_thread::yield();
               }
+
+              spdlog::trace( "gobha::SimpleThreadManger Thread closing" );
           } );
         }
       }
