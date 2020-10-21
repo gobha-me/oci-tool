@@ -34,23 +34,23 @@ enum class HTTP_CODE {
 template< class HTTP_CLIENT >
 class ToggleLocationGuard {
   public:
-    ToggleLocationGuard( HTTP_CLIENT client, bool follow ) : _client( client), _follow( follow ) { // NOLINT
-      _client->set_follow_location( _follow );
+    ToggleLocationGuard( HTTP_CLIENT client, bool follow ) : client_( client), follow_( follow ) { // NOLINT
+      client_->set_follow_location( follow_ );
     }
 
     ToggleLocationGuard( ToggleLocationGuard const & ) = delete;
     ToggleLocationGuard( ToggleLocationGuard && ) = delete;
     
     ~ToggleLocationGuard() {
-      _client->set_follow_location( not _follow );
+      client_->set_follow_location( not follow_ );
     }
 
     auto operator=( ToggleLocationGuard const & ) -> ToggleLocationGuard& = delete;
     auto operator=( ToggleLocationGuard && ) -> ToggleLocationGuard& = delete;
 
   private:
-    HTTP_CLIENT _client;
-    bool        _follow;
+    HTTP_CLIENT client_;
+    bool        follow_;
 };
 
 auto splitLocation( std::string location ) -> std::tuple< std::string, std::string, std::string > {
@@ -214,8 +214,7 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
     auto result = client->Get( location.c_str() );
 
     if ( result == nullptr ) {
-      // FIXME: throw here, this could be retried by caller
-      spdlog::error( "OCI::Registry::Client::auth recieved NULL '{}'", location );
+      throw std::runtime_error( "OCI::Registry::Client::auth recieved NULL '" + location + "'" );
     } else {
       switch( HTTP_CODE( result->status ) ) {
       case HTTP_CODE::OK: {
@@ -318,6 +317,8 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
       } else {
         client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
       }
+
+      client->set_logger( &http_logger );
     }
   }
 
@@ -370,16 +371,11 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
       } else {
         client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
       }
+
+      client->set_logger( &http_logger );
     }
 
     res = client->Head( location.c_str(), authHeaders() );
-  }
-
-  if ( not( HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found ) ) {
-    spdlog::error( "OCI::Registry::Client::hasBlob {}\n  Status: {} Body: {}", location, res->status, res->body );
-    for ( auto const &header : res->headers ) {
-      spdlog::error( "{} -> {}", header.first, header.second );
-    }
   }
 
   return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
@@ -394,8 +390,7 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
   auto res      = client->Head( location.c_str(), authHeaders() );
 
   if ( res == nullptr ) {
-    spdlog::error( "OCI::Registry::Client::hasBlob recieved NULL requested head on '{}'", location );
-    return false;
+    throw std::runtime_error( "OCI::Registry::Client::hasBlob recieved NULL requested head on '" + location + "'" );
   }
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
@@ -479,9 +474,9 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
   while ( res != nullptr and not retVal and not has_error ) {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::Created:
-      // The API doc says to expect a 204 No Content as the responce to the PUT
+      // The API doc says to expect a 204 No Content as the response to the PUT
       //   this does make more sense, I hope this is how all the registries respond
-      spdlog::info( "OCI::Registry::Client::putBlub Created {}:{}", target, blob_sha );
+      spdlog::debug( "OCI::Registry::Client::putBlub Created {}:{}", target, blob_sha );
       retVal = true;
 
       break;
@@ -505,6 +500,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
 
       break;
     case HTTP_CODE::Accepted:
+      spdlog::debug( "OCI::Registry::Client::putBlub Accepted {}:{}", target, blob_sha );
       {
         std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) );
 
@@ -683,7 +679,7 @@ auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const s
   auto res = cli_->Get( location.c_str(), headers );
 
   if ( res == nullptr ) {
-    spdlog::error( "OCI::Registry::Client::fetchManifest request error, returned NULL {}:{}", resource, target );
+    throw std::runtime_error( "OCI::Registry::Client::fetchManifest request error, returned NULL " + resource + ":" + target );
   } else {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::Unauthorized:
@@ -834,9 +830,9 @@ auto OCI::Registry::Client::ping() -> bool {
   auto res = cli_->Get( "/v2/" );
 
   if ( res == nullptr ) { // Most likely an invalid domain or port
-    retVal = false;
+    //retVal = false;
 
-    spdlog::error( "OCI::Registry::Client::ping recieved NULL on reponce" );
+    throw std::runtime_error( "OCI::Registry::Client::ping recieved NULL on response" );
   } else {
     if ( res->has_header( "Docker-Distribution-Api-Version" ) ) {
       if ( res->get_header_value( "Docker-Distribution-Api-Version" ) != "registry/2.0" ) {
