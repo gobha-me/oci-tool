@@ -147,7 +147,13 @@ auto main( int argc, char **argv ) -> int {
   auto dest_proto    = dest_arg.Get().substr( 0, dest_proto_itr );
   auto dest_location = dest_arg.Get().substr( dest_proto_itr + 1 );
 
-  auto destination = OCI::CLIENT_MAP.at( dest_proto )( dest_location, dest_username.Get(), dest_password.Get() );
+  std::unique_ptr< OCI::Base::Client > destination;
+  try {
+    destination = OCI::CLIENT_MAP.at( dest_proto )( dest_location, dest_username.Get(), dest_password.Get() );
+  } catch ( std::runtime_error const& e ) {
+    std::cerr << e.what() << '\n';
+    return EXIT_FAILURE;
+  }
 
   // a 'resource', but without will use source which assumes _catalog is implemented or available
 
