@@ -361,18 +361,23 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ManifestList &ml, Schema2::Ma
 
     std::ifstream ml_file( ml_file_path );
 
+    bool file_parsed{ false };
     try {
       ml_file >> ml_json;
+      file_parsed = true;
     } catch ( nlohmann::detail::parse_error &e ) {
       spdlog::critical( "Fatal error '{}', while working on {}:{}", e.what(), request.name, request.requestedTarget );
-      std::terminate();
+    } catch ( std::ios_base::failure &e ) {
+      spdlog::critical( "Fatal error '{}', while working on {}", e.what(), ml_file_path.c_str() );
     }
 
-    ml_json.get_to( ml );
+    if ( file_parsed ) {
+      ml_json.get_to( ml );
 
-    ml_json[ "originDomain" ].get_to( ml.originDomain );
-    ml_json[ "requestedTarget" ].get_to( ml.requestedTarget );
-    ml_json[ "name" ].get_to( ml.name );
+      ml_json[ "originDomain" ].get_to( ml.originDomain );
+      ml_json[ "requestedTarget" ].get_to( ml.requestedTarget );
+      ml_json[ "name" ].get_to( ml.name );
+    }
   }
 }
 
@@ -403,7 +408,10 @@ void OCI::Extensions::Dir::fetchManifest( Schema2::ImageManifest &im, Schema2::I
           read_file = true;
         } catch ( nlohmann::detail::parse_error &e ) {
           spdlog::critical( "Fatal error '{}', while working on {}:{}/{}", e.what(), request.name, request.requestedTarget, request.requestedDigest );
-          std::terminate();
+          break;
+        } catch ( std::ios_base::failure &e ) {
+          spdlog::critical( "Fatal error '{}', while working on {}", e.what(), im_file_path.c_str() );
+          break;
         }
       } else {
         break;
