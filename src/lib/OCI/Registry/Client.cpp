@@ -77,7 +77,6 @@ void http_logger( const httplib::Request & req, const httplib::Response & resp )
   for ( auto const &header : req.headers ) {
     spdlog::trace( " {} -> {}", header.first, header.second );
   }
-  //spdlog::trace( "{}", req.body );
 
   spdlog::trace( "http Response Status: {} Version: ", resp.status, resp.version );
   for ( auto const &header : resp.headers ) {
@@ -452,143 +451,124 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
 
   // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
   auto                                 headers = authHeaders();
-  std::shared_ptr< httplib::Response > res;
+  std::shared_ptr< httplib::Response > res{ nullptr };
 
-  bool          has_error  = false;
-  bool          chunk_sent = false;
-  std::uint16_t port       = 0;
+  std::uint16_t port{0};
   std::string   proto;
   std::string   domain;
 
   if ( patch_location_.empty() ) {
     spdlog::debug( "OCI::Registry::Client::putBlob starting {}", blob_sha );
-    res = cli_->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
-    // FIXME: IF NULL HERE JUST RETRY
-  } else {
+
     headers.emplace( "Host", domain_ );
-    res = patch_cli_->Get( ( patch_location_ ).c_str(), headers );
-    // WITHOUT A RESULT AND NEXT ENDPOINT, RESUMING MAY NOT BE FEASIBLE
-    // Should we just ensure there is a longer timeout
-  }
+    res = cli_->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
 
-  while ( res != nullptr and not retVal and not has_error ) {
-    switch ( HTTP_CODE( res->status ) ) {
-    case HTTP_CODE::Created:
-      // The API doc says to expect a 204 No Content as the response to the PUT
-      //   this does make more sense, I hope this is how all the registries respond
-      spdlog::debug( "OCI::Registry::Client::putBlub Created {}:{}", target, blob_sha );
-      retVal = true;
+    if ( res == nullptr ) {
+      throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha );
+    }
 
-      break;
-    case HTTP_CODE::Bad_Request:
-      throw std::runtime_error( "OCI::Registry::Client::putBlob HTTP Bad Request " + target + ":" + blob_sha );
-    case HTTP_CODE::Requested_Range_Not_Satisfiable:
-      throw std::runtime_error( "OCI::Registry::Client::putBlob HTTP Requested Range Not Satisfiable" + target + ":" + blob_sha );
-    case HTTP_CODE::Unauthorized:
-      // FIXME: throw here instead and have the caller make the decision on what to do
-      if ( auth_retry_ ) {
-        spdlog::error( "OCI::Registry::Client::putBlob Unauthorized attempting to push {}:{} Auth Retry: {}", target, blob_sha, auth_retry_ );
+    while ( res != nullptr and patch_location_.empty() ) {
+      switch ( HTTP_CODE( res->status ) ) {
+      case HTTP_CODE::Accepted:
+        spdlog::debug( "OCI::Registry::Client::putBlub Accepted {}:{}", target, blob_sha );
 
-        auth_retry_ = false;
+        {
+          std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) );
 
+          if ( patch_cli_ == nullptr ) {
+            if ( proto == "https" ) {
+              port = SSL_PORT;
+            } else {
+              port = HTTP_PORT;
+            }
+
+            auto has_alt_port = domain.find( ':' );
+
+            if ( has_alt_port != std::string::npos ) {
+              port   = std::stoul( domain.substr( has_alt_port + 1 ) );
+              domain = domain.substr( 0, has_alt_port );
+            }
+
+            if ( proto == "https" ) {
+              patch_cli_ = std::make_unique< httplib::SSLClient >( domain, port );
+            } else {
+              patch_cli_ = std::make_unique< httplib::Client >( domain, port );
+            }
+
+            patch_cli_->set_logger( &http_logger );
+          }
+        }
+
+        break;
+      case HTTP_CODE::Bad_Request:
+        throw std::runtime_error( "OCI::Registry::Client::putBlob HTTP Bad Request " + target + ":" + blob_sha );
+        break;
+      case HTTP_CODE::Unauthorized:
+        spdlog::info( "OCI::Registry::Client First auth" );
         auth( res->headers, "repository:" + im.name + ":pull,push" );
 
-        retVal = putBlob( im, target, blob_sha, total_size, blob_part, blob_part_size );
-      } else {
-        has_error = true;
+        headers = authHeaders();
+        headers.emplace( "Host", domain_ );
+
+        res = cli_->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
+        break;
+      default:
+        throw std::runtime_error( "OCI::Registry::Client Upload initiate Status: " + std::to_string( res->status ) );
+        break;
       }
+    }
+  }
+
+  do {
+    if ( last_offset_ == 0 ) {
+      headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset_ + blob_part_size - 1 ) );
+    } else {
+      headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset_ + blob_part_size ) );
+    }
+
+    headers.emplace( "Content-Length", std::to_string( blob_part_size ) );
+
+    if ( last_offset_ + blob_part_size == total_size or blob_part_size == total_size ) {
+      spdlog::debug( "OCI::Registry::Client::putBlob Finalizing upload for Blob {}", blob_sha );
+
+      res = patch_cli_->Put( ( patch_location_ + "?digest=" + blob_sha ).c_str(), headers, { blob_part, blob_part_size }, "application/octet-stream" );
+
+      patch_cli_      = nullptr;
+      patch_location_ = "";
+      last_offset_    = 0;
+    } else {
+      // This is slow, interesting enough, using Get in the same library is fast -- lets look here
+      res = patch_cli_->Patch( patch_location_.c_str(), headers, { blob_part, blob_part_size }, "application/octet-stream" );
+    }
+
+    if ( res == nullptr ) {
+      throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha );
+    }
+
+    switch ( HTTP_CODE( res->status ) ) {
+    case HTTP_CODE::Bad_Request:
+      throw std::runtime_error( "OCI::Registry::Client::putBlob HTTP Bad Request " + target + ":" + blob_sha );
+      break;
+    case HTTP_CODE::Unauthorized:
+      auth( res->headers, "repository:" + im.name + ":pull,push" );
+      headers = authHeaders();
 
       break;
     case HTTP_CODE::Accepted:
-      spdlog::debug( "OCI::Registry::Client::putBlub Accepted {}:{}", target, blob_sha );
+    case HTTP_CODE::No_Content:
       {
         std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) );
-
-        if ( patch_cli_ == nullptr ) {
-          if ( proto == "https" ) {
-            port = SSL_PORT;
-          } else {
-            port = HTTP_PORT;
-          }
-
-          auto has_alt_port = domain.find( ':' );
-
-          if ( has_alt_port != std::string::npos ) {
-            port   = std::stoul( domain.substr( has_alt_port + 1 ) );
-            domain = domain.substr( 0, has_alt_port );
-          }
-
-          if ( proto == "https" ) {
-            patch_cli_ = std::make_unique< httplib::SSLClient >( domain, port );
-          } else {
-            patch_cli_ = std::make_unique< httplib::Client >( domain, port );
-          }
-
-          patch_cli_->set_logger( &http_logger );
-        }
+        auto range   = res->get_header_value( "Range" );
+        last_offset_ = std::stoul( range.substr( range.find( '-' ) + 1 ) );
       }
 
-      if ( chunk_sent ) {
-        retVal = true;
-      } else {
-        headers.emplace( "Host", domain_ );
-
-        res = patch_cli_->Get( ( patch_location_ ).c_str(), headers );
-      }
-
-      auth_retry_ = true;
-
+      retVal = true;
       break;
-    case HTTP_CODE::No_Content: {
-      spdlog::debug( "OCI::Registry::Client::putBlob No_Content patch_location_: {}", patch_location_ );
-
-      auth_retry_ = true;
-
-      if ( chunk_sent ) {
-        has_error = true;
-      } else {
-        chunk_sent       = true;
-        auto range       = res->get_header_value( "Range" );
-        auto last_offset = std::stoul( range.substr( range.find( '-' ) + 1 ) );
-
-        if ( last_offset == 0 ) {
-          headers.emplace( "Content-Range", std::to_string( last_offset ) + "-" + std::to_string( last_offset + blob_part_size - 1 ) );
-        } else {
-          headers.emplace( "Content-Range", std::to_string( last_offset ) + "-" + std::to_string( last_offset + blob_part_size ) );
-        }
-
-        headers.emplace( "Content-Length", std::to_string( blob_part_size ) );
-
-        std::string str_blob_part( blob_part, blob_part_size ); // REQUIRED FOR QUAY ??!!
-
-        spdlog::debug( "OCI::Registry::Client::putBlob {} + {} = {}", last_offset, blob_part_size, last_offset + blob_part_size );
-
-        if ( last_offset + blob_part_size == total_size or blob_part_size == total_size ) {
-          spdlog::debug( "OCI::Registry::Client::putBlob Finalizing upload for Blob {}", blob_sha );
-
-          res = patch_cli_->Put( ( patch_location_ + "?digest=" + blob_sha ).c_str(), headers, str_blob_part,
-                                 "application/octet-stream" );
-
-          patch_cli_      = nullptr;
-          patch_location_ = "";
-        } else {
-          res = patch_cli_->Patch( patch_location_.c_str(), headers, str_blob_part, "application/octet-stream" );
-        }
-      }
-    }
-
-    break;
     default:
-      spdlog::error( "OCI::Registry::Client::putBlob {}", im.name );
-
-      has_error = true;
+      throw std::runtime_error( "OCI::Registry::Client Patch Status: " + std::to_string( res->status ) );
+      break;
     }
-  }
-
-  if ( res == nullptr ) {
-    spdlog::warn( "lost or timed out on our connection to the registry" );
-    retVal = false;
-  }
+  } while ( not retVal );
 
   return retVal;
 }
@@ -830,9 +810,8 @@ auto OCI::Registry::Client::ping() -> bool {
   auto res = cli_->Get( "/v2/" );
 
   if ( res == nullptr ) { // Most likely an invalid domain or port
-    //retVal = false;
-
-    throw std::runtime_error( "OCI::Registry::Client::ping recieved NULL on response" );
+    retVal = false;
+    //throw std::runtime_error( "OCI::Registry::Client::ping recieved NULL on response" );
   } else {
     if ( res->has_header( "Docker-Distribution-Api-Version" ) ) {
       if ( res->get_header_value( "Docker-Distribution-Api-Version" ) != "registry/2.0" ) {

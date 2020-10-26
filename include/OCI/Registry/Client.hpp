@@ -81,12 +81,14 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
         -> std::string const;
 
   private:
-    bool                               secure_con_{false};
-    std::shared_ptr< httplib::Client > cli_{ nullptr };
-    std::unique_ptr< httplib::Client > patch_cli_{ nullptr };
     std::string                        domain_; // Required for making copies
     std::string                        username_;
     std::string                        password_;
+
+    bool                               secure_con_{false};
+    std::shared_ptr< httplib::Client > cli_{ nullptr };
+    std::unique_ptr< httplib::Client > patch_cli_{ nullptr };
+    size_t                             last_offset_{0};
     //    std::string _resource; // <namespace>/<repo name>
     //    std::string _requested_target; // tag or digest
     std::string patch_location_;
