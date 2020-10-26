@@ -201,37 +201,22 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
               }
             } );
 
-            const auto digest_trunc  = 10;
-            auto sync_bar_ref        = _progress_bars->push_back( getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow ) );
-            auto dest                = _dest->copy();
-            auto src                 = _src->copy();
-            uint64_t data_sent       = 0;
-            bool     failed          = false;
+            const auto digest_trunc = 10;
+            auto sync_bar_ref       = _progress_bars->push_back( getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow ) );
+            auto dest               = _dest->copy();
+            auto src                = _src->copy();
+            uint64_t data_sent      = 0;
 
             std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
                                                                                uint64_t    data_length ) -> bool {
-              if ( data_length > 0 ) {
-                if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
-                  data_sent += data_length;
+              if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
+                data_sent += data_length;
 
-                  sync_bar_ref.get().set_progress( data_sent );
-                  sync_bar_ref.get().set_option(
-                      indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_size ) } );
+                sync_bar_ref.get().set_progress( data_sent );
+                sync_bar_ref.get().set_option(
+                    indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_size ) } );
 
-                  failed = false;
-
-                  return true;
-                }
-
-                spdlog::error( "OCI::Copy::execute Failed to write layer '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
-              } else {
-                if ( data_length == 0 and not failed ) {
-                  spdlog::warn( "OCI::Copy::execute Retry no data recieved '{}:{}' to destination {} of {}", target, digest, data_sent, layer_size );
-
-                  failed = true;
-
-                  return true;
-                }
+                return true;
               }
 
               spdlog::error( "OCI::Copy::execute No data recieved for layer '{}:{}' with {} bytes remaining of {}", target, digest, data_sent, layer_size - data_sent, layer_size );
