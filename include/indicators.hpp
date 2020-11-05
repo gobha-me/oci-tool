@@ -676,6 +676,7 @@ namespace indicators {
       explicit Setting( Args &&... args ) : value( std::forward< Args >( args )... ) {}
       Setting( const Setting & ) = default;
       Setting( Setting && )      = default;
+      ~Setting()                 = default;
 
       static constexpr auto id = Id;
       using type               = T;
@@ -1484,9 +1485,9 @@ namespace indicators {
       }
     }
 
-    void set_option( details::Setting< std::string, details::ProgressBarOption::postfix_text > &&setting ) {
+    void set_option( details::Setting< std::string, details::ProgressBarOption::postfix_text > &setting ) {
       std::lock_guard< std::mutex > lock( mutex_ );
-      get_value< details::ProgressBarOption::postfix_text >() = std::move( setting ).value;
+      get_value< details::ProgressBarOption::postfix_text >() = setting.value;
       auto &new_value                                         = get_value< details::ProgressBarOption::postfix_text >();
       if ( new_value.length() > get_value< details::ProgressBarOption::max_postfix_text_len >() ) {
         get_value< details::ProgressBarOption::max_postfix_text_len >() = new_value.length();
@@ -1500,7 +1501,7 @@ namespace indicators {
       }
 
       save_start_time();
-      print_progress();
+      //print_progress();
     }
 
     void tick() {
@@ -1514,7 +1515,7 @@ namespace indicators {
         }
       }
       save_start_time();
-      print_progress();
+      //print_progress();
     }
 
     auto current() -> size_t {
@@ -1532,7 +1533,7 @@ namespace indicators {
         std::lock_guard< std::mutex > lock{ mutex_ };
         get_value< details::ProgressBarOption::completed >() = true;
       }
-      print_progress();
+      //print_progress();
     }
 
   private:
@@ -1753,19 +1754,18 @@ namespace indicators {
 
       BarGuard( BarGuard const& ) = delete;
       BarGuard( BarGuard&& other ) noexcept : indicator_( std::move( other.indicator_ ) ) {
-        other.value_held_ = false;
+        other.indicator_ = nullptr;
       }
       ~BarGuard() {
-        if ( value_held_ ) {
+        if ( indicator_ != nullptr ) {
           indicator_->mark_as_completed();
         }
       }
 
       auto operator=( BarGuard const& ) = delete;
       auto operator=( BarGuard&& other ) noexcept -> BarGuard& {
-        indicator_   = std::move( other.indicator_ );
-
-        other.value_held_ = false;
+        indicator_       = std::move( other.indicator_ );
+        other.indicator_ = nullptr;
 
         return *this;
       }
@@ -1774,7 +1774,6 @@ namespace indicators {
         return *indicator_;
       }
     private:
-      bool   value_held_{true};
       Indicator * indicator_;
     };
 
@@ -1851,8 +1850,7 @@ namespace indicators {
     std::thread                 prt_thr_;
     std::recursive_mutex        mutex_;
     std::condition_variable_any cv_;
-    std::map< std::chrono::system_clock::time_point, std::unique_ptr< Indicator > >
-                          bars_; // Threads close and references get invalidated, need to be able remove references of completed bars
+    std::map< std::chrono::system_clock::time_point, std::unique_ptr< Indicator > > bars_; // Threads close and references get invalidated, need to be able remove references of completed bars
     std::atomic< size_t > last_draw_height_{ 0 };
 
     template < details::ProgressBarOption id >
@@ -1884,36 +1882,20 @@ namespace indicators {
 
       last_draw_height_ = 0;
 
-      auto index = 0;
-      auto bar_it = bars_.begin();
-
-      while ( bar_it != bars_.end() ) {
-        ++index;
-
-        if ( last_draw_height_++ < terminal_height() - 1 ) { // Increment once
-          bar_it->second->print_progress( true );
-          std::cout << "\n";
-        } else {
-          std::cout << termcolor::reset;
-          std::cout << last_draw_height_ - 1 << "/" << bars_.size() << " Displayed.\r";
-
-          break;
-        }
-
+      for ( auto bar_it = bars_.begin(); bar_it != bars_.end(); ) {
         if ( bar_it->second->is_completed() ) {
-          --index;
-          bars_.erase( bar_it );
-          bar_it = bars_.begin();
-
-          if ( bars_.empty() ) {
-            break;
-          } else {
-            for ( auto fast_forward = 0; fast_forward != index; ++fast_forward ) {
-              ++bar_it;
-            }
-          }
+          bar_it = bars_.erase( bar_it );
         } else {
-          ++bar_it;
+          if ( last_draw_height_++ < terminal_height() - 1 ) { // Increment once
+            bar_it->second->print_progress( true );
+            ++bar_it;
+            std::cout << "\n";
+          } else {
+            std::cout << termcolor::reset;
+            std::cout << last_draw_height_ - 1 << "/" << bars_.size() << " Displayed.\r";
+
+            break;
+          }
         }
       }
 
