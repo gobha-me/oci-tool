@@ -162,15 +162,19 @@ auto OCI::Extensions::Dir::fetchBlob( [[maybe_unused]] const std::string &rsrc, 
 
   spdlog::info( "OCI::Extensions::Dir::fetchBlob Fetching Blob Resource: {}", sha );
   if ( std::filesystem::exists( blob_path ) ) {
-    constexpr auto BUFFSIZE = 4096;
+    constexpr auto BUFFSIZE = 4096; //16384
 
     std::ifstream blob( blob_path, std::ios::binary );
-    std::vector< uint8_t > buf( BUFFSIZE );
+    std::vector< char > buf{0};
+    buf.reserve( BUFFSIZE );
 
     while ( blob.good() and retVal ) {
-      blob.read( reinterpret_cast< char * >( buf.data() ), buf.size() ); // NOLINT
-      size_t readcount = blob.gcount();
-      retVal = call_back( reinterpret_cast< const char * >( buf.data() ), readcount ); // NOLINT
+      blob.read( buf.data(), buf.capacity() );
+      if ( blob.gcount() == 0 ) {
+        throw std::runtime_error( "OCI::Extensions::Dir::fetchBlob read failed on " + blob_path.string() );
+      } else {
+        retVal = call_back( buf.data(), blob.gcount() );
+      }
     }
   } else {
     spdlog::error( "OCI::Extensions::Dir::fetchBlob unable to locate blob: {}", sha );
@@ -245,6 +249,12 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
     -> bool {
   auto retVal     = false;
   auto clean_file = false;
+  if ( _blobs_dir.path().empty() ) {
+    throw std::runtime_error( "OCI::Extentsions::Dir::pubBlob _blobs_dir is empty" );
+  }
+  if ( _directory.path().empty() ) {
+    throw std::runtime_error( "OCI::Extentsions::Dir::pubBlob _directory is empty" );
+  }
   auto blob_path  = _blobs_dir.path() / blob_sha;
   auto image_dir_path = std::filesystem::directory_entry( _directory.path() / im.originDomain /
                                                           ( im.name + ":" + im.requestedTarget ) / target );

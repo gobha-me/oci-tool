@@ -13,7 +13,6 @@ void OCI::Sync::execute( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
   for ( auto const& domain : src->domains() ) {
     auto const catalog = src->catalog( domain );
 
-//    auto indicator    = getIndicator( catalog.repositories.size(), domain, indicators::Color::cyan );
     auto sync_bar_ref = _progress_bars->push_back( getIndicator( catalog.repositories.size(), domain, indicators::Color::cyan ) );
 
     auto                  catalog_total  = catalog.repositories.size();
@@ -89,7 +88,6 @@ void OCI::Sync::execute( std::string const& rsrc ) {
 }
 
 void OCI::Sync::execute( std::string const& rsrc, std::vector< std::string > const& tags ) {
-//  auto indicator    = getIndicator( tags.size(), rsrc, indicators::Color::magenta );
   auto sync_bar_ref = _progress_bars->push_back( getIndicator( tags.size(), rsrc, indicators::Color::magenta ) );
   auto                  total_tags   = tags.size();
   std::atomic< size_t > tag_index    = 0;
