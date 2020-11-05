@@ -89,13 +89,20 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     std::shared_ptr< httplib::Client > cli_{ nullptr };
     std::unique_ptr< httplib::Client > patch_cli_{ nullptr };
     size_t                             last_offset_{0};
-    //    std::string _resource; // <namespace>/<repo name>
-    //    std::string _requested_target; // tag or digest
-    std::string patch_location_;
+    std::string                        patch_location_;
 
     TokenResponse ctr_;
 
     bool auth_retry_{ true };
+
+    struct UploadRequest {
+      std::string name;
+      std::string blob_sha;
+      std::string target;
+    };
+
+    void initiateUpload( UploadRequest ur );
+    auto uploadStatus( UploadRequest ur ) -> size_t;
   };
 
   void from_json( nlohmann::json const &j, Client::TokenResponse &ctr );

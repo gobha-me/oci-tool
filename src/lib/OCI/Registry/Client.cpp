@@ -352,8 +352,7 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
   auto res      = cli_->Head( location.c_str(), authHeaders() );
 
   if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-    auth( res->headers,
-          "repository:" + im.name + ":pull" ); // auth modifies the headers, so should auth return headers???
+    auth( res->headers, "repository:" + im.name + ":pull" );
 
     res = client->Head( location.c_str(), authHeaders() );
   }
@@ -381,9 +380,10 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std::string &target, SHA256 sha ) -> bool {
-  (void)target;
   ToggleLocationGuard< decltype( cli_ ) > tlg{ cli_, false };
+  spdlog::debug( "OCI::Registry::Client::hasBlob attempt {}:{}", target, sha );
 
+  auto retVal   = false;
   auto client   = cli_;
   auto location = "/v2/" + im.name + "/blobs/" + sha;
   auto res      = client->Head( location.c_str(), authHeaders() );
@@ -411,13 +411,14 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
         client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
       }
     }
-  }
 
-  res = client->Head( location.c_str(), authHeaders() );
+    res = client->Head( location.c_str(), authHeaders() );
+  }
 
   switch ( HTTP_CODE( res->status ) ) {
   case HTTP_CODE::OK:
   case HTTP_CODE::Found:
+    retVal = true;
   case HTTP_CODE::Not_Found: // Common if not yet pushed images so it created a lot of noise
     break;
   default:
@@ -427,7 +428,7 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
     }
   }
 
-  return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
+  return retVal;
 }
 
 auto OCI::Registry::Client::putBlob( const Schema1::ImageManifest &im, const std::string &target,
@@ -447,97 +448,41 @@ auto OCI::Registry::Client::putBlob( const Schema1::ImageManifest &im, const std
 auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::string const &target,
                                      SHA256 const &blob_sha, std::uintmax_t total_size, const char *blob_part,
                                      uint64_t blob_part_size ) -> bool {
-  bool retVal = false;
+  bool retVal  = false;
+  auto headers = authHeaders();
+  auto last_offset{0};
 
-  // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
-  auto                                 headers = authHeaders();
   std::shared_ptr< httplib::Response > res{ nullptr };
 
-  std::uint16_t port{0};
-  std::string   proto;
-  std::string   domain;
+  std::string proto;
+  std::string domain;
 
   if ( patch_location_.empty() ) {
-    spdlog::debug( "OCI::Registry::Client::putBlob starting {}", blob_sha );
+    initiateUpload( { im.name, blob_sha, target } );
+  } else {
+    last_offset = uploadStatus( { im.name, blob_sha, target } );
+  }
 
-    headers.emplace( "Host", domain_ );
-    res = cli_->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
-
-    if ( res == nullptr ) {
-      throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha );
-    }
-
-    while ( res != nullptr and patch_location_.empty() ) {
-      switch ( HTTP_CODE( res->status ) ) {
-      case HTTP_CODE::Accepted:
-        spdlog::debug( "OCI::Registry::Client::putBlub Accepted {}:{}", target, blob_sha );
-
-        {
-          std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) );
-
-          if ( patch_cli_ == nullptr ) {
-            if ( proto == "https" ) {
-              port = SSL_PORT;
-            } else {
-              port = HTTP_PORT;
-            }
-
-            auto has_alt_port = domain.find( ':' );
-
-            if ( has_alt_port != std::string::npos ) {
-              port   = std::stoul( domain.substr( has_alt_port + 1 ) );
-              domain = domain.substr( 0, has_alt_port );
-            }
-
-            if ( proto == "https" ) {
-              patch_cli_ = std::make_unique< httplib::SSLClient >( domain, port );
-            } else {
-              patch_cli_ = std::make_unique< httplib::Client >( domain, port );
-            }
-
-            patch_cli_->set_logger( &http_logger );
-          }
-        }
-
-        break;
-      case HTTP_CODE::Bad_Request:
-        throw std::runtime_error( "OCI::Registry::Client::putBlob HTTP Bad Request " + target + ":" + blob_sha );
-        break;
-      case HTTP_CODE::Unauthorized:
-        spdlog::info( "OCI::Registry::Client First auth" );
-        auth( res->headers, "repository:" + im.name + ":pull,push" );
-
-        headers = authHeaders();
-        headers.emplace( "Host", domain_ );
-
-        res = cli_->Post( ( "/v2/" + im.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
-        break;
-      default:
-        throw std::runtime_error( "OCI::Registry::Client Upload initiate Status: " + std::to_string( res->status ) );
-        break;
-      }
-    }
+  if ( patch_cli_ == nullptr ) {
+    throw std::runtime_error( "OCI::Registry::Client::putBlob patch location is unknown! " + blob_sha );
   }
 
   do {
-    if ( last_offset_ == 0 ) {
-      headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset_ + blob_part_size - 1 ) );
-    } else {
-      headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset_ + blob_part_size ) );
-    }
-
     headers.emplace( "Content-Length", std::to_string( blob_part_size ) );
 
-    if ( last_offset_ + blob_part_size == total_size or blob_part_size == total_size ) {
-      spdlog::debug( "OCI::Registry::Client::putBlob Finalizing upload for Blob {}", blob_sha );
+    if ( ( last_offset + blob_part_size ) == total_size or blob_part_size == total_size ) {
+      spdlog::debug( "OCI::Registry::Client::putBlob Finalizing upload for Blob {} Size {}", blob_sha, total_size );
+      headers.emplace( "Host", domain_ );
 
       res = patch_cli_->Put( ( patch_location_ + "?digest=" + blob_sha ).c_str(), headers, { blob_part, blob_part_size }, "application/octet-stream" );
-
-      patch_cli_      = nullptr;
-      patch_location_ = "";
-      last_offset_    = 0;
     } else {
-      // This is slow, interesting enough, using Get in the same library is fast -- lets look here
+      if ( last_offset == 0 ) {
+        headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset + blob_part_size - 1 ) );
+      } else {
+        headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset + blob_part_size ) );
+      }
+
+      // This is slow, interesting enough, using Get in the same library is fast -- lets look there
       res = patch_cli_->Patch( patch_location_.c_str(), headers, { blob_part, blob_part_size }, "application/octet-stream" );
     }
 
@@ -554,14 +499,17 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
       headers = authHeaders();
 
       break;
+    case HTTP_CODE::Created:
+      spdlog::debug( "OCI::Registry::Client::putBlob Blob {} Created", blob_sha );
+
+      patch_cli_      = nullptr;
+      patch_location_ = "";
+      last_offset_    = 0;
+
+      retVal = true;
+      break;
     case HTTP_CODE::Accepted:
     case HTTP_CODE::No_Content:
-      {
-        std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) );
-        auto range   = res->get_header_value( "Range" );
-        last_offset_ = std::stoul( range.substr( range.find( '-' ) + 1 ) );
-      }
-
       retVal = true;
       break;
     default:
@@ -716,16 +664,14 @@ auto OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest &sim
 auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const std::string &target ) -> bool {
   bool           retVal = false;
 
-  auto res =
-      cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str, ml.mediaType.c_str() );
+  auto res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str, ml.mediaType.c_str() );
 
   if ( res == nullptr ) {
   } else {
     if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-      auth( res->headers, "repository:" + ml.name + ":push" );
+      auth( res->headers, "repository:" + ml.name + ":pull,push" );
 
-      res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str,
-                       ml.mediaType.c_str() );
+      res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str, ml.mediaType.c_str() );
     }
 
     switch ( HTTP_CODE( res->status ) ) {
@@ -733,7 +679,8 @@ auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const 
       retVal = true;
       break;
     default:
-      spdlog::error( "OCI::Registry::Client::putManifest Schema2::ImageManifest {}", ml.name );
+      spdlog::error( "OCI::Registry::Client::putManifest({}) Schema2::ImageManifest {}:{}", res->status, ml.name, target );
+      spdlog::error( "OCI::Registry::Client::putManifest {}", ml.raw_str );
     }
   }
 
@@ -741,27 +688,34 @@ auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const 
 }
 
 auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::string const &target ) -> bool {
-  bool           retVal = false;
+  bool   retVal = false;
+  auto temp_sha = "sha256:" + digestpp::sha256().absorb( im.raw_str ).hexdigest();
+  if ( temp_sha != target ) {
+    throw std::runtime_error( "OCI::Registry::Client::putManifest sha mismatch for " + im.name );
+  }
 
-  auto res =
-      cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im.raw_str, im.mediaType.c_str() );
+  auto headers = authHeaders();
+  //headers.emplace( "Host", domain_ );
 
-  if ( res == nullptr ) {
-  } else {
-    if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
-      auth( res->headers, "repository:" + im.name + ":push" );
+  auto res = cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), headers, im.raw_str, im.mediaType.c_str() );
 
-      res = cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), authHeaders(), im.raw_str,
-                       im.mediaType.c_str() );
-    }
-
+  auto error = false;
+  while ( res != nullptr and not error and not retVal ) {
     switch ( HTTP_CODE( res->status ) ) {
+    case HTTP_CODE::Unauthorized:
+      auth( res->headers, "repository:" + im.name + ":pull,push" );
+      headers = authHeaders();
+
+      res = cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), headers, im.raw_str, im.mediaType.c_str() );
+      break;
     case HTTP_CODE::Created:
       retVal = true;
       break;
     default:
-      spdlog::error( "OCI::Registry::Client::putManifest Schema2::ImageManifest {}:{}", im.name, target );
+      spdlog::error( "OCI::Registry::Client::putManifest({}) Schema2::ImageManifest {}:{}", res->status, im.name, target );
       spdlog::error( im.raw_str );
+      error = true;
+      break;
     }
   }
 
@@ -842,6 +796,128 @@ auto OCI::Registry::Client::swap( Client &other ) -> void {
   std::swap( username_, other.username_ );
   std::swap( password_, other.password_ );
   std::swap( cli_, other.cli_ );
+}
+
+void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
+  std::uint16_t port{0};
+  std::string proto;
+  std::string domain;
+  std::string uri;
+
+  // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
+  spdlog::debug( "OCI::Registry::Client::initiateUpload starting {}", ur.blob_sha );
+  std::shared_ptr< httplib::Response > res{ nullptr };
+
+  auto headers = authHeaders();
+  headers.emplace( "Host", domain_ );
+  res = cli_->Post( ( "/v2/" + ur.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
+
+  if ( res == nullptr ) {
+    throw std::runtime_error( "OCI::Registry::Client::initiateUpload received NULL starting " + ur.blob_sha );
+  }
+
+  while ( res != nullptr and patch_location_.empty() ) {
+    switch ( HTTP_CODE( res->status ) ) {
+    case HTTP_CODE::Accepted:
+      spdlog::debug( "OCI::Registry::Client::initiateUpload Accepted {}:{}", ur.target, ur.blob_sha );
+
+      {
+        std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) );
+      }
+
+      if ( patch_cli_ == nullptr ) {
+        if ( proto == "https" ) {
+          port = SSL_PORT;
+        } else {
+          port = HTTP_PORT;
+        }
+
+        auto has_alt_port = domain.find( ':' );
+
+        if ( has_alt_port != std::string::npos ) {
+          port   = std::stoul( domain.substr( has_alt_port + 1 ) );
+          domain = domain.substr( 0, has_alt_port );
+        }
+
+        if ( proto == "https" ) {
+          patch_cli_ = std::make_unique< httplib::SSLClient >( domain, port );
+        } else {
+          patch_cli_ = std::make_unique< httplib::Client >( domain, port );
+        }
+
+        patch_cli_->set_logger( &http_logger );
+      }
+
+      break;
+    case HTTP_CODE::Bad_Request:
+      throw std::runtime_error( "OCI::Registry::Client::initiateUpload HTTP Bad Request " + ur.target + ":" + ur.blob_sha );
+      break;
+    case HTTP_CODE::Unauthorized:
+      spdlog::info( "OCI::Registry::Client First auth" );
+      auth( res->headers, "repository:" + ur.name + ":pull,push" );
+
+      headers = authHeaders();
+      headers.emplace( "Host", domain_ );
+
+      res = cli_->Post( ( "/v2/" + ur.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
+      break;
+    default:
+      throw std::runtime_error( "OCI::Registry::Client::initiateUpload Status: " + std::to_string( res->status ) );
+      break;
+    }
+  }
+}
+
+auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
+  size_t retVal{0};
+  std::string proto;
+  std::string domain;
+  std::string uri;
+
+  // https://docs.docker.com/registry/spec/api/#blob-upload
+  spdlog::debug( "OCI::Registry::Client::uploadStatus check {}", ur.blob_sha );
+  std::shared_ptr< httplib::Response > res{ nullptr };
+
+  auto headers = authHeaders();
+  headers.emplace( "Host", domain_ );
+  res = patch_cli_->Get( patch_location_.c_str(), headers );
+
+  if ( res == nullptr ) {
+    throw std::runtime_error( "OCI::Registry::Client::uploadStatus received NULL starting " + ur.blob_sha );
+  }
+
+  while ( res != nullptr and retVal == 0 ) {
+    switch ( HTTP_CODE( res->status ) ) {
+    case HTTP_CODE::No_Content:
+    case HTTP_CODE::Accepted:
+      spdlog::debug( "OCI::Registry::Client::uploadStatus Accepted {}:{}", ur.target, ur.blob_sha );
+
+      {
+        auto range = res->get_header_value( "Range" );
+
+        retVal     = std::stoul( range.substr( range.find( '-' ) + 1 ) );
+      }
+
+      break;
+    case HTTP_CODE::Bad_Request:
+      throw std::runtime_error( "OCI::Registry::Client::uploadStatus HTTP Bad Request " + ur.target + ":" + ur.blob_sha );
+      break;
+    case HTTP_CODE::Unauthorized:
+      spdlog::info( "OCI::Registry::Client First auth" );
+      auth( res->headers, "repository:" + ur.name + ":pull,push" );
+
+      headers = authHeaders();
+      headers.emplace( "Host", domain_ );
+
+      res = patch_cli_->Get( patch_location_.c_str(), headers );
+      break;
+    default:
+      throw std::runtime_error( "OCI::Registry::Client::uploadStatus Unhandled Status: " + std::to_string( res->status ) );
+      break;
+    }
+  }
+
+  return retVal;
 }
 
 std::mutex TIME_ZONE_MUTEX;
