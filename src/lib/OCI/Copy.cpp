@@ -19,36 +19,40 @@ auto OCI::Copy::execute( std::string const rsrc, std::string const target ) -> v
   ml_request.name            = rsrc;
   ml_request.requestedTarget = target;
 
-  auto manifest_list = Manifest< Schema2::ManifestList >( _src->copy().get(), ml_request );
+  try {
+    auto manifest_list = Manifest< Schema2::ManifestList >( _src->copy().get(), ml_request );
 
-  switch ( manifest_list.schemaVersion ) {
-  case 1: // Fall back to Schema1
-  {
-    Schema1::ImageManifest im_request;
+    switch ( manifest_list.schemaVersion ) {
+    case 1: // Fall back to Schema1
+    {
+      Schema1::ImageManifest im_request;
 
-    im_request.name            = rsrc;
-    im_request.requestedTarget = target;
+      im_request.name            = rsrc;
+      im_request.requestedTarget = target;
 
-    auto image_manifest = Manifest< Schema1::ImageManifest >( _src->copy().get(), im_request );
+      auto image_manifest = Manifest< Schema1::ImageManifest >( _src->copy().get(), im_request );
 
-    if ( not image_manifest.fsLayers.empty() ) {
-      spdlog::trace( "OCI::Copy Start Schema1 ImageManifest {}:{}", rsrc, target );
-      execute( image_manifest );
-      spdlog::trace( "OCI::Copy Finish Schema1 ImageManifest {}:{}", rsrc, target );
-    }
-  }
-
-  break;
-  case 2:
-    if ( not manifest_list.manifests.empty() ) {
-      spdlog::trace( "OCI::Copy Start Schema2 ManifestList {}:{}", rsrc, target );
-      execute( manifest_list );
-      spdlog::trace( "OCI::Copy Finish Schema2 ManifestList {}:{}", rsrc, target );
+      if ( not image_manifest.fsLayers.empty() ) {
+        spdlog::trace( "OCI::Copy Start Schema1 ImageManifest {}:{}", rsrc, target );
+        execute( image_manifest );
+        spdlog::trace( "OCI::Copy Finish Schema1 ImageManifest {}:{}", rsrc, target );
+      }
     }
 
     break;
-  default:
-    spdlog::error( "Unknown schemaVersion {}", manifest_list.schemaVersion );
+    case 2:
+      if ( not manifest_list.manifests.empty() ) {
+        spdlog::trace( "OCI::Copy Start Schema2 ManifestList {}:{}", rsrc, target );
+        execute( manifest_list );
+        spdlog::trace( "OCI::Copy Finish Schema2 ManifestList {}:{}", rsrc, target );
+      }
+
+      break;
+    default:
+      spdlog::error( "Unknown schemaVersion {}", manifest_list.schemaVersion );
+    }
+  } catch ( std::runtime_error &e ) {
+    spdlog::error( "OCI::Copy::execute {}", e.what() );
   }
 }
 
@@ -207,7 +211,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             auto src                = _src->copy();
             uint64_t data_sent      = 0;
 
-            std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
+            std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &dest, &digest, &layer_size, &data_sent, &sync_bar_ref ]( const char *data,
                                                                                uint64_t    data_length ) -> bool {
               if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
                 data_sent += data_length;
@@ -242,7 +246,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );
 
         uint64_t                                        data_sent = 0;
-        std::function< bool( const char *, uint64_t ) > call_back = [ & ]( const char *data,
+        std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &data_sent, &dest ]( const char *data,
                                                                            uint64_t    data_length ) -> bool {
           data_sent += data_length;
 
