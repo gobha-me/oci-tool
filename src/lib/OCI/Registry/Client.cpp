@@ -106,10 +106,11 @@ OCI::Registry::Client::Client( std::string const &location ) {
     domain_ = "registry-1.docker.io";
   }
 
-  cli_ = std::make_shared< httplib::SSLClient >( domain_, SSL_PORT );
+  cli_ = std::make_shared< httplib::Client >( ( "https://" + domain_ + ":" + std::to_string( SSL_PORT ) ).c_str() );
+  cli_->enable_server_certificate_verification( false ); // tls-verify option would be benificial
 
   if ( not ping() ) {
-    cli_ = std::make_shared< httplib::Client >( domain_, DOCKER_PORT );
+    cli_ = std::make_shared< httplib::Client >( ( "http://" + domain_ + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
 
     if ( not ping() ) {
       std::runtime_error( domain_ + " does not respond to the V2 API (secure/unsecure)" );
@@ -135,9 +136,10 @@ OCI::Registry::Client::Client( Client const &other ) {
   secure_con_ = other.secure_con_;
 
   if ( secure_con_ ) {
-    cli_ = std::make_shared< httplib::SSLClient >( domain_, SSL_PORT );
+    cli_ = std::make_shared< httplib::Client >( ( "https://" + domain_ + ":" + std::to_string( SSL_PORT ) ).c_str() );
+    cli_->enable_server_certificate_verification( false ); // tls-verify option would be benificial
   } else {
-    cli_ = std::make_shared< httplib::Client >( domain_, DOCKER_PORT );
+    cli_ = std::make_shared< httplib::Client >( ( "http://" + domain_ + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
   }
 
   cli_->set_follow_location( true );
@@ -197,9 +199,10 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
     std::shared_ptr< httplib::Client > client;
 
     if ( proto == "https" ) {
-      client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+      client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+      client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
     } else {
-      client = std::make_shared< httplib::SSLClient >( domain, DOCKER_PORT );
+      client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
     }
 
     client->set_logger( &http_logger );
@@ -212,9 +215,7 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
 
     auto result = client->Get( location.c_str() );
 
-    if ( result == nullptr ) {
-      throw std::runtime_error( "OCI::Registry::Client::auth recieved NULL '" + location + "'" );
-    } else {
+    if ( result ) {
       switch( HTTP_CODE( result->status ) ) {
       case HTTP_CODE::OK: {
           auto j = nlohmann::json::parse( result->body );
@@ -243,6 +244,8 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
         spdlog::error( "OCI::Registry::Client::auth status: {} Location: {} Body: {}", result->status, location, result->body );
         break;
       }
+    } else {
+      throw std::runtime_error( "OCI::Registry::Client::auth recieved NULL '" + location + "'" );
     }
   }
 }
@@ -288,7 +291,7 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
   auto location = std::string( "/v2/" + rsrc + "/blobs/" + sha );
   auto res      = client->Head( location.c_str(), authHeaders() );
 
-  if ( res == nullptr ) {
+  if ( not res ) {
     spdlog::error( "OCI::Registry::Client::fetchBlob failed to get redirect for {}:{}, returned NULL", rsrc, sha );
     return false;
   }
@@ -312,9 +315,10 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
 
     if ( domain != domain_ ) {
       if ( proto == "https" ) {
-        client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+        client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+        client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
       } else {
-        client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+        client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
       }
 
       client->set_logger( &http_logger );
@@ -324,12 +328,9 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
   auto retries = 0;
   do {
     res = client->Get( location.c_str(), authHeaders(), call_back );
-  } while ( res == nullptr and ++retries != 3 );
+  } while ( not res and ++retries != 3 );
 
-  if ( res == nullptr ) {
-    retVal = false;
-    spdlog::error( "OCI::Registry::Client::fetchBlob {}\n client timeout (returned NULL)", location );
-  } else {
+  if ( res ) {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::OK:
     case HTTP_CODE::Found:
@@ -338,6 +339,9 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
       retVal = false;
       spdlog::error( "OCI::Registry::Client::fetchBlob {}\n  Status: {} Body: {}", location, res->status, res->body );
     }
+  } else {
+    retVal = false;
+    spdlog::error( "OCI::Registry::Client::fetchBlob {}\n client timeout (returned NULL)", location );
   }
 
   return retVal;
@@ -365,9 +369,10 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
 
     if ( domain != domain_ ) {
       if ( proto == "https" ) {
-        client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+        client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+        client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
       } else {
-        client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+        client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
       }
 
       client->set_logger( &http_logger );
@@ -388,7 +393,7 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
   auto location = "/v2/" + im.name + "/blobs/" + sha;
   auto res      = client->Head( location.c_str(), authHeaders() );
 
-  if ( res == nullptr ) {
+  if ( not res ) {
     throw std::runtime_error( "OCI::Registry::Client::hasBlob recieved NULL requested head on '" + location + "'" );
   }
 
@@ -406,9 +411,10 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
 
     if ( domain != domain_ ) {
       if ( proto == "https" ) {
-        client = std::make_shared< httplib::SSLClient >( domain, SSL_PORT );
+        client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+        client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
       } else {
-        client = std::make_shared< httplib::Client >( domain, DOCKER_PORT );
+        client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
       }
     }
 
@@ -452,7 +458,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
   auto headers = authHeaders();
   auto last_offset{0};
 
-  std::shared_ptr< httplib::Response > res{ nullptr };
+  httplib::Result res;
 
   std::string proto;
   std::string domain;
@@ -486,7 +492,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
       res = patch_cli_->Patch( patch_location_.c_str(), headers, { blob_part, blob_part_size }, "application/octet-stream" );
     }
 
-    if ( res == nullptr ) {
+    if ( not res ) {
       throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha );
     }
 
@@ -606,9 +612,7 @@ auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const s
 
   auto res = cli_->Get( location.c_str(), headers );
 
-  if ( res == nullptr ) {
-    throw std::runtime_error( "OCI::Registry::Client::fetchManifest request error, returned NULL " + resource + ":" + target );
-  } else {
+  if ( res ) {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::Unauthorized:
       spdlog::warn( "OCI::Registry::Client::fetchManifest recieved HTTP_CODE::Unauthorized for '{}'", location );
@@ -636,6 +640,8 @@ auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const s
       auth_retry_ = true;
       spdlog::error( "OCI::Registry::Client::fetchManifest {}", location );
     }
+  } else {
+    throw std::runtime_error( "OCI::Registry::Client::fetchManifest request error, returned NULL " + resource + ":" + target );
   }
 
   return retVal;
@@ -666,8 +672,7 @@ auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const 
 
   auto res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str, ml.mediaType.c_str() );
 
-  if ( res == nullptr ) {
-  } else {
+  if ( res ) {
     if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
       auth( res->headers, "repository:" + ml.name + ":pull,push" );
 
@@ -763,10 +768,7 @@ auto OCI::Registry::Client::ping() -> bool {
 
   auto res = cli_->Get( "/v2/" );
 
-  if ( res == nullptr ) { // Most likely an invalid domain or port
-    retVal = false;
-    //throw std::runtime_error( "OCI::Registry::Client::ping recieved NULL on response" );
-  } else {
+  if ( res ) {
     if ( res->has_header( "Docker-Distribution-Api-Version" ) ) {
       if ( res->get_header_value( "Docker-Distribution-Api-Version" ) != "registry/2.0" ) {
         retVal = false;
@@ -774,6 +776,9 @@ auto OCI::Registry::Client::ping() -> bool {
     } else {
       retVal = false;
     }
+  } else { // Most likely an invalid domain or port
+    spdlog::trace( "OCI::Registry::Client::ping FAILED" );
+    retVal = false;
   }
 
   return retVal;
@@ -806,17 +811,17 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
 
   // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
   spdlog::debug( "OCI::Registry::Client::initiateUpload starting {}", ur.blob_sha );
-  std::shared_ptr< httplib::Response > res{ nullptr };
+  httplib::Result res;
 
   auto headers = authHeaders();
   headers.emplace( "Host", domain_ );
   res = cli_->Post( ( "/v2/" + ur.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
 
-  if ( res == nullptr ) {
+  if ( not res ) {
     throw std::runtime_error( "OCI::Registry::Client::initiateUpload received NULL starting " + ur.blob_sha );
   }
 
-  while ( res != nullptr and patch_location_.empty() ) {
+  while ( res and patch_location_.empty() ) {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::Accepted:
       spdlog::debug( "OCI::Registry::Client::initiateUpload Accepted {}:{}", ur.target, ur.blob_sha );
@@ -840,9 +845,10 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
         }
 
         if ( proto == "https" ) {
-          patch_cli_ = std::make_unique< httplib::SSLClient >( domain, port );
+          patch_cli_ = std::make_unique< httplib::Client >( ( "https://" + domain + ":" + std::to_string( port ) ).c_str() );
+          patch_cli_->enable_server_certificate_verification( false ); // tls-verify option would be benificial
         } else {
-          patch_cli_ = std::make_unique< httplib::Client >( domain, port );
+          patch_cli_ = std::make_unique< httplib::Client >( ( "http://" + domain + ":" + std::to_string( port ) ).c_str() );
         }
 
         patch_cli_->set_logger( &http_logger );
@@ -876,17 +882,17 @@ auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
 
   // https://docs.docker.com/registry/spec/api/#blob-upload
   spdlog::debug( "OCI::Registry::Client::uploadStatus check {}", ur.blob_sha );
-  std::shared_ptr< httplib::Response > res{ nullptr };
+  httplib::Result res;
 
   auto headers = authHeaders();
   headers.emplace( "Host", domain_ );
   res = patch_cli_->Get( patch_location_.c_str(), headers );
 
-  if ( res == nullptr ) {
+  if ( not res ) {
     throw std::runtime_error( "OCI::Registry::Client::uploadStatus received NULL starting " + ur.blob_sha );
   }
 
-  while ( res != nullptr and retVal == 0 ) {
+  while ( res and retVal == 0 ) {
     switch ( HTTP_CODE( res->status ) ) {
     case HTTP_CODE::No_Content:
     case HTTP_CODE::Accepted:
@@ -895,7 +901,7 @@ auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
       {
         auto range = res->get_header_value( "Range" );
 
-        retVal     = std::stoul( range.substr( range.find( '-' ) + 1 ) );
+        retVal = std::stoul( range.substr( range.find( '-' ) + 1 ) );
       }
 
       break;

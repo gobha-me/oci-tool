@@ -12,10 +12,6 @@ class indicators_cursor_guard {
 public:
   indicators_cursor_guard() {
     indicators::show_console_cursor( false );
-    signal( SIGINT, []( int signum ) { 
-        indicators::show_console_cursor( true );
-        std::exit( signum );
-        } );
   }
 
   indicators_cursor_guard( indicators_cursor_guard const& ) = delete;
@@ -36,6 +32,10 @@ public:
 // dir  -> docker (unauthenticated)
 auto main( int argc, char **argv ) -> int {
   using namespace std::string_literals;
+  signal( SIGINT, []( int signum ) { 
+      indicators::show_console_cursor( true );
+      std::exit( signum );
+      } );
 
   indicators_cursor_guard icg;
 
