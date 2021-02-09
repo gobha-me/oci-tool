@@ -307,6 +307,11 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
     break;
   }
 
+  if ( not res ) {
+    spdlog::error( "OCI::Registry::Client::fetchBlob failed to get redirect post auth for {}:{}, returned NULL", rsrc, sha );
+    return false;
+  }
+
   if ( res->has_header( "Location" ) ) {
     std::string proto;
     std::string domain;
@@ -323,6 +328,11 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
 
       client->set_logger( &http_logger );
     }
+  }
+
+  if ( not client->is_valid() ) {
+    spdlog::error( "OCI::Registry::Client::fetchBlob failed to get redirect {}:{}, returned NULL", rsrc, sha );
+    return false;
   }
 
   auto retries = 0;
@@ -349,9 +359,10 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
 
 auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sha ) -> bool {
   ToggleLocationGuard< decltype( cli_ ) > tlg{ cli_, false };
+  spdlog::debug( "OCI::Registry::Client::hasBlob attempt {}:{}", im.name, sha );
 
-  auto client = cli_;
-
+  auto retVal   = false;
+  auto client   = cli_;
   auto location = "/v2/" + im.name + "/blobs/" + sha;
   auto res      = cli_->Head( location.c_str(), authHeaders() );
 
@@ -381,7 +392,20 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
     res = client->Head( location.c_str(), authHeaders() );
   }
 
-  return HTTP_CODE( res->status ) == HTTP_CODE::OK or HTTP_CODE( res->status ) == HTTP_CODE::Found;
+  switch ( HTTP_CODE( res->status ) ) {
+  case HTTP_CODE::OK:
+  case HTTP_CODE::Found:
+    retVal = true;
+  case HTTP_CODE::Not_Found: // Common if not yet pushed images so it created a lot of noise
+    break;
+  default:
+    spdlog::error( "OCI::Registry::Client::hasBlob {}\n  Status: {} Body: {}", location, res->status, res->body );
+    for ( auto const &header : res->headers ) {
+      spdlog::error( "{} -> {}", header.first, header.second );
+    }
+  }
+
+  return retVal;
 }
 
 auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std::string &target, SHA256 sha ) -> bool {

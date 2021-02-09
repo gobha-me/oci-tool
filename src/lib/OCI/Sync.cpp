@@ -30,8 +30,8 @@ void OCI::Sync::execute( OCI::Extensions::Yaml* src, OCI::Base::Client* dest ) {
 
         sync_bar_ref.get().tick();
         sync_bar_ref.get().set_option( indicators::option::PostfixText{
-      	  std::to_string( ++repo_index ) + "/" + std::to_string( catalog_total )
-    	  } );
+          std::to_string( ++repo_index ) + "/" + std::to_string( catalog_total )
+        } );
       } );
       std::this_thread::yield();
     }
@@ -50,7 +50,6 @@ void OCI::Sync::execute( OCI::Base::Client* src, OCI::Base::Client* dest ) {
   _copier->_dest = dest;
 
   auto const catalog = src->catalog();
-//  auto indicator     = getIndicator( catalog.repositories.size(), "Source Repos", indicators::Color::cyan );
   auto sync_bar_ref  = _progress_bars->push_back( getIndicator( catalog.repositories.size(), "Source Repos", indicators::Color::cyan ) );
 
   auto                  catalog_total  = catalog.repositories.size();
@@ -70,8 +69,8 @@ void OCI::Sync::execute( OCI::Base::Client* src, OCI::Base::Client* dest ) {
 
       sync_bar_ref.get().tick();
       sync_bar_ref.get().set_option( indicators::option::PostfixText{
-      	std::to_string( ++repo_index ) + "/" + std::to_string( catalog_total )
-    	} );
+        std::to_string( ++repo_index ) + "/" + std::to_string( catalog_total )
+      } );
     } );
   }
 
@@ -97,8 +96,8 @@ void OCI::Sync::execute( std::string const& rsrc, std::vector< std::string > con
     thread_count++;
 
     _stm->execute( [ &thread_count, &tag_index, &sync_bar_ref, rsrc, tag, total_tags, this ]() -> void {
-      gobha::DelayedCall dec_count( [ &thread_count, rsrc ]() {
-          spdlog::trace( "OCI::Sync::execute '{}' finished decrementing count", rsrc );
+      gobha::DelayedCall dec_count( [ &thread_count, rsrc, tag ]() {
+          spdlog::trace( "OCI::Sync::execute '{}:{}' finished decrementing count", rsrc, tag );
           --thread_count;
         } );
 

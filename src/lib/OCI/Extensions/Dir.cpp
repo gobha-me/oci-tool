@@ -86,7 +86,7 @@ OCI::Extensions::Dir::Dir( std::string const &directory ) : _bytes_written( 0 ) 
   if ( not( _blobs_dir.is_directory() and _temp_dir.is_directory() ) ) {
     _tree_root = std::filesystem::directory_entry( _directory.path().parent_path() );
     _blobs_dir = std::filesystem::directory_entry( _tree_root.path() / "blobs" );
-    _temp_dir = std::filesystem::directory_entry( _tree_root.path() / "temp" );
+    _temp_dir  = std::filesystem::directory_entry( _tree_root.path() / "temp" );
 
     if ( not( _blobs_dir.is_directory() and _temp_dir.is_directory() ) ) {
       spdlog::error( "OCI::Extensions::Dir {} could not be determined to be a valid OCITree", directory );
@@ -213,19 +213,21 @@ auto OCI::Extensions::Dir::hasBlob( Schema2::ImageManifest const &im, std::strin
         std::filesystem::directory_entry( _directory.path() / ( im.name + ":" + im.requestedTarget ) / target );
   }
 
-  auto image_path = image_dir_path.path() / sha;
+  //auto image_path = image_dir_path.path() / sha;
+  auto image_path = _blobs_dir.path() / sha;
 
   if ( std::filesystem::exists( image_path ) ) {
     retVal = true;
-  } else {
-    auto blob_path = _blobs_dir.path() / sha;
-
-    retVal = createSymlink( blob_path, image_path );
-
-    if ( retVal ) {
-      spdlog::info( "OCI::Extensions::Dir::hasBlob image {} already exists, created link to {}", sha, image_path.string() );
-    }
   }
+//  else {
+//    auto blob_path = _blobs_dir.path() / sha;
+//
+//    retVal = createSymlink( blob_path, image_path );
+//
+//    if ( retVal ) {
+//      spdlog::info( "OCI::Extensions::Dir::hasBlob image {} already exists, created link to {}", sha, image_path.string() );
+//    }
+//  }
 
   return retVal;
 }
@@ -239,9 +241,11 @@ auto OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest &im, const std:
   (void)blob_part;
   (void)blob_part_size;
 
+  auto retVal = false;
+
   spdlog::error( "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" );
 
-  return false;
+  return retVal;
 }
 
 auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::string const &target, SHA256 const &blob_sha,
@@ -316,7 +320,7 @@ auto OCI::Extensions::Dir::putBlob( Schema2::ImageManifest const &im, std::strin
   }
 
   if ( clean_file ) {
-    createSymlink( blob_path, image_path );
+//    createSymlink( blob_path, image_path ); // returned boolean and not testing, was this a bug?
 
     if ( not _temp_file.empty() and std::filesystem::exists( _temp_file ) ) {
       std::filesystem::remove( _temp_file );

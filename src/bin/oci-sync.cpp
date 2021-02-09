@@ -170,7 +170,7 @@ auto main( int argc, char **argv ) -> int {
     std::cerr << "Unhandled exception occured!! " << e.what() << std::endl;
 
     return EXIT_FAILURE;
-  } catch ( ... ) {
+  } catch ( ... ) { // Catch anything that doesn't inherit from std::exception
     std::cerr << "Unhandled exception occured!! " << std::endl;
 
     return EXIT_FAILURE;

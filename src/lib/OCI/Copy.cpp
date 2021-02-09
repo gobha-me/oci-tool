@@ -13,7 +13,7 @@ OCI::Copy::Copy( Base::Client * source, Base::Client * destination, STM_ptr stm,
 
 OCI::Copy::~Copy() = default;
 
-auto OCI::Copy::execute( std::string const rsrc, std::string const target ) -> void {
+void OCI::Copy::execute( std::string const rsrc, std::string const target ) {
   Schema2::ManifestList ml_request;
 
   ml_request.name            = rsrc;
@@ -135,24 +135,25 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
 
   try {
     auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest.get(), image_manifest );
-    auto layers              = image_manifest.layers;
     
     std::mutex layers_mutex;
 
     if ( image_manifest != dest_image_manifest ) {
-      std::atomic< bool > layers_empty = layers.empty();
-      auto layer_itr = layers.begin();
+      auto layers                        = image_manifest.layers;
+      std::atomic< bool > layers_empty   = layers.empty();
+      auto layer_itr                     = layers.end();
+      std::atomic< size_t > thread_count = 0;
 
       while ( not layers_empty ) {
-        // Find image not being operated on by another thread
         {
           spdlog::trace( "OCI::Copy::execute finding a dependant layer that is not in progress" );
           std::lock_guard< std::mutex > lg( layers_mutex );
-          layer_itr = std::find_if( layers.begin(), layers.end(), [this]( auto layer ) -> bool {
+          layer_itr = std::find_if( layers.begin(), layers.end(), [this]( const auto layer ) -> bool {
               std::lock_guard< std::mutex > lg( _wd_mutex );
               auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer.digest );
 
               if ( wd_itr == _working_digests->end() ) {
+                spdlog::trace( "OCI::Copy::execute preparing to download {}", layer.digest );
                 _working_digests->push_back( layer.digest );
 
                 return true;
@@ -190,19 +191,21 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           auto digest     = layer_itr->digest;
           auto layer_size = layer_itr->size;
 
-          gobha::DelayedCall clear_layer( [&layers_mutex, &layer_itr, &layers]() {
-            std::lock_guard< std::mutex > lg( layers_mutex );
-            layers.erase( layer_itr );
-          } );
-
-          _stm->execute( [image_manifest, target, digest, layer_size, this]() {
-            gobha::DelayedCall clear_wd( [ digest, this ]() {
+          _stm->execute( [&layers_mutex, &layers, &layer_itr, image_manifest, target, digest, layer_size, this]() {
+            gobha::DelayedCall clear_wd( [digest, this]() {
+              spdlog::trace( "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from working digests list", digest );
               std::lock_guard< std::mutex > lg( _wd_mutex );
               auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
               if ( wd_itr != _working_digests->end() ) {
                 _working_digests->erase( wd_itr );
                 _finish_download.notify_all();
               }
+            } );
+
+            gobha::DelayedCall clear_layer( [&layers_mutex, &layer_itr, &layers]() {
+              spdlog::trace( "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from layers", layer_itr->digest );
+              std::lock_guard< std::mutex > lg( layers_mutex );
+              layers.erase( layer_itr );
             } );
 
             const auto digest_trunc = 10;
@@ -212,7 +215,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             uint64_t data_sent      = 0;
 
             std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &dest, &digest, &layer_size, &data_sent, &sync_bar_ref ]( const char *data,
-                                                                               uint64_t    data_length ) -> bool {
+                                                                               uint64_t data_length ) -> bool {
               if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
                 data_sent += data_length;
 
@@ -233,7 +236,9 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             try {
               src->fetchBlob( image_manifest.name, digest, call_back );
             } catch ( std::runtime_error const& e ) {
-              spdlog::error( e.what() );
+              spdlog::error( "Runtime Error: {}", e.what() );
+            } catch ( std::exception const &e ) {
+              spdlog::error( "Unspecified exception: {}", e.what() );
             }
           } );
         }
@@ -246,7 +251,8 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );
 
         uint64_t                                        data_sent = 0;
-        std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &data_sent, &dest ]( const char *data,
+        std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &data_sent, &dest ](
+                                                                           const char *data,
                                                                            uint64_t    data_length ) -> bool {
           data_sent += data_length;
 
