@@ -17,6 +17,7 @@ build:
       #- make test
       # figure out how to bail out on exit status
    stage: .post
+   script:
       - echo "Removing previous build artifacts and directories"
       - rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
 
