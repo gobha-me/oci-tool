@@ -9,12 +9,15 @@ build:
    stage: test
    script:
       - echo "Beginning the build for the oci-tool Project"
-      - echo $CI_PROJECT_DIR
-      #- cd ../; cmake $CI_BUILDS_DIR
+      - echo "Removing previous build artifacts and directories"
+      - rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
+      - echo  "Running project build in $CI_PROJECT_DIR"
+      - cmake ./
+      - make
+      - make test
       #- make
       #- make test
       # figure out how to bail out on exit status
-      #- rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
 
 #   stage: code_standards
    # insert execution of clang-tidy here unless nolint is specified
