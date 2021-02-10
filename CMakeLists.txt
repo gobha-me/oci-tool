@@ -41,3 +41,6 @@ else()
     target_link_libraries(oci-sync /usr/lib64/libssl.so.1.1.1c /usr/lib64/libcrypto.so.1.1.1c pthread crypto)
   endif()
 endif()
+
+enable_testing()
+add_subdirectory(src/tests)
