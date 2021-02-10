@@ -5,9 +5,6 @@
 #image: gcc
 
 # insert hook for execution of clang-tidy before execution of any code_standards including exclusion of third-party headers
-stages:
-   - test
-   - .post
 build:
    stage: test
    script:
@@ -16,10 +13,10 @@ build:
       - cmake ./
       - make
       - make test
-   stage: .post
-   script:
+   after_script:
       - echo "Removing previous build artifacts and directories"
       - rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
+      
 
 #   stage: code_standards
    # insert execution of clang-tidy here unless nolint is specified
