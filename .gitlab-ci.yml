@@ -5,7 +5,10 @@
 #image: gcc
 
 # insert hook for execution of clang-tidy before execution of any code_standards including exclusion of third-party headers
-#build:
+build:
+   stage: test ci
+   script:
+      - echo "hello world"
 #   stage: code_standards
    # insert execution of clang-tidy here unless nolint is specified
    # insert readout of clang-tidy-report here
