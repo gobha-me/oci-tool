@@ -9,7 +9,7 @@ build:
    stage: test
    script:
       - echo "Beginning the build for the oci-tool Project"
-      - echo $CI_BUILDS_DIR
+      - echo $CI_PROJECT_DIR
       #- cd ../; cmake $CI_BUILDS_DIR
       #- make
       #- make test
