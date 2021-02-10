@@ -6,7 +6,7 @@
 
 # insert hook for execution of clang-tidy before execution of any code_standards including exclusion of third-party headers
 build:
-   stage: test ci
+   stage: test
    script:
       - echo "hello world"
 #   stage: code_standards
