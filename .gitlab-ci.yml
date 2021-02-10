@@ -9,10 +9,6 @@ build:
       - echo  "Running project build in $CI_PROJECT_DIR"
    after_script:
       - echo "Completed the test stage"
-   only:
-      - test
-
-
    stage: build
    before_script:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
@@ -22,8 +18,6 @@ build:
       - make test
    after_script:
       - echo "Completed build stage"
-
-
    stage: deploy
    before_script:
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
