@@ -1,5 +1,6 @@
 # Originally created 2/10/2021 for the oci-tool project
 #Define the stages in this pipeline
+# Stages in each stage build in parallel except for before_script and after_script
 stages:
    - test
    - build
@@ -30,8 +31,6 @@ deploy:
    script:
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
       - echo "Deploy steps here - IF I HAD ANY"
-      - echo "Removing previous build artifacts and directories"
-      - rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test'"
