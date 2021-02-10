@@ -14,6 +14,7 @@ build:
       #- make
       #- make test
       # figure out how to bail out on exit status
+      3- rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
 
 #   stage: code_standards
    # insert execution of clang-tidy here unless nolint is specified
