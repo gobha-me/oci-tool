@@ -4,24 +4,34 @@
 build:
    stage: test
    before_script:
-      - echo "Beginning the build for the $CI_PROJECT_NAME"
+      - echo "Beginning test stage for $CI_PROJECT_NAME"
    script:
       - echo  "Running project build in $CI_PROJECT_DIR"
+   after_script:
+      - echo "Completed the test stage"
    only:
       - test
 
 
    stage: build
+   before_script:
+      - echo "Beginning build stage for $CI_PROJECT_NAME"
+   script:
       - cmake ./
       - make
       - make test
+   after_script:
+      - echo "Completed build stage"
    #use "only" here to prevent this from running against master (as if it could as long as .gitlab-ci.yml is in gitignore)
    only:
       - test
 
    stage: deploy
+   before_script:
+      - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
+   script:
       - echo "Deploy steps here - IF I HAD ANY"
-
    after_script:
       - echo "Removing previous build artifacts and directories"
       - rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
+      - echo "Completed the deploy stage, ending pipeline run"
