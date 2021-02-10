@@ -5,6 +5,9 @@
 #image: gcc
 
 # insert hook for execution of clang-tidy before execution of any code_standards including exclusion of third-party headers
+stages:
+   - test
+   - .post
 build:
    stage: test
    script:
