@@ -1,49 +1,27 @@
-# This file is a template, and might need editing before it works on your project.
-# use the official gcc image, based on debian
-# can use verions as well, like gcc:5.2
-# see https://hub.docker.com/_/gcc/
-#image: gcc
+# Originally created 2/10/2021 for the oci-tool project
 
-# insert hook for execution of clang-tidy before execution of any code_standards including exclusion of third-party headers
+# Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
 build:
    stage: test
+   pre_script:
+      - echo "Beginning the build for the $CI_PROJECT_NAME"
    script:
-      - echo "Beginning the build for the oci-tool Project"
       - echo  "Running project build in $CI_PROJECT_DIR"
+   only:
+      - test
+
+
+   stage: build
       - cmake ./
       - make
       - make test
+   #use "only" here to prevent this from running against master (as if it could as long as .gitlab-ci.yml is in gitignore)
+   only:
+      - test
+
+   stage: deploy
+      - echo "Deploy steps here - IF I HAD ANY"
+
    after_script:
       - echo "Removing previous build artifacts and directories"
       - rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
-   only:
-      - test
-      
-
-#   stage: code_standards
-   # insert execution of clang-tidy here unless nolint is specified
-   # insert readout of clang-tidy-report here
-   # insert execution of clang-format here
-   # writeback clang-format
-
-#  stage: build
-#  # instead of calling g++ directly you can also use some build toolkit like make
-#  # install the necessary build tools when needed
-#  # before_script:
-#  #   - apt update && apt -y install make autoconf
-#  script:
-#    - g++ helloworld.cpp -o mybinary
-#    - cmake ..; make; cd ..
-#  artifacts:
-#    paths:
-#      - mybinary
-#      # depending on your build setup it's most likely a good idea to cache outputs to reduce the build time
-#      # cache:
-#      #   paths:
-#      #     - "*.o"
-
-# run tests using the binary built before
-#test:
-#  stage: test
-#  script:
-#    - ./runmytests.sh
