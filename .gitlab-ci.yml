@@ -8,7 +8,13 @@
 build:
    stage: test
    script:
-      - echo "hello world"
+      - echo "Beginning the build for the oci-tool Project"
+      - echo "$CI_BUILDS_DIR"
+      #- cd ../; cmake $CI_BUILDS_DIR
+      #- make
+      #- make test
+      # figure out how to bail out on exit status
+
 #   stage: code_standards
    # insert execution of clang-tidy here unless nolint is specified
    # insert readout of clang-tidy-report here
