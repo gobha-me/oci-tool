@@ -3,7 +3,7 @@
 # Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
 build:
    stage: test
-   pre_script:
+   before_script:
       - echo "Beginning the build for the $CI_PROJECT_NAME"
    script:
       - echo  "Running project build in $CI_PROJECT_DIR"
