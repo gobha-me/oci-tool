@@ -22,9 +22,7 @@ build:
       - make test
    after_script:
       - echo "Completed build stage"
-   #use "only" here to prevent this from running against master (as if it could as long as .gitlab-ci.yml is in gitignore)
-   only:
-      - build
+
 
    stage: deploy
    before_script:
