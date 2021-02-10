@@ -3,27 +3,29 @@
 # Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
 build:
    stage: test
-   before_script:
+   script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
-   script:
       - echo  "Running project build in $CI_PROJECT_DIR"
-   after_script:
       - echo "Completed the test stage"
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test'"
+
    stage: build
-   before_script:
-      - echo "Beginning build stage for $CI_PROJECT_NAME"
    script:
+      - echo "Beginning build stage for $CI_PROJECT_NAME"
       - cmake ./
       - make
       - make test
-   after_script:
       - echo "Completed build stage"
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test'"
+
    stage: deploy
-   before_script:
-      - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
    script:
+      - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
       - echo "Deploy steps here - IF I HAD ANY"
-   after_script:
       - echo "Removing previous build artifacts and directories"
       - rm -rf /home/gitlabRunner/builds/aPmg_4g7/0/mpo/oci-tool*
       - echo "Completed the deploy stage, ending pipeline run"
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test'"
