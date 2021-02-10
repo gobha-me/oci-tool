@@ -4,7 +4,14 @@
 # see https://hub.docker.com/_/gcc/
 #image: gcc
 
+# insert hook for execution of clang-tidy before execution of any code_standards including exclusion of third-party headers
 #build:
+#   stage: code_standards
+   # insert execution of clang-tidy here unless nolint is specified
+   # insert readout of clang-tidy-report here
+   # insert execution of clang-format here
+   # writeback clang-format
+
 #  stage: build
 #  # instead of calling g++ directly you can also use some build toolkit like make
 #  # install the necessary build tools when needed
@@ -12,6 +19,7 @@
 #  #   - apt update && apt -y install make autoconf
 #  script:
 #    - g++ helloworld.cpp -o mybinary
+#    - cmake ..; make; cd ..
 #  artifacts:
 #    paths:
 #      - mybinary
