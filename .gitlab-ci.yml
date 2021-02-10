@@ -13,9 +13,6 @@ build:
       - cmake ./
       - make
       - make test
-      #- make
-      #- make test
-      # figure out how to bail out on exit status
    stage: .post
    script:
       - echo "Removing previous build artifacts and directories"
