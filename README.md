@@ -44,6 +44,6 @@ On the TODO list
 - Implement Manifest v2 Schema 1 methods for images that do not have the modern Schema 2 manifests
 - Source and Destination is very seperate, this disallows at the moment doing a resume (per the API) on either side
   - There are senarios where this is a problem, it is about timing and the timeout period for an upload on the registry side
-- Tests????
+- Tests????(Being Added)
   - still not sure how to write good tests for this, as it is heavily depentant on a properly implemented docker registry
 - spdlog has replaced std::cout and std::cerr, next step is to determine how to handle exceptions and weither custome exceptions are needed
