@@ -3,6 +3,7 @@
 # Stages in each stage build in parallel except for before_script and after_script
 stages:
    - test
+   - manual_pull
    - build
    - deploy
 # Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
@@ -14,14 +15,28 @@ test:
       - echo "Completed the test stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
-
+manual_pull:
+   # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
+   #stage: manual_clone
+   #script:
+   #   - echo "Beginning manual clone stage for $CI_PROJECT_NAME"
+   #   - mkdir -p /home/gitlabRunner/gitPull
+#
+   #if: #if the oci-tool directory doesn't already exist
+   stage: manual_pull
+   script:
+      - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
+      - cd ~/gitPull/oci-tool
+      - git checkout test
+      - git pull
+      - echo "Completed git pull for $CI_PROJECT_NAME"
 build:
    stage: build
    script:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
       - mkdir -p /home/gitlabRunner/build_files/build
       - cd ~/build_files/build
-      - cmake ~/$CI_PROJECT_DIR
+      - cmake ~/gitPull/oci-tool
       - make
       - make test
       - echo "Completed build stage"
