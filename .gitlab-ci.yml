@@ -1,5 +1,5 @@
 # Originally created 2/10/2021 for the oci-tool project
-#Define the stages in this pipeline
+# Define the stages in this pipeline
 # Stages in each stage build in parallel except for before_script and after_script
 stages:
    - test
@@ -13,7 +13,7 @@ test:
       - echo  "Running project build in $CI_PROJECT_DIR"
       - echo "Completed the test stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
 
 build:
    stage: build
@@ -26,7 +26,8 @@ build:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/"
+
 
 deploy:
    stage: deploy
@@ -35,4 +36,4 @@ deploy:
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'"
+      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE !~ /nodeploy/"
