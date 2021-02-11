@@ -19,7 +19,7 @@ build:
    stage: build
    script:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
-      - mkdir /home/gitlabRunner/build_files
+      - mkdir -p /home/gitlabRunner/build_files/build
       - cd ~/build_files/build
       - cmake ~/build/$CI_PROJECT_DIR
       - make ~/build/$CI_PROJECT_DIR
