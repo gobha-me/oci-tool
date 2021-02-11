@@ -17,5 +17,5 @@ foreach(testSrc ${TEST_SRCS})
     message("NO TEST DEPS in ${testName}")
   endif(testDEPS)
 
-  add_test(${testName} ${PROJECT_BINARY_DIR}/../bin/${testName})
+  add_test(${testName} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${testName})
 endforeach(testSrc)
