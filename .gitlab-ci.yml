@@ -21,9 +21,9 @@ build:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
       - mkdir -p /home/gitlabRunner/build_files/build
       - cd ~/build_files/build
-      - cmake ~/build/$CI_PROJECT_DIR
-      - make ~/build/$CI_PROJECT_DIR
-      - make test ~/build/$CI_PROJECT_DIR
+      - cmake ~/$CI_PROJECT_DIR
+      - make ~/$CI_PROJECT_DIR
+      - make test ~/$CI_PROJECT_DIR
       - echo "Completed build stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test'"
