@@ -13,6 +13,7 @@ test:
       - ubuntu
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
+      - pwd
       - cd ~/gitPull/oci-tool
       - pwd
       - git checkout test
