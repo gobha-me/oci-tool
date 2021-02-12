@@ -7,9 +7,11 @@ stages:
    - build
    - deploy
 # Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
-test:
-   stage: test
-   only: [tags]
+test-job:
+   stage:
+      - test
+   tags:
+      - ubuntu   
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
       - pwd
@@ -18,10 +20,9 @@ test:
       - git checkout test
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"      - echo "Completed the test stage"
-   tags: [ubuntu]
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
-manual_pull:
+manual_pull-job:
    # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
    #stage: manual_clone
    #script:
@@ -36,7 +37,7 @@ manual_pull:
       - git checkout test
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"
-build:
+build-job:
    stage: build
    script:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
@@ -50,7 +51,7 @@ build:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/"
 
 
-deploy:
+deploy-job:
    stage: deploy
    script:
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
