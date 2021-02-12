@@ -14,7 +14,7 @@ test-job:
       - ubuntu   
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
-      - clang-tidy     
+      - clang-tidy .clang-tidy    
       - echo "Completed the test stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
