@@ -13,6 +13,7 @@ test-job:
       - ubuntu   
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
+      - uname -a
       - pwd
       - echo "Completed git pull for $CI_PROJECT_NAME"      - echo "Completed the test stage"
    rules:
