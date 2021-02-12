@@ -1,6 +1,7 @@
 # Originally created 2/10/2021 for the oci-tool project
 # Define the stages in this pipeline
 # Stages in each stage build in parallel except for before_script and after_script
+job:
 stages:
    - test
    - manual_pull
