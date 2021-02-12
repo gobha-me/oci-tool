@@ -9,8 +9,7 @@ stages:
 # Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
 test-job:
    stage: test
-   tags:
-      - ubuntu   
+   tags: ubuntu   
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
       - uname -a
