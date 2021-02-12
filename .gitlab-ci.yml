@@ -10,6 +10,7 @@ stages:
 test-job:
    stage: test
    tags: 
+      - development
       - ubuntu   
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
@@ -35,6 +36,9 @@ manual_pull-job:
       - echo "Completed git pull for $CI_PROJECT_NAME"
 build-job:
    stage: build
+   tags:
+      - rhel
+      - development
    script:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
       - mkdir -p /home/gitlabRunner/build_files/build
@@ -49,6 +53,9 @@ build-job:
 
 deploy-job:
    stage: deploy
+   tags:
+      - rhel
+      - development
    script:
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
       - echo "Deploy steps here - IF I HAD ANY"
