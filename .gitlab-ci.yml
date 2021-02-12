@@ -8,8 +8,7 @@ stages:
    - deploy
 # Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
 test:
-   stage: 
-      - test
+   stage: test
    tags:
       - ubuntu
    script:
@@ -30,8 +29,7 @@ manual_pull:
    #   - mkdir -p /home/gitlabRunner/gitPull
 #
    #if: #if the oci-tool directory doesn't already exist
-   stage: 
-      - manual_pull
+   stage: manual_pull
    script:
       - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
       - cd ~/gitPull/oci-tool
@@ -39,8 +37,7 @@ manual_pull:
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"
 build:
-   stage: 
-       - build
+   stage: build
    script:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
       - mkdir -p /home/gitlabRunner/build_files/build
@@ -54,8 +51,7 @@ build:
 
 
 deploy:
-   stage: 
-      - deploy
+   stage: deploy
    script:
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
       - echo "Deploy steps here - IF I HAD ANY"
