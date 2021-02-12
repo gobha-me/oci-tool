@@ -17,7 +17,7 @@ test-job:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
       - clang-tidy
       - git add *
-      - git commit -m "Automatic commit/push due to clang-format: notest "
+      - 'git commit -m "Automatic commit/push due to clang-format: notest "'
       - git push
       - echo "Completed the test stage"
    rules:
