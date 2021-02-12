@@ -40,7 +40,7 @@ manual_pull:
       - echo "Completed git pull for $CI_PROJECT_NAME"
 build:
    stage: 
-       -build
+       - build
    script:
       - echo "Beginning build stage for $CI_PROJECT_NAME"
       - mkdir -p /home/gitlabRunner/build_files/build
