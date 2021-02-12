@@ -16,7 +16,7 @@ test-job:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
 #      - clang-tidy
 #      - git add *
-#      - 'git commit -m "Automatic commit/push due to clang-format: notest "'
+#      - 'git commit -m "Automatic commit/push due to clang-format: notest formatted"'
 #      - git push
       - echo "Completed the test stage"
    rules:
@@ -50,7 +50,7 @@ build-job:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/" # After getting clang-format working, add "formatted"
 
 
 deploy-job:
@@ -63,4 +63,4 @@ deploy-job:
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE !~ /nodeploy/"
+      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE !~ /nodeploy/" # After getting clang-format working, add "formatted"
