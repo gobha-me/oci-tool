@@ -11,14 +11,13 @@ test-job:
    stage: test
    tags: 
       - development
-      - ubuntu   
+      - ubuntu
+   # TODO: Do something useful with clang-tidy and clang-format   
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
-      # Do something useful with clang-tidy here
       - clang-tidy
-      # Do something useful with clang-format here, push-back the code.
       - git add *
-      - git commit -m "Automatic commit/push due to clang-format: notest"
+      - git commit -m "Automatic commit/push due to clang-format: notest "
       - git push
       - echo "Completed the test stage"
    rules:
