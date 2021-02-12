@@ -1,7 +1,6 @@
 # Originally created 2/10/2021 for the oci-tool project
 # Define the stages in this pipeline
 # Stages in each stage build in parallel except for before_script and after_script
-job:
 stages:
    - test
    - manual_pull
@@ -10,8 +9,7 @@ stages:
 # Eventually it'd be great if we could run clang-tidy and clang-format but the runner's host doesn't support it currently
 test:
    stage: test
-   tags:
-      - ubuntu
+   only: [tags]
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
       - pwd
@@ -20,6 +18,7 @@ test:
       - git checkout test
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"      - echo "Completed the test stage"
+   tags: [ubuntu]
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
 manual_pull:
