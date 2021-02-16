@@ -14,7 +14,9 @@ test-job:
    # TODO: Do something useful with clang-tidy and clang-format   
    script:
       - echo "Beginning test stage for $CI_PROJECT_NAME"
-      - cmake -DCMAKE_BUILD_TYPE=Debug ./
+      - mkdir -p BUILD
+      - cd BUILD
+      - cmake -DCMAKE_BUILD_TYPE=Debug ..
       - make
       - make test
       - cd ..
