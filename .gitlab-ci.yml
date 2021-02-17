@@ -1,0 +1,69 @@
+# Originally created 2/10/2021 for the oci-tool project
+# Define the stages in this pipeline
+# Stages in each stage build in parallel except for before_script and after_script
+stages:
+   - test
+   - manual_pull
+   - build
+   - deploy
+test-job:
+   stage: test
+   tags: 
+      - development
+      - ubuntu
+   # TODO: Do something useful with clang-tidy and clang-format   
+   script:
+      - echo "Beginning test stage for $CI_PROJECT_NAME"
+      - mkdir -p BUILD
+      - cd BUILD
+      - cmake -DCMAKE_BUILD_TYPE=Debug ..
+      - make
+      - make test
+      - cd ..
+      - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
+      - echo "Completed the test stage"
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
+manual_pull-job:
+   # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
+   #stage: manual_clone
+   #script:
+   #   - echo "Beginning manual clone stage for $CI_PROJECT_NAME"
+   #   - mkdir -p /home/gitlabRunner/gitPull
+#
+   #if: #if the oci-tool directory doesn't already exist
+   stage: manual_pull
+   script:
+      - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
+      - cd ~/gitPull/oci-tool
+      - git checkout test
+      - git pull
+      - echo "Completed git pull for $CI_PROJECT_NAME"
+build-job:
+   stage: build
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning build stage for $CI_PROJECT_NAME"
+      - mkdir -p /home/gitlabRunner/build_files/build
+      - cd ~/build_files/build
+      - cmake ~/gitPull/oci-tool
+      - make
+      - make test
+      - echo "Completed build stage"
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/" # After getting clang-format working, add "formatted"
+
+
+deploy-job:
+   stage: deploy
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
+      - echo "Deploy steps here - IF I HAD ANY"
+      - echo "Completed the deploy stage, ending pipeline run"
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE !~ /nodeploy/" # After getting clang-format working, add "formatted"
