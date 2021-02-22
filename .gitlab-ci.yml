@@ -49,8 +49,12 @@ manual_pull-job:
 #
    #if: #if the oci-tool directory doesn't already exist
    stage: manual_pull
+   tags:
+      - rhel
+      - development
    script:
       - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
+      - mkdir -p ~/gitPull/oci-tool
       - cd ~/gitPull/oci-tool
       - git checkout test
       - git pull
