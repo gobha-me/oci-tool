@@ -29,9 +29,9 @@ format-job:
       - echo "Git1 is $GIT_ADD_RC2"
       #Push back all reformatted files with " autoformatted " in commit message to skip format-job stage
       - echo "GIT_ADDs are equal to ($GIT_ADD_RC + $GIT_ADD_RC2)"
-      - if (($GIT_ADD_RC + $GIT_ADD_RC2)) < 1; then git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "; else echo "Formatting not triggered."; fi
-      - if (($GIT_ADD_RC + $GIT_ADD_RC2)) < 1; then git remote add test https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git; fi
-      - if (($GIT_ADD_RC + $GIT_ADD_RC2)) < 1; then git push test HEAD:test; fi
+      - if [(($GIT_ADD_RC + $GIT_ADD_RC2)) < 1]; then git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "; else echo "Formatting not triggered."; fi
+      - if [(($GIT_ADD_RC + $GIT_ADD_RC2)) < 1]; then git remote add test https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git; fi
+      - if [(($GIT_ADD_RC + $GIT_ADD_RC2)) < 1]; then git push test HEAD:test; fi
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
 test-job:
