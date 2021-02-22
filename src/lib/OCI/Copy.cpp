@@ -191,7 +191,13 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           auto digest     = layer_itr->digest;
           auto layer_size = layer_itr->size;
 
-          _stm->execute( [&layers_mutex, &layers, &layer_itr, image_manifest, target, digest, layer_size, this]() {
+          _stm->execute( [&layers_mutex, &layers, &layer_itr, &thread_count, image_manifest, target, digest, layer_size, this]() {
+            thread_count++;
+
+            gobha::DelayedCall decrement_thread_count( [&thread_count]() {
+              thread_count--;
+            } );
+
             gobha::DelayedCall clear_wd( [digest, this]() {
               spdlog::trace( "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from working digests list", digest );
               std::lock_guard< std::mutex > lg( _wd_mutex );
@@ -214,8 +220,8 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             auto src                = _src->copy();
             uint64_t data_sent      = 0;
 
-            std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &dest, &digest, &layer_size, &data_sent, &sync_bar_ref ]( const char *data,
-                                                                               uint64_t data_length ) -> bool {
+            std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &dest, &digest, &layer_size, &data_sent, &sync_bar_ref ](
+                                                                              const char *data, uint64_t data_length ) -> bool {
               if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
                 data_sent += data_length;
 
@@ -231,7 +237,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
               return false;
             };
 
-            spdlog::trace( "OCI::Copy::execute ready to start copy or layer '{}'", digest );
+            spdlog::trace( "OCI::Copy::execute ready to start copy of layer '{}'", digest );
 
             try {
               src->fetchBlob( image_manifest.name, digest, call_back );
@@ -246,6 +252,8 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         std::lock_guard< std::mutex > lg( layers_mutex );
         layers_empty = layers.empty();
       }
+
+      while ( thread_count != 0 ) {}
 
       if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
         spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );

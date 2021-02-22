@@ -28,7 +28,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 file(GLOB_RECURSE OCI_SRC src/lib/*.cpp)
 add_executable(oci-sync src/bin/oci-sync.cpp ${OCI_SRC} yaml/Yaml.cpp)
 
-if ( ${CMAKE_MAJOR_VERSION} GREATER "3" )
+if ( ${CMAKE_MAJOR_VERSION} EQUAL "3" OR ${CMAKE_MAJOR_VERSION} GREATER "3" )
   target_include_directories(oci-sync PUBLIC include)
 
   target_link_libraries(oci-sync ssl pthread crypto)
