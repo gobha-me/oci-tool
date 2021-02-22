@@ -2,27 +2,23 @@
 #include <OCI/Factory.hpp>
 #include <OCI/Sync.hpp>
 #include <args.hxx> // https://github.com/Taywee/args
+#include <csignal>
 #include <indicators.hpp>
 #include <iostream>
-#include <csignal>
-#include <spdlog/spdlog.h> // https://github.com/gabime/spdlog
 #include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/spdlog.h> // https://github.com/gabime/spdlog
 
 class indicators_cursor_guard {
 public:
-  indicators_cursor_guard() {
-    indicators::show_console_cursor( false );
-  }
+  indicators_cursor_guard() { indicators::show_console_cursor( false ); }
 
-  indicators_cursor_guard( indicators_cursor_guard const& ) = delete;
-  indicators_cursor_guard( indicators_cursor_guard && ) = delete;
+  indicators_cursor_guard( indicators_cursor_guard const & ) = delete;
+  indicators_cursor_guard( indicators_cursor_guard && )      = delete;
 
-  auto operator=( indicators_cursor_guard const& ) = delete;
+  auto operator=( indicators_cursor_guard const & ) = delete;
   auto operator=( indicators_cursor_guard && ) = delete;
 
-  ~indicators_cursor_guard() {
-    indicators::show_console_cursor(true);
-  }
+  ~indicators_cursor_guard() { indicators::show_console_cursor( true ); }
 };
 
 // So far this will only work for the following combinations
@@ -32,10 +28,10 @@ public:
 // dir  -> docker (unauthenticated)
 auto main( int argc, char **argv ) -> int {
   using namespace std::string_literals;
-  signal( SIGINT, []( int signum ) { 
-      indicators::show_console_cursor( true );
-      std::exit( signum );
-      } );
+  signal( SIGINT, []( int signum ) {
+    indicators::show_console_cursor( true );
+    std::exit( signum );
+  } );
 
   indicators_cursor_guard icg;
 
@@ -150,7 +146,7 @@ auto main( int argc, char **argv ) -> int {
   std::unique_ptr< OCI::Base::Client > destination;
   try {
     destination = OCI::CLIENT_MAP.at( dest_proto )( dest_location, dest_username.Get(), dest_password.Get() );
-  } catch ( std::runtime_error const& e ) {
+  } catch ( std::runtime_error const &e ) {
     std::cerr << e.what() << '\n';
     return EXIT_FAILURE;
   }
