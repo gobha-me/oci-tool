@@ -13,14 +13,16 @@ test-job:
       - ubuntu
    # TODO: Do something useful with clang-tidy and clang-format   
    script:
-      - echo "Beginning test stage for $CI_PROJECT_NAME"
-      - mkdir -p BUILD
-      - cd BUILD
-      - cmake -DCMAKE_BUILD_TYPE=Debug ..
-      - make
-      - make test
-      - cd ..
+  #    - echo "Beginning test stage for $CI_PROJECT_NAME"
+  #    - mkdir -p BUILD
+  #    - cd BUILD
+  #    - cmake -DCMAKE_BUILD_TYPE=Debug ..
+  #    - make
+  #    - make test
+  #    - cd ..
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
+  #  clang-format ~/build/include/OCI + /build/src/
+      - clang-format 
       - echo "Completed the test stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
@@ -62,6 +64,7 @@ deploy-job:
       - rhel
       - development
    script:
+      # collect ~/BUILD/bin/oci-sync , rpm package it and move it to ##Talk to Bruce about rpm low-to-high
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
