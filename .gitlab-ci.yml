@@ -23,7 +23,7 @@ format-job:
       - find ./src -name "*.hpp" -exec git add {} \;
       #Push back all reformatted files with " autoformatted " in commit message to skip format-job stage
       - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "
-      - git push https://gitlab-ci-token:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/MPO/oci-tool.git test
+      - git push https://gitlab-ci-token:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
 test-job:
