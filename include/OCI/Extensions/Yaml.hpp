@@ -34,7 +34,7 @@ namespace OCI::Extensions {
     auto operator=( Yaml const &other ) -> Yaml &;
     auto operator=( Yaml &&other ) noexcept -> Yaml &;
 
-    auto catalog() -> const OCI::Catalog& override;
+    auto catalog() -> const OCI::Catalog & override;
     auto catalog( std::string const &domain ) -> OCI::Catalog;
 
     auto copy() -> std::unique_ptr< OCI::Base::Client > override;
@@ -66,6 +66,7 @@ namespace OCI::Extensions {
     auto tagList( std::string const &rsrc, std::regex const &re ) -> OCI::Tags override;
 
     auto swap( Yaml &other ) -> void;
+
   protected:
   private:
     mutable std::mutex                   _mutex;

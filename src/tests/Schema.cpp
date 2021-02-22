@@ -1,12 +1,11 @@
-#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
+#define CATCH_CONFIG_MAIN // This tells Catch to provide a main() - only do this in one cpp file
 #include "catch2/catch.hpp"
 #include <OCI/Schema1.hpp>
 #include <OCI/Schema2.hpp>
 
-//CMAKE_CPP_EXTRA=${SRC_LIB_DIR}/OCI/Schema1.cpp;${SRC_LIB_DIR}/OCI/Schema2.cpp
+// CMAKE_CPP_EXTRA=${SRC_LIB_DIR}/OCI/Schema1.cpp;${SRC_LIB_DIR}/OCI/Schema2.cpp
 
-TEST_CASE( "Schema1" ) {
-}
+TEST_CASE( "Schema1" ) {}
 
 TEST_CASE( "Schema2" ) {
   auto ml_json = R"(
@@ -68,8 +67,8 @@ TEST_CASE( "Schema2" ) {
   "schemaVersion": 2
 })"_json;
 
-  auto ml = ml_json.get<OCI::Schema2::ManifestList>();
-  auto im = im_json.get<OCI::Schema2::ImageManifest>();
+  auto ml = ml_json.get< OCI::Schema2::ManifestList >();
+  auto im = im_json.get< OCI::Schema2::ImageManifest >();
 
   REQUIRE( ml.mediaType == "application/vnd.docker.distribution.manifest.list.v2+json" );
   REQUIRE( ml.schemaVersion == 2 );
@@ -77,9 +76,9 @@ TEST_CASE( "Schema2" ) {
   REQUIRE( ml.name == "" );
   REQUIRE( ml.requestedTarget == "" );
 
-  REQUIRE( ml.manifests[0].digest == "sha256:d001a8b9d98bfccba9cd5058784d5e5220a85ba950c06abda49837be81ffeebc" );
-  REQUIRE( ml.manifests[0].mediaType == "application/vnd.docker.distribution.manifest.v2+json" );
-  REQUIRE( ml.manifests[0].size == 1160 );
-  REQUIRE( ml.manifests[0].platform.architecture == "amd64" );
-  REQUIRE( ml.manifests[0].platform.os == "linux" );
+  REQUIRE( ml.manifests[ 0 ].digest == "sha256:d001a8b9d98bfccba9cd5058784d5e5220a85ba950c06abda49837be81ffeebc" );
+  REQUIRE( ml.manifests[ 0 ].mediaType == "application/vnd.docker.distribution.manifest.v2+json" );
+  REQUIRE( ml.manifests[ 0 ].size == 1160 );
+  REQUIRE( ml.manifests[ 0 ].platform.architecture == "amd64" );
+  REQUIRE( ml.manifests[ 0 ].platform.os == "linux" );
 }

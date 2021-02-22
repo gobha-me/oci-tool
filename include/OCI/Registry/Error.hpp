@@ -10,6 +10,6 @@ namespace OCI { // https://docs.docker.com/registry/spec/api/
       std::string detail; // unstructured and optional, store as string unless the data is required to be parsed
     };
 
-    void from_json( const nlohmann::json& j, Error& err ); 
+    void from_json( const nlohmann::json &j, Error &err );
   } // namespace Registry
 } // namespace OCI
