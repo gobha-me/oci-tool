@@ -13,6 +13,8 @@ format-job:
       - development
       - ubuntu
    script:
+      - git config --global user.email "svc-gitlabRunner@evoforge.org"
+      - git config --global user.name "gitlab-runner"
       #Format hpp files in ./include/OCI and add them to git
       - for files in `find ./include/OCI -name "*.hpp"`; do clang-format -i $files; done
       - find ./include/OCI -name "*.hpp" -exec git add {} \;
