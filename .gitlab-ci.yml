@@ -25,7 +25,7 @@ format-job:
       - find ./src -name "*.cpp" -exec git add {} \;
       #Push back all reformatted files with " autoformatted " in commit message to skip format-job stage
       - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "
-      - git remote add origin https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git
+      - git remote add test https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git
       - git push test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
