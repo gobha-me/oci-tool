@@ -39,7 +39,7 @@ test-job:
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
       - echo "Completed the test stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE == /autoformat/"
 manual_pull-job:
    # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
    #stage: manual_clone
@@ -69,7 +69,7 @@ build-job:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/" # After getting clang-format working, add "formatted"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE == /autoformat/"
 
 
 deploy-job:
@@ -83,4 +83,4 @@ deploy-job:
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE !~ /nodeploy/" # After getting clang-format working, add "formatted"
+      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE == /autoformat/"
