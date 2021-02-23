@@ -4,7 +4,9 @@
 #include <gobha/SimpleThreadManager.hpp>
 #include <iostream>
 
-// CMAKE_DEP=pthread
+// clang-format off
+//CMAKE_DEP=pthread
+// clang-format on
 
 TEST_CASE( "SimpleThreadManager" ) {
   SECTION( "Forground Breaker" ) {
