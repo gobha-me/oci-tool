@@ -1,6 +1,6 @@
 # Originally created 2/10/2021 for the oci-tool project
 # Stage execution logic depends on commit message contents. Please do not use commit messages with " autoformatted " in them.
-# You can combine multiple trigger comments. Valid trigger comments: noformat nopull noformat nobuild nodeploy
+# You can combine multiple trigger comments. Valid trigger comments: noformat nopull nobuild nodeploy
 # Define the stages in this pipeline
 stages:
    - format
@@ -46,8 +46,8 @@ test-job:
       - echo "Completed the test stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test'"
-      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_MESSAGE !~ /notest/"
+      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
 
 # Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
 # ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
@@ -66,8 +66,7 @@ manual_pull-job:
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test'"
       - if: "$CI_COMMIT_MESSAGE !~ /nopull/"
-      - if: "$CI_COMMIT_MESSAGE =~ /noformat/"
-      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_MESSAGE =~ /noformat/ || $CI_COMMIT_MESSAGE =~ /autoformatted/"
 
 # Execute the code compliation on a RHEL box and put it into an rpm.
 build-job:
@@ -85,8 +84,7 @@ build-job:
       - echo "Completed build stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test'"
-      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
-      - if: "$CI_COMMIT_MESSAGE !~ /nobuild/"
+      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/ || $CI_COMMIT_MESSAGE !~ /nobuild/"
 
 # Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
