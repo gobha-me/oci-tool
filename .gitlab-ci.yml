@@ -1,4 +1,6 @@
 # Originally created 2/10/2021 for the oci-tool project
+# Stage execution logic depends on commit message contents. Please do not use commit messages with " autoformatted " in them.
+# Valid trigger comments: noformat nopull noformat nobuild nodeploy
 # Define the stages in this pipeline
 stages:
    - format
@@ -7,6 +9,7 @@ stages:
    - build
    - deploy
 
+#Format C++ code and push it back to the repo
 format-job:
    stage: format
    tags:
@@ -28,6 +31,8 @@ format-job:
       - git push test HEAD:test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
+
+# Execute tests written in the C++ codebase
 test-job:
    stage: test
    tags:
@@ -39,6 +44,9 @@ test-job:
       - echo "Completed the test stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /noformat/"
+
+# Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
+# ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
 manual_pull-job:
    stage: manual_pull
    tags:
@@ -52,7 +60,12 @@ manual_pull-job:
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/ && $CI_COMMIT_MESSAGE =~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/ && $CI_COMMIT_MESSAGE =~ /noformat/"
+      - if: "$CI_COMMIT_BRANCH == 'test'"
+      - if: "$CI_COMMIT_MESSAGE !~ /nopull/"
+      - if: "$CI_COMMIT_MESSAGE =~ /noformat/"
+      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
+
+# Execute the code compliation on a RHEL box and put it into an rpm.
 build-job:
    stage: build
    tags:
@@ -69,7 +82,7 @@ build-job:
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /noformat/"
 
-
+# Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
    stage: deploy
    tags:
@@ -81,4 +94,4 @@ deploy-job:
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
