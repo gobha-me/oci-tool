@@ -142,30 +142,31 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
     std::mutex layers_mutex;
 
     if ( image_manifest != dest_image_manifest ) {
-      auto layers                        = image_manifest.layers;
-      std::atomic< bool > layers_empty   = layers.empty();
-      auto layer_itr                     = layers.end();
-//      std::atomic< size_t > thread_count = 0;
+      auto                layers       = image_manifest.layers;
+      std::atomic< bool > layers_empty = layers.empty();
+      auto                layer_itr    = layers.end();
+      //      std::atomic< size_t > thread_count = 0;
 
       while ( not layers_empty ) {
         {
           spdlog::trace( "OCI::Copy::execute finding a dependant layer that is not in progress" );
           std::lock_guard< std::mutex > lg( layers_mutex );
-          layer_itr = std::find_if( layers.begin(), layers.end(), [&dest, image_manifest, target, this]( const auto layer ) -> bool {
-              std::lock_guard< std::mutex > lg( _wd_mutex );
-              auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer.digest );
+          layer_itr = std::find_if(
+              layers.begin(), layers.end(), [ &dest, image_manifest, target, this ]( const auto layer ) -> bool {
+                std::lock_guard< std::mutex > lg( _wd_mutex );
+                auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer.digest );
 
-              if ( wd_itr == _working_digests->end() ) {
-                if ( not dest->hasBlob( image_manifest, target, layer.digest ) ) {
-                  spdlog::trace( "OCI::Copy::execute preparing to download {}", layer.digest );
-                  _working_digests->push_back( layer.digest );
+                if ( wd_itr == _working_digests->end() ) {
+                  if ( not dest->hasBlob( image_manifest, target, layer.digest ) ) {
+                    spdlog::trace( "OCI::Copy::execute preparing to download {}", layer.digest );
+                    _working_digests->push_back( layer.digest );
+                  }
+
+                  return true;
                 }
 
-              return true;
-            }
-
-            return false;
-          } );
+                return false;
+              } );
         }
 
         if ( layer_itr == layers.end() ) {
@@ -189,12 +190,14 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           auto digest     = layer_itr->digest;
           auto layer_size = layer_itr->size;
 
-          _stm->execute( [image_manifest, target, digest, layer_size, this]() {
-//            thread_count++;
+          _stm->execute( [ image_manifest, target, digest, layer_size, this ]() {
+            //            thread_count++;
 
-            gobha::DelayedCall finalize_thread( [digest, this]() {
+            gobha::DelayedCall finalize_thread( [ digest, this ]() {
               {
-                spdlog::trace( "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from working digests and local layers", digest );
+                spdlog::trace(
+                    "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from working digests and local layers",
+                    digest );
                 std::lock_guard< std::mutex > lg( _wd_mutex );
                 auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
                 if ( wd_itr != _working_digests->end() ) {
@@ -203,7 +206,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
                 }
               }
 
-//              thread_count--;
+              //              thread_count--;
             } );
 
             const auto digest_trunc = 10;
@@ -248,7 +251,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         layers_empty = layers.empty();
       }
 
-//      while ( thread_count != 0 ) {}
+      //      while ( thread_count != 0 ) {}
 
       if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
         spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );
