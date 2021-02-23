@@ -1,40 +1,60 @@
 # Originally created 2/10/2021 for the oci-tool project
 # Define the stages in this pipeline
-# Stages in each stage build in parallel except for before_script and after_script
 stages:
+   - format
    - test
    - manual_pull
    - build
    - deploy
-test-job:
-   stage: test
-   tags: 
+
+format-job:
+   stage: format
+   tags:
       - development
       - ubuntu
-   # TODO: Do something useful with clang-tidy and clang-format   
    script:
-      - echo "Beginning test stage for $CI_PROJECT_NAME"
-      - mkdir -p BUILD
-      - cd BUILD
-      - cmake -DCMAKE_BUILD_TYPE=Debug ..
-      - make
-      - make test
-      - cd ..
+      - git config --global user.email "svc-gitlabRunner@evoforge.org"
+      - git config --global user.name "gitlab-runner"
+      #We shouldn't be doing this, but... it's nonportable with out
+      - git config --global http.sslVerify false
+      #Format hpp files in ./include/OCI and add them to git
+      - for files in `find ./include/OCI -name "*.hpp"`; do clang-format -i $files; done
+      - find ./include/OCI -name "*.hpp" -exec git add {} \;
+      - if [ $? -eq 0 ]; then export GIT_ADD_RC1=0; else export GIT_ADD_RC1=1; fi
+      #Format cpp files in ./src and add them to git
+      - for files2 in `find ./src -name "*.cpp"`; do clang-format -i $files2; done
+      - find ./src -name "*.cpp" -exec git add {} \;
+      - if [ $? -eq 0 ]; then export GIT_ADD_RC2=0; else export GIT_ADD_RC2=1; fi
+      #Push back all reformatted files with " autoformatted " in commit message to skip format-job stage
+      - if [ GIT_ADD_RC1 + GIT_ADD_RC2 < 1 ]; then git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted " && git remote add test https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git && git push test HEAD:test; else echo "There were no new formats to push"; fi
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
+test-job:
+   stage: test
+   tags:
+      - development
+      - ubuntu
+   script:
+      - echo "Starting the test stage"
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
       - echo "Completed the test stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE == /autoformat/"
 manual_pull-job:
    # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
    #stage: manual_clone
    #script:
    #   - echo "Beginning manual clone stage for $CI_PROJECT_NAME"
    #   - mkdir -p /home/gitlabRunner/gitPull
-#
+   #
    #if: #if the oci-tool directory doesn't already exist
    stage: manual_pull
+   tags:
+      - rhel
+      - development
    script:
       - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
+      - mkdir -p ~/gitPull/oci-tool
       - cd ~/gitPull/oci-tool
       - git checkout test
       - git pull
@@ -53,7 +73,7 @@ build-job:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/" # After getting clang-format working, add "formatted"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE == /autoformat/"
 
 
 deploy-job:
@@ -62,8 +82,9 @@ deploy-job:
       - rhel
       - development
    script:
+      # collect ~/BUILD/bin/oci-sync , rpm package it and move it to ##Talk to Bruce about rpm low-to-high
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE !~ /nodeploy/" # After getting clang-format working, add "formatted"
+      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE == /autoformat/"

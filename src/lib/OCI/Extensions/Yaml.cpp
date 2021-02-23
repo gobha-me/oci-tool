@@ -25,7 +25,7 @@ OCI::Extensions::Yaml::Yaml( std::string const &file_path ) : _client( nullptr )
     } else {
       _catalog.architectures.push_back( ( *source_node ).second[ "architecture" ].As< std::string >() );
     }
-   
+
     _catalog.tag_filter = ( *source_node ).second[ "filter-tags" ].As< std::string >();
 
     for ( auto image_node = images_node.Begin(); image_node != images_node.End(); image_node++ ) {
@@ -50,7 +50,7 @@ OCI::Extensions::Yaml::Yaml( Yaml const &other ) {
 
   if ( not _current_domain.empty() ) {
     _client = OCI::CLIENT_MAP.at( "docker" )( _current_domain, _catalog.credentials.at( _current_domain ).first,
-                                            _catalog.credentials.at( _current_domain ).second );
+                                              _catalog.credentials.at( _current_domain ).second );
   }
 }
 
@@ -75,7 +75,7 @@ auto OCI::Extensions::Yaml::operator=( Yaml &&other ) noexcept -> Yaml & {
   return *this;
 }
 
-auto OCI::Extensions::Yaml::catalog() -> const OCI::Catalog& {
+auto OCI::Extensions::Yaml::catalog() -> const OCI::Catalog & {
   spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
@@ -151,7 +151,8 @@ auto OCI::Extensions::Yaml::putManifest( OCI::Schema1::ImageManifest const &, st
   std::terminate();
 }
 
-auto OCI::Extensions::Yaml::putManifest( OCI::Schema1::SignedImageManifest const &, std::string const &target ) // NOLINT
+auto OCI::Extensions::Yaml::putManifest( OCI::Schema1::SignedImageManifest const &,
+                                         std::string const &target ) // NOLINT
     -> bool {
   spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
@@ -163,13 +164,14 @@ auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ManifestList const &, std
   std::terminate();
 }
 
-auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ImageManifest const &, std::string const &target ) -> bool { // NOLINT
+auto OCI::Extensions::Yaml::putManifest( OCI::Schema2::ImageManifest const &, std::string const &target )
+    -> bool { // NOLINT
   spdlog::error( "OCI::Extensions::Yaml is not a normal client, see documentation for details." );
   std::terminate();
 }
 
 std::mutex REGEX_MUTEX;
-auto OCI::Extensions::Yaml::tagList( std::string const &rsrc ) -> OCI::Tags {
+auto       OCI::Extensions::Yaml::tagList( std::string const &rsrc ) -> OCI::Tags {
   OCI::Tags retVal;
 
   if ( _catalog.tags.find( _current_domain ) != _catalog.tags.end() and
@@ -179,7 +181,7 @@ auto OCI::Extensions::Yaml::tagList( std::string const &rsrc ) -> OCI::Tags {
     retVal = _client->tagList( rsrc );
   } else {
     std::lock_guard< std::mutex > lg( REGEX_MUTEX );
-    std::regex tag_filter{ _catalog.tag_filter };
+    std::regex                    tag_filter{ _catalog.tag_filter };
     retVal = _client->tagList( rsrc, tag_filter );
   }
 

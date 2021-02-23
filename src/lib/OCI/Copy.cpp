@@ -3,13 +3,16 @@
 #include <spdlog/spdlog.h>
 #include <vector>
 
-OCI::Copy::Copy() : _stm( new gobha::SimpleThreadManager ), _progress_bars( new ProgressBars ), _working_digests( new WorkingDigests ) {}
-OCI::Copy::Copy( Base::Client * source, Base::Client * destination ) : Copy() {
+OCI::Copy::Copy()
+    : _stm( new gobha::SimpleThreadManager ), _progress_bars( new ProgressBars ),
+      _working_digests( new WorkingDigests ) {}
+OCI::Copy::Copy( Base::Client *source, Base::Client *destination ) : Copy() {
   _src  = source;
   _dest = destination;
 }
-OCI::Copy::Copy( Base::Client * source, Base::Client * destination, STM_ptr stm, PB_ptr progress_bars ) : // NOLINT
-  _stm( stm ), _progress_bars( progress_bars ), _src( source ), _dest( destination ) {} // NOLINT
+OCI::Copy::Copy( Base::Client *source, Base::Client *destination, STM_ptr stm, PB_ptr progress_bars )
+    :                                                                                       // NOLINT
+      _stm( stm ), _progress_bars( progress_bars ), _src( source ), _dest( destination ) {} // NOLINT
 
 OCI::Copy::~Copy() = default;
 
@@ -82,8 +85,8 @@ void OCI::Copy::execute( const Schema1::SignedImageManifest &image_manifest ) {
 
 void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
   try {
-    auto dest_manifest_list = Manifest< Schema2::ManifestList >( _dest->copy().get(), manifest_list );
-    std::atomic< size_t > thread_count = 0;
+    auto                  dest_manifest_list = Manifest< Schema2::ManifestList >( _dest->copy().get(), manifest_list );
+    std::atomic< size_t > thread_count       = 0;
 
     if ( manifest_list != dest_manifest_list ) {
       if ( manifest_list.manifests.empty() ) {
@@ -95,10 +98,10 @@ void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
           _stm->execute( [ &thread_count, manifest, manifest_list, this ]() -> void {
             spdlog::trace( "OCI::Copy::execute Schema2::ManifestList functor entry '{}'", manifest_list.name );
 
-            gobha::DelayedCall dec_count( [ &thread_count, manifest_list ]() {
-                spdlog::trace( "OCI::Copy::execute '{}' finished decrementing count", manifest_list.name );
-                --thread_count;
-              } );
+            gobha::DelayedCall     dec_count( [ &thread_count, manifest_list ]() {
+              spdlog::trace( "OCI::Copy::execute '{}' finished decrementing count", manifest_list.name );
+              --thread_count;
+            } );
             Schema2::ImageManifest im_request;
 
             im_request.name            = manifest_list.name;
@@ -135,7 +138,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
 
   try {
     auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest.get(), image_manifest );
-    
+
     std::mutex layers_mutex;
 
     if ( image_manifest != dest_image_manifest ) {
@@ -158,11 +161,11 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
                   _working_digests->push_back( layer.digest );
                 }
 
-                return true;
-              }
+              return true;
+            }
 
-              return false;
-            } );
+            return false;
+          } );
         }
 
         if ( layer_itr == layers.end() ) {
@@ -204,24 +207,27 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
             } );
 
             const auto digest_trunc = 10;
-            auto sync_bar_ref       = _progress_bars->push_back( getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow ) );
-            auto dest               = _dest->copy();
-            auto src                = _src->copy();
-            uint64_t data_sent      = 0;
+            auto       sync_bar_ref = _progress_bars->push_back(
+                getIndicator( layer_size, digest.substr( digest.size() - digest_trunc ), indicators::Color::yellow ) );
+            auto     dest      = _dest->copy();
+            auto     src       = _src->copy();
+            uint64_t data_sent = 0;
 
-            std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &dest, &digest, &layer_size, &data_sent, &sync_bar_ref ](
-                                                                              const char *data, uint64_t data_length ) -> bool {
+            std::function< bool( const char *, uint64_t ) > call_back =
+                [ &image_manifest, &target, &dest, &digest, &layer_size, &data_sent,
+                  &sync_bar_ref ]( const char *data, uint64_t data_length ) -> bool {
               if ( dest->putBlob( image_manifest, target, digest, layer_size, data, data_length ) ) {
                 data_sent += data_length;
 
                 sync_bar_ref.get().set_progress( data_sent );
-                sync_bar_ref.get().set_option(
-                    indicators::option::PostfixText{ std::to_string( data_sent ) + "/" + std::to_string( layer_size ) } );
+                sync_bar_ref.get().set_option( indicators::option::PostfixText{ std::to_string( data_sent ) + "/" +
+                                                                                std::to_string( layer_size ) } );
 
                 return true;
               }
 
-              spdlog::error( "OCI::Copy::execute No data recieved for layer '{}:{}' with {} bytes remaining of {}", target, digest, data_sent, layer_size - data_sent, layer_size );
+              spdlog::error( "OCI::Copy::execute No data recieved for layer '{}:{}' with {} bytes remaining of {}",
+                             target, digest, data_sent, layer_size - data_sent, layer_size );
 
               return false;
             };
@@ -230,7 +236,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
 
             try {
               src->fetchBlob( image_manifest.name, digest, call_back );
-            } catch ( std::runtime_error const& e ) {
+            } catch ( std::runtime_error const &e ) {
               spdlog::error( "Runtime Error: {}", e.what() );
             } catch ( std::exception const &e ) {
               spdlog::error( "Unspecified exception: {}", e.what() );
@@ -248,9 +254,8 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );
 
         uint64_t                                        data_sent = 0;
-        std::function< bool( const char *, uint64_t ) > call_back = [ &image_manifest, &target, &data_sent, &dest ](
-                                                                           const char *data,
-                                                                           uint64_t    data_length ) -> bool {
+        std::function< bool( const char *, uint64_t ) > call_back =
+            [ &image_manifest, &target, &data_sent, &dest ]( const char *data, uint64_t data_length ) -> bool {
           data_sent += data_length;
 
           return dest->putBlob( image_manifest, target, image_manifest.config.digest, image_manifest.config.size, data,
@@ -269,7 +274,8 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
   return false;
 } // OCI::Copy Schema2::ImageManifest
 
-auto OCI::getIndicator( size_t max_progress, std::string const& prefix, indicators::Color color ) -> indicators::ProgressBar {
+auto OCI::getIndicator( size_t max_progress, std::string const &prefix, indicators::Color color )
+    -> indicators::ProgressBar {
   // clang-format off
   return indicators::ProgressBar{
       indicators::option::BarWidth{80}, // NOLINT
