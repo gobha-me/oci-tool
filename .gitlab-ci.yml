@@ -15,18 +15,19 @@ format-job:
    script:
       - git config --global user.email "svc-gitlabRunner@evoforge.org"
       - git config --global user.name "gitlab-runner"
-      #We shouldn't be doing this, but... it's nonportable with out
-      - git config --global http.sslVerify false
       #Format hpp files in ./include/OCI and add them to git
       - for files in `find ./include/OCI -name "*.hpp"`; do clang-format -i $files; done
       - find ./include/OCI -name "*.hpp" -exec git add {} \;
-      - if [ $? -eq 0 ]; then export GIT_ADD_RC1=0; else export GIT_ADD_RC1=1; fi
       #Format cpp files in ./src and add them to git
       - for files2 in `find ./src -name "*.cpp"`; do clang-format -i $files2; done
       - find ./src -name "*.cpp" -exec git add {} \;
-      - if [ $? -eq 0 ]; then export GIT_ADD_RC2=0; else export GIT_ADD_RC2=1; fi
-      #Push back all reformatted files with " autoformatted " in commit message to skip format-job stage
-      - if [ GIT_ADD_RC1 + GIT_ADD_RC2 < 2 ]; then git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted " && git remote add test https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git && git push test HEAD:test; else echo "There were no new formats to push"; fi
+      #Debug
+      - echo "RC total equals" [ $GIT_ADD_RC1 + $GIT_ADD_RC2 ]
+      #We shouldn't be doing this, but... it's nonportable with out
+      - git config http.sslVerify false
+      - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "
+      - git remote add test https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git
+      - git push test HEAD:test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
 test-job:
@@ -39,15 +40,8 @@ test-job:
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
       - echo "Completed the test stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE == /autoformat/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /noformat/"
 manual_pull-job:
-   # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
-   #stage: manual_clone
-   #script:
-   #   - echo "Beginning manual clone stage for $CI_PROJECT_NAME"
-   #   - mkdir -p /home/gitlabRunner/gitPull
-   #
-   #if: #if the oci-tool directory doesn't already exist
    stage: manual_pull
    tags:
       - rhel
@@ -59,6 +53,8 @@ manual_pull-job:
       - git checkout test
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/ && $CI_COMMIT_MESSAGE =~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/ && $CI_COMMIT_MESSAGE =~ /noformat/"
 build-job:
    stage: build
    tags:
@@ -73,7 +69,7 @@ build-job:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE == /autoformat/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /noformat/"
 
 
 deploy-job:
@@ -87,4 +83,4 @@ deploy-job:
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE == /autoformat/"
+      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE =~ /autoformatted/"
