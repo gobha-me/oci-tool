@@ -39,7 +39,7 @@ else()
   if ( EXISTS "/usr/include/openssl11" )
     include_directories( BEFORE SYSTEM "/usr/include/openssl11" )
 
-    target_link_libraries(oci-sync /usr/lib64/libssl.so.1.1.1c /usr/lib64/libcrypto.so.1.1.1c pthread crypto)
+    target_link_libraries(oci-sync /usr/lib64/libssl.so.1.1 /usr/lib64/libcrypto.so.1.1 pthread crypto)
   endif()
 endif()
 
