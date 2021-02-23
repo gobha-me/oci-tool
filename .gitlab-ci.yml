@@ -1,7 +1,7 @@
 # Originally created 2/10/2021 for the oci-tool project
 # Stage execution logic depends on commit message contents. Please do not use commit messages with " autoformatted " in them.
 # You can combine multiple trigger comments. Valid trigger comments: noformat nopull nobuild nodeploy
-# Define the stages in this pipeline
+# Define the stages in this pipeline and then execute them in order.
 stages:
    - format
    - test
