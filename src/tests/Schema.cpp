@@ -3,7 +3,9 @@
 #include <OCI/Schema1.hpp>
 #include <OCI/Schema2.hpp>
 
-// CMAKE_CPP_EXTRA=${SRC_LIB_DIR}/OCI/Schema1.cpp;${SRC_LIB_DIR}/OCI/Schema2.cpp
+// clang-format off
+//CMAKE_CPP_EXTRA=${SRC_LIB_DIR}/OCI/Schema1.cpp;${SRC_LIB_DIR}/OCI/Schema2.cpp
+// clang-format on
 
 TEST_CASE( "Schema1" ) {}
 
