@@ -45,9 +45,8 @@ test-job:
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
       - echo "Completed the test stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'"
-      - if: "$CI_COMMIT_MESSAGE !~ /notest/"
-      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
 
 # Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
 # ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
