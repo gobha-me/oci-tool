@@ -15,20 +15,19 @@ format-job:
    script:
       - git config --global user.email "svc-gitlabRunner@evoforge.org"
       - git config --global user.name "gitlab-runner"
-      #We shouldn't be doing this, but... it's nonportable with out
-      - git config --global http.sslVerify false
       #Format hpp files in ./include/OCI and add them to git
       - for files in `find ./include/OCI -name "*.hpp"`; do clang-format -i $files; done
       - find ./include/OCI -name "*.hpp" -exec git add {} \;
-      - if [ $? -eq 0 ]; then export GIT_ADD_RC1=0; else export GIT_ADD_RC1=1; fi
       #Format cpp files in ./src and add them to git
       - for files2 in `find ./src -name "*.cpp"`; do clang-format -i $files2; done
       - find ./src -name "*.cpp" -exec git add {} \;
-      - if [ $? -eq 0 ]; then export GIT_ADD_RC2=0; else export GIT_ADD_RC2=1; fi
       #Debug
       - echo "RC total equals" [ $GIT_ADD_RC1 + $GIT_ADD_RC2 ]
-      #Push back all reformatted files with " autoformatted " in commit message to skip format-job stage
-      - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted " && git remote add test https://redhat-imports.svc:7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git && git push test HEAD:test
+      #We shouldn't be doing this, but... it's nonportable with out
+      - git config http.sslVerify false
+      - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "
+      - git remote add test https://redhat-imports.svc:7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git
+      - git push test HEAD:test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
 test-job:
