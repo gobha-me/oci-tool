@@ -30,8 +30,7 @@ format-job:
       - git remote add test https://redhat-imports.svc:-7z-2QyzApRmfvi4E3zH@gitlab.evoforge.org/mpo/oci-tool.git
       - git push test HEAD:test
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
 
 # Execute tests written in the C++ codebase
 test-job:
