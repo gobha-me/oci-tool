@@ -21,8 +21,6 @@ format-job:
       #Format cpp files in ./src and add them to git
       - for files2 in `find ./src -name "*.cpp"`; do clang-format -i $files2; done
       - find ./src -name "*.cpp" -exec git add {} \;
-      #Debug
-      - echo "RC total equals" [ $GIT_ADD_RC1 + $GIT_ADD_RC2 ]
       #We shouldn't be doing this, but... it's nonportable with out
       - git config http.sslVerify false
       - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "
