@@ -40,15 +40,8 @@ test-job:
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
       - echo "Completed the test stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /noformat/"
 manual_pull-job:
-   # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
-   #stage: manual_clone
-   #script:
-   #   - echo "Beginning manual clone stage for $CI_PROJECT_NAME"
-   #   - mkdir -p /home/gitlabRunner/gitPull
-   #
-   #if: #if the oci-tool directory doesn't already exist
    stage: manual_pull
    tags:
       - rhel
@@ -61,7 +54,7 @@ manual_pull-job:
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/ && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/ && $CI_COMMIT_MESSAGE =~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/ && $CI_COMMIT_MESSAGE =~ /noformat/"
 build-job:
    stage: build
    tags:
@@ -76,7 +69,7 @@ build-job:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/ || $CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /noformat/"
 
 
 deploy-job:
