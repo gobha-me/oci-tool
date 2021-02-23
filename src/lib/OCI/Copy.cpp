@@ -142,19 +142,21 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
       auto layers                        = image_manifest.layers;
       std::atomic< bool > layers_empty   = layers.empty();
       auto layer_itr                     = layers.end();
-      std::atomic< size_t > thread_count = 0;
+//      std::atomic< size_t > thread_count = 0;
 
       while ( not layers_empty ) {
         {
           spdlog::trace( "OCI::Copy::execute finding a dependant layer that is not in progress" );
           std::lock_guard< std::mutex > lg( layers_mutex );
-          layer_itr = std::find_if( layers.begin(), layers.end(), [this]( const auto layer ) -> bool {
+          layer_itr = std::find_if( layers.begin(), layers.end(), [&dest, image_manifest, target, this]( const auto layer ) -> bool {
               std::lock_guard< std::mutex > lg( _wd_mutex );
               auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer.digest );
 
               if ( wd_itr == _working_digests->end() ) {
-                spdlog::trace( "OCI::Copy::execute preparing to download {}", layer.digest );
-                _working_digests->push_back( layer.digest );
+                if ( not dest->hasBlob( image_manifest, target, layer.digest ) ) {
+                  spdlog::trace( "OCI::Copy::execute preparing to download {}", layer.digest );
+                  _working_digests->push_back( layer.digest );
+                }
 
                 return true;
               }
@@ -176,13 +178,6 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           _finish_download.wait_for( ul, 15s );
         } else if ( dest->hasBlob( image_manifest, target, layer_itr->digest ) ) {
           spdlog::debug( "OCI::Copy::execute Already have the layer move to next {}:{}", target, layer_itr->digest );
-          {
-            std::lock_guard< std::mutex > lg( _wd_mutex );
-            auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), layer_itr->digest );
-            if ( wd_itr != _working_digests->end() ) {
-              _working_digests->erase( wd_itr );
-            }
-          }
 
           std::lock_guard< std::mutex > lg( layers_mutex );
           layers.erase( layer_itr );
@@ -191,27 +186,21 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           auto digest     = layer_itr->digest;
           auto layer_size = layer_itr->size;
 
-          _stm->execute( [&layers_mutex, &layers, &layer_itr, &thread_count, image_manifest, target, digest, layer_size, this]() {
-            thread_count++;
+          _stm->execute( [image_manifest, target, digest, layer_size, this]() {
+//            thread_count++;
 
-            gobha::DelayedCall decrement_thread_count( [&thread_count]() {
-              thread_count--;
-            } );
-
-            gobha::DelayedCall clear_wd( [digest, this]() {
-              spdlog::trace( "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from working digests list", digest );
-              std::lock_guard< std::mutex > lg( _wd_mutex );
-              auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
-              if ( wd_itr != _working_digests->end() ) {
-                _working_digests->erase( wd_itr );
-                _finish_download.notify_all();
+            gobha::DelayedCall finalize_thread( [digest, this]() {
+              {
+                spdlog::trace( "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from working digests and local layers", digest );
+                std::lock_guard< std::mutex > lg( _wd_mutex );
+                auto wd_itr = std::find( _working_digests->begin(), _working_digests->end(), digest );
+                if ( wd_itr != _working_digests->end() ) {
+                  _working_digests->erase( wd_itr );
+                  _finish_download.notify_all();
+                }
               }
-            } );
 
-            gobha::DelayedCall clear_layer( [&layers_mutex, &layer_itr, &layers]() {
-              spdlog::trace( "OCI::Copy::execute (gobha::DelayedCall) Clearing {} from layers", layer_itr->digest );
-              std::lock_guard< std::mutex > lg( layers_mutex );
-              layers.erase( layer_itr );
+//              thread_count--;
             } );
 
             const auto digest_trunc = 10;
@@ -253,7 +242,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         layers_empty = layers.empty();
       }
 
-      while ( thread_count != 0 ) {}
+//      while ( thread_count != 0 ) {}
 
       if ( not dest->hasBlob( image_manifest, target, image_manifest.config.digest ) ) {
         spdlog::debug( "OCI::Copy::execute Getting Config Blob: {}:{}", target, image_manifest.config.digest );

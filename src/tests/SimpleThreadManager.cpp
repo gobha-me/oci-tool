@@ -34,10 +34,10 @@ TEST_CASE( "SimpleThreadManager" ) {
     stm.background( [&stm, &value]() {
       stm.background( [&stm, &value]() {
         stm.background( [&stm, &value]() {
-            stm.background( [&stm, &value]() {
-                std::cout << "Executing Value add" << std::endl;
-                value++;
-            } );
+          stm.background( [&value]() {
+              std::cout << "Executing Value add" << std::endl;
+              value++;
+          } );
         } );
       } );
     } );
