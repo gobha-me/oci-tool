@@ -190,7 +190,6 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
           auto layer_size = layer_itr->size;
 
           _stm->execute( [ image_manifest, target, digest, layer_size, this ]() {
-
             gobha::DelayedCall finalize_thread( [ digest, this ]() {
               {
                 spdlog::trace(
