@@ -29,11 +29,11 @@ public:
 auto main( int argc, char **argv ) -> int {
   using namespace std::string_literals;
   signal( SIGINT, []( int signum ) {
-    indicators::show_console_cursor( true );
+    indicators::show_console_cursor( true ); // FIXME THIS IS NOT WORKING, THREAD SAFE SIGNALS, OR MODERN SIGNALS NEED TO BE RESEARCHED
     std::exit( signum );
   } );
 
-  indicators_cursor_guard icg;
+  indicators_cursor_guard icg{};
 
   args::ArgumentParser           parser( "Multi architecture OCI sync tool" );
   args::HelpFlag                 help( parser, "help", "Display this help message", { 'h', "help" } );

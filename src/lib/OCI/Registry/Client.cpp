@@ -244,6 +244,7 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
         break;
       }
     } else {
+      // FIXME: This kills the application, should we have a return value so failures can be handled gracefully?
       throw std::runtime_error( "OCI::Registry::Client::auth recieved NULL '" + location + "'" );
     }
   }
@@ -794,18 +795,24 @@ auto OCI::Registry::Client::tagList( const std::string &rsrc ) -> OCI::Tags {
 }
 
 auto OCI::Registry::Client::tagList( const std::string &rsrc, std::regex const &re ) -> OCI::Tags {
-  auto retVal = tagList( rsrc );
+  try { // FIXME: Depends on how we handle auth failures
+    auto retVal = tagList( rsrc ); // Auth would be within tagList
 
-  retVal.tags.erase( std::remove_if( retVal.tags.begin(), retVal.tags.end(),
-                                     [ re ]( std::string const &tag ) {
-                                       std::smatch m;
-                                       std::regex_search( tag, m, re );
+    retVal.tags.erase( std::remove_if( retVal.tags.begin(), retVal.tags.end(),
+                                       [ re ]( std::string const &tag ) {
+                                         std::smatch m;
+                                         std::regex_search( tag, m, re );
 
-                                       return m.empty();
-                                     } ),
-                     retVal.tags.end() );
+                                         return m.empty();
+                                       } ),
+                       retVal.tags.end() );
 
-  return retVal;
+    return retVal;
+  } catch ( std::runtime_error &e ) {
+    spdlog::error( e.what() );
+  }
+
+  return {};
 }
 
 auto OCI::Registry::Client::ping() -> bool {
