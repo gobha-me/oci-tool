@@ -784,10 +784,10 @@ auto OCI::Registry::Client::tagList( const std::string &rsrc ) -> OCI::Tags {
     res = cli_->Get( location.c_str(), authHeaders() );
   }
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
+  if ( res and HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     retVal = nlohmann::json::parse( res->body ).get< Tags >();
   } else {
-    spdlog::error( "OCI::Registry::Client::tagList {}", location );
+    spdlog::error( "OCI::Registry::Client::tagList failed to retrieve for {}", location );
   }
 
   return retVal;
