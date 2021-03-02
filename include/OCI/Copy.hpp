@@ -42,14 +42,14 @@ namespace OCI {
     Copy( OCI::Base::Client *source, OCI::Base::Client *destination, STM_ptr stm, PB_ptr progress_bars );
 
   private:
-    STM_ptr _stm{ nullptr };
-    PB_ptr  _progress_bars{ nullptr };
+    STM_ptr stm_{ nullptr };
+    PB_ptr  progress_bars_{ nullptr };
 
-    std::mutex              _wd_mutex;
-    std::condition_variable _finish_download;
-    WD_ptr                  _working_digests{ nullptr };
+    std::mutex              wd_mutex_;
+    std::condition_variable finish_download_;
+    WD_ptr                  working_digests_{ nullptr };
 
-    OCI::Base::Client *_src{ nullptr };
-    OCI::Base::Client *_dest{ nullptr };
+    OCI::Base::Client *src_{ nullptr };
+    OCI::Base::Client *dest_{ nullptr };
   };
 } // namespace OCI

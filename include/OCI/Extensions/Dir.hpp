@@ -66,11 +66,11 @@ namespace OCI::Extensions {
     static auto createSymlink( std::filesystem::path &blob_path, std::filesystem::path &image_path ) -> bool;
 
   private:
-    uint64_t                         _bytes_written;
-    std::filesystem::directory_entry _directory;
-    std::filesystem::directory_entry _tree_root;
-    std::filesystem::directory_entry _blobs_dir;
-    std::filesystem::directory_entry _temp_dir;
-    std::filesystem::path            _temp_file;
+    uint64_t                         bytes_written_;
+    std::filesystem::directory_entry directory_;
+    std::filesystem::directory_entry tree_root_;
+    std::filesystem::directory_entry blobs_dir_;
+    std::filesystem::directory_entry temp_dir_;
+    std::filesystem::path            temp_file_;
   };
 } // namespace OCI::Extensions

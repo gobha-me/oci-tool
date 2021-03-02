@@ -52,10 +52,10 @@ namespace gobha::Util::Thread {
 
   protected:
   private:
-    std::queue< T >           _queue;
-    std::mutex                _guard;
-    std::condition_variable   _cv;
-    bool                      _finished;
+    std::queue< T >           queue_;
+    std::mutex                guard_;
+    std::condition_variable   cv_;
+    bool                      finished_;
   };
 
 
@@ -81,26 +81,26 @@ namespace gobha::Util::Thread {
 // Implementations
 // QUEUE
 template < class T >
-gobha::Util::Thread::Queue< T >::Queue() : _finished( false ) {}
+gobha::Util::Thread::Queue< T >::Queue() : finished_( false ) {}
 
 template < class T >
 gobha::Util::Thread::Queue< T >::~Queue() = default;
 
 template< class T >
 void gobha::Util::Thread::Queue< T >::enqueue( T value ) {
-  std::lock_guard< std::mutex > guard( _guard );
-  _queue.push( value );
-  _cv.notify_one();
+  std::lockguard< std::mutex > guard( guard_ );
+  queue_.push( value );
+  cv_.notify_one();
 }
 
 template< class T >
 std::optional< T > gobha::Util::Thread::Queue< T >::dequeue_nb() {
   std::optional< T > retVal;
 
-  if ( not _queue.empty() ) {
-    std::lock_guard< std::mutex > guard( _guard );
-    retVal = _queue.front();
-    _queue.pop();
+  if ( not queue_.empty() ) {
+    std::lockguard< std::mutex > guard( guard_ );
+    retVal = queue_.front();
+    queue_.pop();
   }
 
   return retVal;
@@ -109,12 +109,12 @@ std::optional< T > gobha::Util::Thread::Queue< T >::dequeue_nb() {
 template< class T >
 std::optional< T > gobha::Util::Thread::Queue< T >::dequeue() {
   std::optional< T > retVal;
-  std::unique_lock< std::mutex > ul( _guard );
-  _cv.wait( ul, [this]{ return ( not _queue.empty() ) or _finished; } );
+  std::unique_lock< std::mutex > ul( guard );
+  cv_.wait( ul, [this]{ return ( not queue_.empty() ) or finished_; } );
 
-  if ( not _queue.empty() ) {
-    retVal = _queue.front();
-    _queue.pop();
+  if ( not queue_.empty() ) {
+    retVal = queue_.front();
+    queue_.pop();
   }
 
   return retVal;
@@ -122,17 +122,17 @@ std::optional< T > gobha::Util::Thread::Queue< T >::dequeue() {
 
 template< class T >
 void gobha::Util::Thread::Queue< T >::finished() {
-  std::lock_guard< std::mutex > guard( _guard );
+  std::lockguard< std::mutex > guard( guard );
 
-  _finished = true;
-  _cv.notify_all();
+  finished_ = true;
+  cv_.notify_all();
 }
 
 template< class T >
 bool gobha::Util::Thread::Queue< T >::isFinished() {
-  std::lock_guard< std::mutex > guard( _guard );
+  std::lockguard< std::mutex > guard( guard );
 
-  return _finished;
+  return finished_;
 }
 
 

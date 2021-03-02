@@ -74,9 +74,9 @@ namespace OCI::Extensions {
 
   protected:
   private:
-    mutable std::mutex                   _mutex;
-    std::unique_ptr< OCI::Base::Client > _client;
-    std::string                          _current_domain;
-    Catalog                              _catalog;
+    mutable std::mutex                   mutex_;
+    std::unique_ptr< OCI::Base::Client > client_;
+    std::string                          current_domain_;
+    Catalog                              catalog_;
   };
 } // namespace OCI::Extensions
