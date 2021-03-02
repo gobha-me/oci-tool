@@ -47,6 +47,9 @@ namespace OCI::Base {
 
     virtual auto tagList( std::string const &rsrc ) -> Tags                       = 0;
     virtual auto tagList( std::string const &rsrc, std::regex const &re ) -> Tags = 0;
+    // FIXME: need one or two more methods for tagList limiting ??
+    // virtual auto tagList( std::string const &rsrc, uint16_t limit ) -> Tags                       = 0;
+    // virtual auto tagList( std::string const &rsrc, std::regex const &re, uint16_t limit ) -> Tags = 0;
 
   protected:
   private:

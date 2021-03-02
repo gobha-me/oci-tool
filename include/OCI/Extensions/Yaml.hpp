@@ -15,13 +15,17 @@ namespace OCI::Extensions {
       using Username = std::string;
       using Password = std::string;
       using RepoName = std::string;
+      using Arch     = std::string;
 
       std::map< Domain, OCI::Catalog >                    catalogs;
       std::map< Domain, std::pair< Username, Password > > credentials;
       std::vector< Domain >                               domains;
-      std::vector< std::string >                          architectures;
-      std::string                                         tag_filter;
+      std::vector< Arch >                                 architectures;
       std::map< Domain, std::map< RepoName, OCI::Tags > > tags;
+      struct {
+        std::string filter;
+        uint16_t    limit; // TODO: to implement this correctly, need to order fetched tag list by version order with latest first
+      } tag_options;
     };
 
     Yaml() = default;

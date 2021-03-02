@@ -136,7 +136,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
   auto src  = _src->copy();
   auto dest = _dest->copy();
 
-  try {
+  try { // FIXME: BLOCK TO BIG?
     auto dest_image_manifest = Manifest< Schema2::ImageManifest >( dest.get(), image_manifest );
 
     std::mutex layers_mutex;

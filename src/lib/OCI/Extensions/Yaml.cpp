@@ -26,7 +26,10 @@ OCI::Extensions::Yaml::Yaml( std::string const &file_path ) : _client( nullptr )
       _catalog.architectures.push_back( ( *source_node ).second[ "architecture" ].As< std::string >() );
     }
 
-    _catalog.tag_filter = ( *source_node ).second[ "filter-tags" ].As< std::string >();
+    if ( ( *source_node ).second[ "tag-options" ].IsMap() ) {
+      _catalog.tag_options.filter = ( *source_node ).second[ "tag-options" ][ "filter" ].As< std::string >();
+      _catalog.tag_options.limit  = ( *source_node ).second[ "tag-options" ][ "limit" ].As< uint16_t >();
+    }
 
     for ( auto image_node = images_node.Begin(); image_node != images_node.End(); image_node++ ) {
       auto repo_name = ( *image_node ).first;
@@ -174,14 +177,15 @@ std::mutex REGEX_MUTEX;
 auto       OCI::Extensions::Yaml::tagList( std::string const &rsrc ) -> OCI::Tags {
   OCI::Tags retVal;
 
+  // FIXME? without seperate method for tag list limiting would need to implement here
   if ( _catalog.tags.find( _current_domain ) != _catalog.tags.end() and
        _catalog.tags.at( _current_domain ).find( rsrc ) != _catalog.tags.at( _current_domain ).end() ) {
     retVal = _catalog.tags.at( _current_domain ).at( rsrc );
-  } else if ( _catalog.tag_filter.empty() ) {
+  } else if ( _catalog.tag_options.filter.empty() ) {
     retVal = _client->tagList( rsrc );
   } else {
     std::lock_guard< std::mutex > lg( REGEX_MUTEX );
-    std::regex                    tag_filter{ _catalog.tag_filter };
+    std::regex                    tag_filter{ _catalog.tag_options.filter };
     retVal = _client->tagList( rsrc, tag_filter );
   }
 
