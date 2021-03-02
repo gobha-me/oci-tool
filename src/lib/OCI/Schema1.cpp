@@ -40,7 +40,14 @@ void OCI::Schema1::from_json( const nlohmann::json &j, OCI::Schema1::SignedImage
 }
 
 void OCI::Schema1::to_json( nlohmann::json &j, OCI::Schema1::ImageManifest const &im ) {
+  // clang-format off
   j = nlohmann::json{
-      { "schemaVersion", im.schemaVersion }, { "architecture", im.architecture }, { "name", im.name },
-      { "fsLayers", im.fsLayers },           { "history", im.history },           { "raw_str", im.raw_str } };
+      { "schemaVersion", im.schemaVersion },
+      { "architecture", im.architecture },
+      { "name", im.name },
+      { "fsLayers", im.fsLayers },
+      { "history", im.history },
+      { "raw_str", im.raw_str }
+  };
+  // clang-format on
 }

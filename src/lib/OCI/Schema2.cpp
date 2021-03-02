@@ -148,13 +148,21 @@ void OCI::Schema2::from_json( const nlohmann::json &j, ImageManifest::Layer &iml
 }
 
 void OCI::Schema2::to_json( nlohmann::json &j, const ImageManifest &im ) {
+  // clang-format off
   j = nlohmann::json{
       { "schemaVersion", im.schemaVersion },
       { "mediaType", im.mediaType },
       { "config",
-        { { "mediaType", im.config.mediaType }, { "size", im.config.size }, { "digest", im.config.digest } } },
+        {
+          { "mediaType", im.config.mediaType },
+          { "size", im.config.size },
+          { "digest", im.config.digest }
+        }
+      },
       { "layers", im.layers },
-      { "raw_str", im.raw_str } };
+      { "raw_str", im.raw_str }
+  };
+  // clang-format on
 }
 
 void OCI::Schema2::to_json( nlohmann::json &j, const ImageManifest::Layer &iml ) {
