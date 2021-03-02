@@ -29,7 +29,8 @@ public:
 auto main( int argc, char **argv ) -> int {
   using namespace std::string_literals;
   signal( SIGINT, []( int signum ) {
-    indicators::show_console_cursor( true ); // FIXME THIS IS NOT WORKING, THREAD SAFE SIGNALS, OR MODERN SIGNALS NEED TO BE RESEARCHED
+    indicators::show_console_cursor(
+        true ); // FIXME THIS IS NOT WORKING, THREAD SAFE SIGNALS, OR MODERN SIGNALS NEED TO BE RESEARCHED
     std::exit( signum );
   } );
 

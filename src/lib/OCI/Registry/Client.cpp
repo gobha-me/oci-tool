@@ -795,7 +795,7 @@ auto OCI::Registry::Client::tagList( const std::string &rsrc ) -> OCI::Tags {
 }
 
 auto OCI::Registry::Client::tagList( const std::string &rsrc, std::regex const &re ) -> OCI::Tags {
-  try { // FIXME: Depends on how we handle auth failures
+  try {                            // FIXME: Depends on how we handle auth failures
     auto retVal = tagList( rsrc ); // Auth would be within tagList
 
     retVal.tags.erase( std::remove_if( retVal.tags.begin(), retVal.tags.end(),
