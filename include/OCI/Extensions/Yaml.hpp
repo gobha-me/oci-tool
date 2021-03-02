@@ -24,7 +24,8 @@ namespace OCI::Extensions {
       std::map< Domain, std::map< RepoName, OCI::Tags > > tags;
       struct {
         std::string filter;
-        uint16_t    limit; // TODO: to implement this correctly, need to order fetched tag list by version order with latest first
+        uint16_t    limit; // TODO: to implement this correctly, need to order fetched tag list by version order with
+                           // latest first
       } tag_options;
     };
 
