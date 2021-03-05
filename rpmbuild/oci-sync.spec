@@ -15,10 +15,10 @@ OCI Sync is a tool to synchronize OpenShift Container Images from public reposit
 repositories on stand-alone or airgapped networks.  It supports synchronization of multiple processor architectures. The
 tool also supports v1 and v2 OCI manifests.
 
-%pre
+%prep
 cd /home/gitlabRunner/rpmbuild/BUILD
 rm -rf oci-sync
-gzip -dc /home/gitlabRunner/rpmbuild/SOURCES/oci-sync-1.0.tgz | tar -xvvf -
+gzip -dc /home/gitlabRunner/rpmbuild/SOURCES/oci-sync-1.0.0.tar.gz | tar -xvvf -
 if [ $? -ne 0 ]; then
   exit $?
 fi
