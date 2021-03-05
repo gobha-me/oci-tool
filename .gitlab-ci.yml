@@ -4,9 +4,10 @@
 # Define the stages in this pipeline and then execute them in order.
 stages:
    - format
-   - test
+   - tidy
    - manual_pull
    - build
+   - functional_test
    - deploy
 
 #Format C++ code and push it back to the repo
@@ -33,8 +34,8 @@ format-job:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
 
 # Execute tests written in the C++ codebase
-test-job:
-   stage: test
+tidy-job:
+   stage: tidy
    tags:
       - development
       - ubuntu
@@ -81,6 +82,24 @@ build-job:
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/"
+
+# Execute functional testing.
+functional_test-job:
+   stage: functional_test
+   tags:
+      - rhel
+      - development
+   scripts:
+      - echo "Functional Test of OCI-Sync tool against select readhat.io repos"
+        # Create temporary directory to output test files in
+      - mkdir /tmp/oci-test
+      - /home/gitlabRunner/build_files/build/bin/oci-sync  -vvvvl /tmp/oci-test/test.log yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/
+        # Clean up test output directory - save space
+      - cat /tmp/oci-test/test.log
+      - rm -rf /tmp/oci-test
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
 
 # Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
