@@ -156,15 +156,11 @@ package-job:
       - development
    script:
       - echo "Beginning the package stage for $CI_PROJECT_NAME"
+      - cd ~
       - rpmdev-setuptree
-      - mkdir -p /tmp/oci-sync-1.0.0/
-      - cd /tmp/oci-sync-1.0.0/
-      - cp /home/gitlabRunner/gitPull/oci-tool/LICENSE /tmp/oci-sync-1.0.0/
-      - cp /home/gitlabRunner/build_files/build/bin/oci-sync /tmp/oci-sync-1.0.0/
-      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man /tmp/oci-sync-1.0.0/
-      - cd /tmp/
-      - tar -cvzf oci-sync-1.0.0.tar.gz oci-sync-1.0.0
-      - mv /tmp/oci-sync-1.0.0.tar.gz ~/rpmbuild/SOURCES/
+      - cp /home/gitlabRunner/gitPull/oci-tool/LICENSE ~/SOURCES/
+      - cp /home/gitlabRunner/build_files/build/bin/oci-sync ~/SOURCES/
+      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man ~/SOURCES/
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.spec ~/rpmbuild/SPECS/
       - cd ~/rpmbuild/SPECS/
       - rpmbuild -bs oci-sync.spec
