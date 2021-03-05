@@ -16,16 +16,25 @@ repositories on stand-alone or airgapped networks.  It supports synchronization 
 tool also supports v1 and v2 OCI manifests.
 
 %prep
-zcat $SOURCES/oci-sync-1.0.0.tar.gz | tar -xvf -
+cd /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD
+rm -rf oci-sync
+gzip -dc /home/gitlabRunner/gitPull/oci-tool/rpmbuild/SOURCES/oci-sync-1.0.tgz | tar -xvvf -
+if [ $? -ne 0 ]; then
+  exit $?
+fi
+cd oci-sync-1.0
+cd /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD/oci-sync-1.0
+chown -R root.root .
+chmod -R a+rX,g-w,o-w .
 
 %build
 %configure
 make %{?_smp_mflags}
 
 %install
-install -m0755 %{name} /usr/bin/%{name}
-install -m444 %{name}.man /usr/share/man/man1/%{name}.man
-install -m444 LICENSE /tmp/LICENSE
+install -m 755 %{name} /usr/bin/%{name}
+install -m 444 %{name}.man /usr/share/man/man1/%{name}.man
+install -m 444 LICENSE /tmp/LICENSE
 
 %files
 %license LICENSE
