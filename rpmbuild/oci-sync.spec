@@ -7,7 +7,6 @@ License: BSD-3-Clause
 URL: https://github.com/gobha-me/oci-tool/blob/master/README.md
 Source0: https://github.com/gobha-me/oci-tool
 
-BuildRequires:
 Requires: bash
 BuildArch: noarch
 
