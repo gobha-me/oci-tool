@@ -27,14 +27,10 @@ cd /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD/oci-sync-1.0
 chown -R root.root .
 chmod -R a+rX,g-w,o-w .
 
-%build
-%configure
-make %{?_smp_mflags}
-
 %install
-install -m 755 /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD/oci-sync-1.0/%{name} /usr/bin/%{name}
-install -m 444 /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD/oci-sync-1.0/%{name}.man /usr/share/man/man1/%{name}.man
-install -m 444 /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD/oci-sync-1.0/LICENSE /tmp/LICENSE
+install -m 755 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0/%{name} /usr/bin/%{name}
+install -m 444 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0/%{name}.man /usr/share/man/man1/%{name}.man
+install -m 444 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0/LICENSE /tmp/LICENSE
 
 %files
 %license LICENSE
