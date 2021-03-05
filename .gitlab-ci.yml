@@ -117,6 +117,7 @@ valgrind_test-job:
       - mkdir -p /tmp/oci-test/regstery.redhat.io
       # perform valgrind test against test directory we used once already
       - valgrind --log-file=/tmp/oci-test/valgrind.log /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
+      # make sure we look at the valgrind log before removing it.
       - cat /tmp/oci-test/valgrind.log
       # clear out the directory so we get a true run of the getBlob routines, etc. and then run helgrind
       - rm -rf /tmp/oci-test
@@ -124,6 +125,7 @@ valgrind_test-job:
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/regstery.redhat.io
       - valgrind --tool=helgrind --log-file=/tmp/oci-test/helgrind.log /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
+      # make sure we look at the helgrind log before removing it.
       - cat /tmp/oci-test/helgrind.log
       - rm -rf /tmp/oci-test
    rules:
