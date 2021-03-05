@@ -83,7 +83,7 @@ build-job:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/"
 
-# Execute functional testing.
+# Execute functional testing. Current setup takes as much as 5.7GB on /tmp to execute.
 functional_test-job:
    stage: functional_test
    tags:
