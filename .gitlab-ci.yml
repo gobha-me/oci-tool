@@ -169,7 +169,7 @@ package-job:
       - rpmbuild -bs _oci-sync.spec_
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopackage/
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopackage/"
 
 # Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
