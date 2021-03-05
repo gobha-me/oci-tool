@@ -10,6 +10,7 @@ $ scl enable devtoolset-9 bash
 prior to running a build.  The Tool Set is also required for a runtime environment for the version of libstdc++.
 
 ### BUILD
+[![pipeline status](https://gitlab.evoforge.org/mpo/oci-tool/badges/test/pipeline.svg)](https://gitlab.evoforge.org/mpo/oci-tool/-/commits/test)
 Release build
 ```
 $ mkdir BUILD
