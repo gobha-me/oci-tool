@@ -6,4 +6,3 @@ registry.redhat.io:
   filter-tags: ^(latest|v?(\d+\.?){2,3}(-\d+)?(-p\d)?)$
   images:
     openshift4/apb-base:
-    ubi7/ubi:
