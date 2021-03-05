@@ -167,7 +167,7 @@ package-job:
       - mv /tmp/oci-sync-1.0.0.tar.gz ~/rpmbuild/SOURCES/
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.spec ~/rpmbuild/SPECS/
       - cd ~/rpmbuild/SPECS/
-      - rpmbuild -bs _oci-sync.spec_
+      - rpmbuild -bs oci-sync.spec
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopackage/"
