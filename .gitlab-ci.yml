@@ -1,14 +1,15 @@
 # Originally created 2/10/2021 for the oci-tool project
 # Stage execution logic depends on commit message contents. Please do not use commit messages with " autoformatted " in them.
-# You can combine multiple trigger comments. Valid trigger comments: noformat nopull nobuild nodeploy fulltest
+# You can combine multiple trigger comments. Valid trigger comments: noformat nopull nobuild nodeploy valtest heltest
 # Define the stages in this pipeline and then execute them in order.
 stages:
    - format
    - tidy
-   - manual_pull
+   - git_pull
    - build
    - functional_test
    - valgrind_test
+   - helgrind_test
    - deploy
 
 #Format C++ code and push it back to the repo
@@ -18,6 +19,7 @@ format-job:
       - development
       - ubuntu
    script:
+      - echo "Starting the format stage for $CI_PROJECT_NAME"
       - git config --global user.email "svc-gitlabRunner@evoforge.org"
       - git config --global user.name "gitlab-runner"
       #Format hpp files in ./include/OCI and add them to git
@@ -41,17 +43,16 @@ tidy-job:
       - development
       - ubuntu
    script:
-      - echo "Starting the test stage"
+      - echo "Starting the tidy stage for $CI_PROJECT_NAME"
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
-      - echo "Completed the test stage"
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
 
 # Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
 # ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
-manual_pull-job:
-   stage: manual_pull
+git_pull-job:
+   stage: gitl_pull
    tags:
       - rhel
       - development
@@ -91,46 +92,61 @@ functional_test-job:
       - rhel
       - development
    script:
-      - echo "Functional Test of OCI-Sync tool against select readhat.io repos"
-        # Create temporary directory to output test files in
+      - echo "Begining functional test stage for $CI_PROJECT_NAME"
+      # Create temporary directory to output test files in
       - mkdir -p /tmp/oci-test/blobs
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/registry.redhat.io
       - /home/gitlabRunner/build_files/build/bin/oci-sync  -vl /tmp/oci-test/test.log yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
-        # Clean up test output directory - save space
+      # Clean up test output directory - save space
       - cat /tmp/oci-test/test.log
+      # Clear out the tmp dir
       - rm -rf /tmp/oci-test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
 
-#Test memory and threads
+# Test using valgrind, this takes AT LEAST two hours. So specify you want to run with "valtest" cm.
 valgrind_test-job:
    stage: valgrind_test
    tags:
       - rhel
       - development
    script:
-      - echo "Beginning valgrind tests of OCI-Sync tool"
+      - echo "Beginning valgrind stage for for $CI_PROJECT_NAME"
       - mkdir -p /tmp/oci-test/blobs
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/regstery.redhat.io
-      # perform valgrind test against test directory we used once already
+      # Perform valgrind test
       - valgrind --log-file=/tmp/oci-test/valgrind.log /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
-      # make sure we look at the valgrind log before removing it.
+      # Make sure we look at the valgrind log before removing it.
       - cat /tmp/oci-test/valgrind.log
-      # clear out the directory so we get a true run of the getBlob routines, etc. and then run helgrind
-      - rm -rf /tmp/oci-test
-      - mkdir -p /tmp/oci-test/blobs
-      - mkdir -p /tmp/oci-test/temp
-      - mkdir -p /tmp/oci-test/regstery.redhat.io
-      - valgrind --tool=helgrind --log-file=/tmp/oci-test/helgrind.log /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
-      # make sure we look at the helgrind log before removing it.
-      - cat /tmp/oci-test/helgrind.log
+      # Clear out the tmp dir
       - rm -rf /tmp/oci-test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /fulltest/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /valtest/"
+
+# Test memory and threads using helgrind this takes AT LEAST two hours. So specify you want to run with "heltest" cm.
+helgrind_test-job:
+   stage: helgrind_test
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning gelgrind stage for for $CI_PROJECT_NAME"
+      - mkdir -p /tmp/oci-test/blobs
+      - mkdir -p /tmp/oci-test/temp
+      - mkdir -p /tmp/oci-test/regstery.redhat.io
+      # Perform helgrind test
+      - valgrind  --tool=helgrind --log-file=/tmp/oci-test/helgrind.log /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
+      # Make sure we look at the helgrind log before removing it.
+      - cat /tmp/oci-test/helgrind.log
+      # Clear out the tmp dir
+      - rm -rf /tmp/oci-test
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /heltest/"
 
 # Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
