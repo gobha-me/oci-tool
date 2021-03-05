@@ -16,7 +16,7 @@ repositories on stand-alone or airgapped networks.  It supports synchronization 
 tool also supports v1 and v2 OCI manifests.
 
 %prep
-%setup -q
+zcat $SOURCES/oci-sync-1.0.0.tar.gz | tar -xvf -
 
 %build
 %configure
