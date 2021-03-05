@@ -1,6 +1,6 @@
 # Originally created 2/10/2021 for the oci-tool project
 # Stage execution logic depends on commit message contents. Please do not use commit messages with " autoformatted " in them.
-# You can combine multiple trigger comments. Valid trigger comments: noformat nopull nobuild nodeploy valtest heltest
+# You can combine multiple trigger comments. Valid trigger comments: noformat nopull nobuild nodeploy valtest heltest nopackage
 # Define the stages in this pipeline and then execute them in order.
 stages:
    - format
@@ -10,6 +10,7 @@ stages:
    - functional_test
    - valgrind_test
    - helgrind_test
+   - package
    - deploy
 
 #Format C++ code and push it back to the repo
@@ -147,6 +148,28 @@ helgrind_test-job:
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /heltest/"
+
+package-job:
+   stage: package
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning the package stage for $CI_PROJECT_NAME"
+      - rpmdev-setuptree
+      - mkdir -p /tmp/oci-sync-1.0.0/
+      - cd /tmp/oci-sync-1.0.0/
+      - cp /home/gitlabRunner/gitPull/oci-tool/LICENSE /tmp/oci-sync-1.0.0/
+      - cp /home/gitlabRunner/build_files/build/bin/oci-sync /tmp/oci-sync-1.0.0/
+      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man /tmp/oci-sync-1.0.0/
+      - cd /tmp/
+      - tar -cvzf oci-sync-1.0.0.tar.gz oci-sync-1.0.0
+      - mv /tmp/oci-sync-1.0.0.tar.gz ~/rpmbuild/SOURCES/
+      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.spec ~/rpmbuild/SPECS/
+      - rpmbuild -bs _oci-sync.spec_
+   rules:
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopackage/
 
 # Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
