@@ -123,6 +123,7 @@ valgrind_test-job:
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/regstery.redhat.io
       - valgrind --tool=helgrind /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/
+      - rm -rf /tmp/oci-test
 
 # Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
