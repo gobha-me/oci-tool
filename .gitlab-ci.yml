@@ -52,7 +52,7 @@ tidy-job:
 # Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
 # ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
 git_pull-job:
-   stage: gitl_pull
+   stage: git_pull
    tags:
       - rhel
       - development
