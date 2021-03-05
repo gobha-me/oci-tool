@@ -22,15 +22,15 @@ gzip -dc /home/gitlabRunner/rpmbuild/SOURCES/oci-sync-1.0.0.tar.gz | tar -xvvf -
 if [ $? -ne 0 ]; then
   exit $?
 fi
-cd oci-sync-1.0
-cd /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD/oci-sync-1.0
+cd oci-sync-1.0.0
+cd /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD/oci-sync-1.0.0
 chown -R root.root .
 chmod -R a+rX,g-w,o-w .
 
 %install
-install -m 755 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0/%{name} /usr/bin/%{name}
-install -m 444 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0/%{name}.man /usr/share/man/man1/%{name}.man
-install -m 444 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0/LICENSE /tmp/LICENSE
+install -m 755 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0.0/%{name} /usr/bin/%{name}
+install -m 444 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0.0/%{name}.man /usr/share/man/man1/%{name}.man
+install -m 444 /home/gitlabRunner/rpmbuild/BUILD/oci-sync-1.0.0/LICENSE /tmp/LICENSE
 
 %files
 %license LICENSE
