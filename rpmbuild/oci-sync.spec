@@ -16,9 +16,9 @@ repositories on stand-alone or airgapped networks.  It supports synchronization 
 tool also supports v1 and v2 OCI manifests.
 
 %prep
-cd /home/gitlabRunner/gitPull/oci-tool/rpmbuild/BUILD
+cd /home/gitlabRunner/rpmbuild/BUILD
 rm -rf oci-sync
-gzip -dc /home/gitlabRunner/gitPull/oci-tool/rpmbuild/SOURCES/oci-sync-1.0.tgz | tar -xvvf -
+gzip -dc /home/gitlabRunner/rpmbuild/SOURCES/oci-sync-1.0.tgz | tar -xvvf -
 if [ $? -ne 0 ]; then
   exit $?
 fi
