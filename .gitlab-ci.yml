@@ -93,7 +93,7 @@ functional_test-job:
       - echo "Functional Test of OCI-Sync tool against select readhat.io repos"
         # Create temporary directory to output test files in
       - mkdir /tmp/oci-test
-      - /home/gitlabRunner/build_files/build/bin/oci-sync  -vvvvl /tmp/oci-test/test.log yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/
+      - /home/gitlabRunner/build_files/build/bin/oci-sync  -vvvvl /tmp/oci-test/test.log yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/
         # Clean up test output directory - save space
       - cat /tmp/oci-test/test.log
       - rm -rf /tmp/oci-test
