@@ -33,7 +33,7 @@ cp -r /home/gitlabRunner/rpmbuild/SOURCES/LICENSE %{buildroot}%{_docdir}/oci-syn
 %{_bindir}/%{name}
 
 %doc
-/usr/share/man/man1/oci-sync.man.gz
+/usr/share/man/man1/oci-sync.1.gz
 /usr/share/doc/oci-sync/LICENSE
 
 %changelog
