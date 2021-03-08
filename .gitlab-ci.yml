@@ -156,6 +156,9 @@ package-job:
       - development
    script:
       - echo "Beginning the package stage for $CI_PROJECT_NAME"
+      # Clean up from any previous builds
+      - rm -rf ~/oci-sync-1.0
+      - rm -rf ~/rpmbuild
       # Collect files for the rpmbuild
       - cd ~
       - mkdir -p /home/gitlabRunner/oci-sync-1.0
