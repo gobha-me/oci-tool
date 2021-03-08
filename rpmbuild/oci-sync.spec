@@ -22,7 +22,7 @@ tool also supports v1 and v2 OCI manifests.
 %install
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/oci-sync/
-cp /home/gitlabRunner/rpmbuild/SOURCES/* %{buildroot}/oci-sync
+cp -r /home/gitlabRunner/rpmbuild/SOURCES/* %{buildroot}/oci-sync
 
 %files
 %license LICENSE
