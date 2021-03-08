@@ -16,7 +16,7 @@ repositories on stand-alone or airgapped networks.  It supports synchronization 
 tool also supports v1 and v2 OCI manifests.
 
 %prep
-%setup -q
+%setup
 
 
 %install
