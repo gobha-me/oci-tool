@@ -28,7 +28,7 @@ cp -r /home/gitlabRunner/rpmbuild/SOURCES/oci-sync.man %{buildroot}%{_mandir}/ma
 cp -r /home/gitlabRunner/rpmbuild/SOURCES/LICENSE %{buildroot}/
 
 %files
-%license /tmp/LICENSE
+%license
 %{_bindir}/%{name}
 
 %doc
