@@ -32,7 +32,7 @@ cp -r /home/gitlabRunner/rpmbuild/SOURCES/LICENSE %{buildroot}/
 %{_bindir}/%{name}
 
 %doc
-/usr/share/man/man1/oci-sync.man
+/usr/share/man/man1/oci-sync.man.gz
 %changelog
 * Fri Mar 05 2021 Jeff Smith <jefsmith@redhat.com> Initial Release
 -
