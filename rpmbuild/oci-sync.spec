@@ -8,7 +8,7 @@ URL: https://github.com/gobha-me/oci-tool
 Source0: oci-sync
 
 Requires: bash
-BuildArch: noarch
+BuildArch: x86_64
 
 %description
 OCI Sync is a tool to synchronize OpenShift Container Images from public repositories to self-hosted
