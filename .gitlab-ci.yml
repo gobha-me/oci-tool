@@ -178,6 +178,7 @@ package-job:
       # rpmbuild
       - cd ~/rpmbuild/SPECS/
       - rpmbuild -ba oci-sync.spec
+      - rm -rf /home/gitlabRunner/oci-sync-1.0
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopackage/"
