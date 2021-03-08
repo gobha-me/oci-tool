@@ -17,9 +17,9 @@ tool also supports v1 and v2 OCI manifests.
 
 
 %install
-install -m 755 /home/gitlabRunner/rpmbuild/SOURCES/%{name} /usr/bin/%{name}
-install -m 444 /home/gitlabRunner/rpmbuild/SOURCES/%{name}.man /usr/share/man/man1/%{name}.man
-install -m 444 /home/gitlabRunner/rpmbuild/SOURCES/LICENSE /tmp/LICENSE
+sudo install -m 755 /home/gitlabRunner/rpmbuild/SOURCES/%{name} /usr/bin/%{name}
+sudo install -m 444 /home/gitlabRunner/rpmbuild/SOURCES/%{name}.man /usr/share/man/man1/%{name}.man
+sudo install -m 444 /home/gitlabRunner/rpmbuild/SOURCES/LICENSE /tmp/LICENSE
 
 %files
 %license LICENSE
