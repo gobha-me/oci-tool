@@ -163,6 +163,8 @@ package-job:
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man ~/oci-sync-1.0/
       - cd ~/oci-sync-1.0
       - tar -czf ~/oci-sync-1.0.tar.gz ./oci-sync-1.0
+      - cd /home/gitlabRunner/rpmbuild/SOURCES
+      - gunzip -c oci-sync-1.0.tar.gz | tar xvf -
       - rpmdev-setuptree
       - mv ~/oci-sync-1.0.tar.gz ~/rpmbuild/SOURCES/
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.spec ~/rpmbuild/SPECS/
