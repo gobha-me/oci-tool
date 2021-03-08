@@ -17,10 +17,8 @@ tool also supports v1 and v2 OCI manifests.
 
 
 %install
-mkdir -p /opt/oci-sync/bin
-install -m 755 /home/gitlabRunner/rpmbuild/SOURCES/%{name} /opt/oci-sync/bin%{name}
-install -m 444 /home/gitlabRunner/rpmbuild/SOURCES/%{name}.man /usr/share/man/man1/%{name}.man
-install -m 444 /home/gitlabRunner/rpmbuild/SOURCES/LICENSE /opt/oci-sync/LICENSE
+mkdir -p mkdir -p %{buildroot}/oci-sync/
+cp /home/gitlabRunner/rpmbuild/SOURCES/* %buildroot/oci-sync
 
 %files
 %license LICENSE
