@@ -15,6 +15,9 @@ OCI Sync is a tool to synchronize OpenShift Container Images from public reposit
 repositories on stand-alone or airgapped networks.  It supports synchronization of multiple processor architectures. The
 tool also supports v1 and v2 OCI manifests.
 
+%prep
+%setup -q
+
 
 %install
 mkdir -p mkdir -p %{buildroot}/oci-sync/
