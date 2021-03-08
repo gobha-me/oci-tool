@@ -18,9 +18,10 @@ tool also supports v1 and v2 OCI manifests.
 %prep
 %setup
 
+%clean
+rm -rf %{buildroot}
 
 %install
-rm -rf %{buildroot}
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_mandir}/man1
 mkdir -p %{buildroot}%{_docdir}
@@ -30,8 +31,11 @@ cp -r /home/gitlabRunner/rpmbuild/SOURCES/LICENSE %{buildroot}%{_docdir}/LICENSE
 
 %files
 %{_bindir}/%{name}
-%doc /usr/share/man/man1/oci-sync.man.gz
-%doc LICENSE
+
+%doc
+/usr/share/man/man1/oci-sync.man.gz
+LICENSE
+
 %changelog
 * Fri Mar 05 2021 Jeff Smith <jefsmith@redhat.com> Initial Release
 -
