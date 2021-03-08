@@ -165,9 +165,6 @@ package-job:
       - tar -czf oci-sync-1.0 ./oci-sync-1.0
       - rpmdev-setuptree
       - mv ~/oci-sync-1.0 ~/rpmbuild/SOURCES/
-#      - cp /home/gitlabRunner/gitPull/oci-tool/LICENSE ~/rpmbuild/SOURCES/
-#      - cp /home/gitlabRunner/build_files/build/bin/oci-sync ~/rpmbuild/SOURCES/
-#      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man ~/rpmbuild/SOURCES/
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.spec ~/rpmbuild/SPECS/
       - cd ~/rpmbuild/SPECS/
       - rpmbuild -ba oci-sync.spec
