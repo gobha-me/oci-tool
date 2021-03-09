@@ -36,6 +36,13 @@ format-job:
       - git push test HEAD:test
    rules:
       - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
+   only:
+      changes:
+         - include/OCI/*.hpp
+         - src/bin/*.cpp
+         - src/lib/*.cpp
+         - src/lib/Extensions/*.cpp
+         - src/lib/Registry/*.cpp
 
 # Execute tests written in the C++ codebase
 tidy-job:
