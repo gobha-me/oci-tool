@@ -34,9 +34,9 @@ format-job:
       - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "
       - git remote add test https://redhat-imports.svc:$REDHAT_IMPORTS_SVC_KEY@gitlab.evoforge.org/mpo/oci-tool.git
       - git push test HEAD:test
-   rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /noformat/ && $CI_COMMIT_MESSAGE !~ /autoformatted/"
    only:
+      refs:
+         - branches
       changes:
          - include/OCI/*.hpp
          - src/bin/*.cpp
