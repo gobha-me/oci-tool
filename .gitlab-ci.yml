@@ -69,6 +69,7 @@ git_pull-job:
       # TODO: Remove this hack and fix the file when DevX fixes the Gitlab servers
       - printf "Host gitlab.evoforge.org\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  LogLevel QUIET" >> ~/.ssh/config
       - chmod 600 ~/.ssh/config
+      # /endhack
       - mkdir -p ~/gitPull/oci-tool
       - cd ~/gitPull/oci-tool
       - git checkout test
