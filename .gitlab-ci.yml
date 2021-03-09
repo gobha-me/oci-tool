@@ -66,6 +66,9 @@ git_pull-job:
       - development
    script:
       - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
+      # TODO: Remove this hack and fix the file when DevX fixes the Gitlab servers
+      - printf "Host gitlab.evoforge.org\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  LogLevel QUIET" >> ~/.ssh/config
+         chmod 600 ~/.ssh/config
       - mkdir -p ~/gitPull/oci-tool
       - cd ~/gitPull/oci-tool
       - git checkout test
