@@ -13,8 +13,8 @@ OCI::Extensions::Yaml::Yaml( std::string const &file_path ) : client_( nullptr )
     auto images_node = ( *source_node ).second[ "images" ];
 
     catalog_.domains.push_back( domain );
-    catalog_.credentials[ domain ] = std::make_pair( ( *source_node ).second[ "username" ].As< std::string >(),
-                                                     ( *source_node ).second[ "password" ].As< std::string >() );
+    catalog_.credentials[ domain ] = std::make_pair( ( *source_node ).second[ "credentials" ][ "username" ].As< std::string >(),
+                                                     ( *source_node ).second[ "credentials" ][ "password" ].As< std::string >() );
 
     if ( ( *source_node ).second[ "architecture" ].IsSequence() ) {
       auto archs_node = ( *source_node ).second[ "architecture" ];

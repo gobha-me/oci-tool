@@ -1,8 +1,10 @@
 # This is a hand-created yaml file for the functional testing of the OCI-sync tool. If the repos change this file
 # will probably need to be modified. If the registry.redhat.io user or password changes - modified.
 registry.redhat.io:
-  username: 11009103|registry-clone
-  password: eyJhbGciOiJSUzUxMiJ9.eyJzdWIiOiJiZDczODIwZDllY2M0MTI5OGU1NzhiODYwMDc4N2Y5MSJ9.DpblIgyJZ-B3JmzUTh3bCB33Xeq6KHWAuUtbY1Y_TIwQR39R2SUFWHpxyvSsbLllQbCAJQjrhJ919cjA--IaKv_ZsGBTqbkLW27D9VIzEpTE2IZdGY9g-vDxAVFM-ORFvM7ooCRIqQyNoqGUHjItuUgHlnlm0nrYYJg7QB5AqNCcgG4sGzK559XsfTuvcWhJqokdgCxWPtfM-ZiVzccYuqjNXQ0_TIGJIF57V51nfvHY2rPbS7nYCVHjxO-XY-voxHzGXT9UdjR1mBuVqKeAbvB3LCHazxMdf7mVEVJfX7Wv2ivQLCLmXAfmrooSPXgpQLayLoHQRkOVteNHBjfCMEYgjl8gNomtYqa8qRNYplTAI0_cT_vVrTZ___9xBk3s_rU33CzdvvEHdIgT3FA5DpMWoJrDX4LEMiqJFZxFU4zDoUF0EqINGDYNlGBvp1Wuls-UvXer2uDTQ5_71thZ2bB1NPEVcN0LymWoeBix62_0dX2bqu0b9h1hxBrmGiXGre4NUXS6I5L8y94zjVRtSmax3MfwQGz_pyMPrKfI-fpUvQ403QHDNYUjjsatmTFeEFKMpzRivKVBsDVoip9A0PSCJpxisdqQQr2IzJtcQZ8JjzrJUy8S8iIs4orjTEa_3CerMN1rtxvqanT4kallqT66BG9wLneJ9-AQLOl9Ji0
-  filter-tags: ^(latest|v?(\d+\.?){2,3}(-\d+)?(-p\d)?)$
+  credentials:
+    username: 11009103|registry-clone
+    password: eyJhbGciOiJSUzUxMiJ9.eyJzdWIiOiJiZDczODIwZDllY2M0MTI5OGU1NzhiODYwMDc4N2Y5MSJ9.DpblIgyJZ-B3JmzUTh3bCB33Xeq6KHWAuUtbY1Y_TIwQR39R2SUFWHpxyvSsbLllQbCAJQjrhJ919cjA--IaKv_ZsGBTqbkLW27D9VIzEpTE2IZdGY9g-vDxAVFM-ORFvM7ooCRIqQyNoqGUHjItuUgHlnlm0nrYYJg7QB5AqNCcgG4sGzK559XsfTuvcWhJqokdgCxWPtfM-ZiVzccYuqjNXQ0_TIGJIF57V51nfvHY2rPbS7nYCVHjxO-XY-voxHzGXT9UdjR1mBuVqKeAbvB3LCHazxMdf7mVEVJfX7Wv2ivQLCLmXAfmrooSPXgpQLayLoHQRkOVteNHBjfCMEYgjl8gNomtYqa8qRNYplTAI0_cT_vVrTZ___9xBk3s_rU33CzdvvEHdIgT3FA5DpMWoJrDX4LEMiqJFZxFU4zDoUF0EqINGDYNlGBvp1Wuls-UvXer2uDTQ5_71thZ2bB1NPEVcN0LymWoeBix62_0dX2bqu0b9h1hxBrmGiXGre4NUXS6I5L8y94zjVRtSmax3MfwQGz_pyMPrKfI-fpUvQ403QHDNYUjjsatmTFeEFKMpzRivKVBsDVoip9A0PSCJpxisdqQQr2IzJtcQZ8JjzrJUy8S8iIs4orjTEa_3CerMN1rtxvqanT4kallqT66BG9wLneJ9-AQLOl9Ji0
+  tag-options:
+    filtertags: ^(latest|v?(\d+\.?){2,3}(-\d+)?(-p\d)?)$
   images:
     ubi7/ubi:

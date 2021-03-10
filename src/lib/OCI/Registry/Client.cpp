@@ -565,16 +565,20 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest &im, Schema1::ImageManifest const &request ) {
-  im.raw_str     = fetchManifest( im.mediaType, request.name, request.requestedTarget );
-  auto json_body = nlohmann::json::parse( im.raw_str );
+  try {
+    im.raw_str     = fetchManifest( im.mediaType, request.name, request.requestedTarget );
+    auto json_body = nlohmann::json::parse( im.raw_str );
 
-  json_body.get_to( im );
+    json_body.get_to( im );
 
-  if ( im.name.empty() ) {
-    im.name = request.name;
+    if ( im.name.empty() ) {
+      im.name = request.name;
+    }
+
+    im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
+  } catch ( nlohmann::detail::parse_error &e ) {
+    spdlog::error( "OCI::Registry::Client::fetchManifest Schema1 {}:{} '{}'", request.name, request.requestedTarget, e.what() );
   }
-
-  im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest &      sim,
