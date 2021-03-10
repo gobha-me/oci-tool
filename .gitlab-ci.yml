@@ -189,7 +189,7 @@ package_devel-job:
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync-devel.spec ~/rpmbuild/SPECS/
       # rpmbuild
       - cd ~/rpmbuild/SPECS/
-      - rpmbuild -ba oci-sync.spec
+      - rpmbuild -ba oci-sync-devel.spec
       - rm -rf /home/gitlabRunner/oci-sync-1.0
    rules:
       - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
