@@ -68,7 +68,7 @@ git_pull-job:
       - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
       - mkdir -p ~/gitPull/oci-tool
       - cd ~/gitPull/
-      - if [ "$(ls -A ~/gitPull/oci-tool)" ]; then echo "git dir exists, continuing"; else git clone git@gitlab.evoforge.org:mpo/oci-tool.git"; fi
+      - if [ "$(ls -A ~/gitPull/oci-tool)" ]; then echo "git dir exists, continuing"; else git clone git@gitlab.evoforge.org:mpo/oci-tool.git; fi
       - cd ~/gitPull/oci-tool
       - git checkout test
       - git pull
