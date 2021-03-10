@@ -60,6 +60,7 @@ tidy-job:
 
 # Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
 # ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
+# We don't want to clone, because we'd lose build objects and every build job would take 5 min.
 git_pull-job:
    stage: git_pull
    tags:
@@ -69,6 +70,7 @@ git_pull-job:
       - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
       - mkdir -p ~/gitPull/oci-tool
       - cd ~/gitPull/
+      # Clone directory if it doesn't exist, otherwise, continue on with a pull.
       - if [ "$(ls -A ~/gitPull/oci-tool)" ]; then echo "git dir exists, continuing"; else git clone git@gitlab.evoforge.org:mpo/oci-tool.git; fi
       - cd ~/gitPull/oci-tool
       - git checkout test
@@ -110,6 +112,7 @@ functional_test-job:
       - mkdir -p /tmp/oci-test/blobs
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/registry.redhat.io
+      # Cheat our way into getting a masked password into the repo.yml file for testing.
       - cp /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml /tmp/oci-test/temp/FunctionalTestRepo.yml
       - "sed -i s/password:$/password:\\ $REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /tmp/oci-test/temp/FunctionalTestRepo.yml"
       - /home/gitlabRunner/build_files/build/bin/oci-sync  -vl /tmp/oci-test/test.log yaml:/tmp/oci-test/temp/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
