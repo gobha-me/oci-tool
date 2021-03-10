@@ -169,11 +169,11 @@ package_devel-job:
    script:
       - echo "Beginning the package_devel stage for $CI_PROJECT_NAME"
       # Clean up from any previous builds
-      - rm -rf ~/oci-sync-1.0
+      - rm -rf ~/oci-sync-0.9
       - rm -rf ~/rpmbuild
       # Collect files for the rpmbuild
       - cd ~
-      - mkdir -p /home/gitlabRunner/oci-sync-10.9
+      - mkdir -p /home/gitlabRunner/oci-sync-0.9
       - cp /home/gitlabRunner/gitPull/oci-tool/LICENSE ~/oci-sync-0.9/
       - cp /home/gitlabRunner/build_files/build/bin/oci-sync ~/oci-sync-0.9/oci-sync.bin
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man ~/oci-sync-0.9/
