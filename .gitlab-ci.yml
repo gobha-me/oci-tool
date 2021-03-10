@@ -105,7 +105,7 @@ functional_test-job:
       - mkdir -p /tmp/oci-test/blobs
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/registry.redhat.io
-      - "sed -i s/password:/password:\u0020$REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml"
+      - "sed -i s/password:/password:\\u0020$REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml"
       - /home/gitlabRunner/build_files/build/bin/oci-sync  -vl /tmp/oci-test/test.log yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
       # Clean up test output directory - save space
       - cat /tmp/oci-test/test.log
