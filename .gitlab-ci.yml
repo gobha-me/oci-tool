@@ -10,6 +10,7 @@ stages:
    - functional_test
    - valgrind_test
    - helgrind_test
+   - package_devel
    - package
    - deploy
 
@@ -160,6 +161,39 @@ helgrind_test-job:
    rules:
       - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /heltest/"
+package_devel-job:
+   stage: package_devel
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning the package_devel stage for $CI_PROJECT_NAME"
+      # Clean up from any previous builds
+      - rm -rf ~/oci-sync-1.0
+      - rm -rf ~/rpmbuild
+      # Collect files for the rpmbuild
+      - cd ~
+      - mkdir -p /home/gitlabRunner/oci-sync-1.0
+      - cp /home/gitlabRunner/gitPull/oci-tool/LICENSE ~/oci-sync-1.0/
+      - cp /home/gitlabRunner/build_files/build/bin/oci-sync ~/oci-sync-1.0/oci-sync.bin
+      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man ~/oci-sync-1.0/
+      - rpmdev-setuptree
+      - cp /home/gitlabRunner/gitPull/oci-tool/LICENSE ~/rpmbuild/SOURCES/
+      - cp /home/gitlabRunner/build_files/build/bin/oci-sync ~/rpmbuild/SOURCES/oci-sync.bin
+      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man ~/rpmbuild/SOURCES/
+      - tar -czf ~/oci-sync ./oci-sync-1.0
+      # Ensure all files are in the right place for the rpmbuild
+      - mv ~/oci-sync ~/rpmbuild/SOURCES/
+      - cd /home/gitlabRunner/rpmbuild/SOURCES
+      - gunzip -c oci-sync | tar xvf -
+      - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync-devel.spec ~/rpmbuild/SPECS/
+      # rpmbuild
+      - cd ~/rpmbuild/SPECS/
+      - rpmbuild -ba oci-sync.spec
+      - rm -rf /home/gitlabRunner/oci-sync-1.0
+   rules:
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /nopackage/"
 
 package-job:
    stage: package
