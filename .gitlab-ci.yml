@@ -54,8 +54,8 @@ tidy-job:
       - echo "Starting the tidy stage for $CI_PROJECT_NAME"
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
 
 # Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
 # ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
@@ -72,8 +72,8 @@ git_pull-job:
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nopull/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /nopull/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
 
 # Execute the code compliation on a RHEL box and put it into an rpm.
 build-job:
@@ -90,8 +90,8 @@ build-job:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /nobuild/"
 
 # Execute functional testing. Current setup takes as much as 5.7GB on /tmp to execute.
 functional_test-job:
@@ -105,15 +105,15 @@ functional_test-job:
       - mkdir -p /tmp/oci-test/blobs
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/registry.redhat.io
-      - "sed -i s/password:/password: $REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml"
+      - "sed -i s/password\:/password\: $REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml"
       - /home/gitlabRunner/build_files/build/bin/oci-sync  -vl /tmp/oci-test/test.log yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
       # Clean up test output directory - save space
       - cat /tmp/oci-test/test.log
       # Clear out the tmp dir
       - rm -rf /tmp/oci-test
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/"
 
 # Test using valgrind, this takes AT LEAST two hours. So specify you want to run with "valtest" cm.
 valgrind_test-job:
@@ -133,8 +133,8 @@ valgrind_test-job:
       # Clear out the tmp dir
       - rm -rf /tmp/oci-test
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /valtest/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /valtest/"
 
 # Test memory and threads using helgrind this takes AT LEAST two hours. So specify you want to run with "heltest" cm.
 helgrind_test-job:
@@ -154,8 +154,8 @@ helgrind_test-job:
       # Clear out the tmp dir
       - rm -rf /tmp/oci-test
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /heltest/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /heltest/"
 
 package-job:
    stage: package
