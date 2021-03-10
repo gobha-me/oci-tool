@@ -107,10 +107,12 @@ functional_test-job:
       - mkdir -p /tmp/oci-test/blobs
       - mkdir -p /tmp/oci-test/temp
       - mkdir -p /tmp/oci-test/registry.redhat.io
-      - "sed -i s/password:$/password:\\ $REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml"
-      - /home/gitlabRunner/build_files/build/bin/oci-sync  -vl /tmp/oci-test/test.log yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
-      # Clean up test output directory - save space
+      - cp /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml /tmp/oci-test/temp/FunctionalTestRepo.yml
+      - "sed -i s/password:$/password:\\ $REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /tmp/oci-test/temp/FunctionalTestRepo.yml"
+      - /home/gitlabRunner/build_files/build/bin/oci-sync  -vl /tmp/oci-test/test.log yaml:/tmp/oci-test/temp/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
       - cat /tmp/oci-test/test.log
+      # Clean up test output directory - save space
+      - rm -rf /tmp/oci-test/temp
    rules:
       - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/"
