@@ -1,6 +1,6 @@
 Name:           oci-sync
-Version:        //RPM_VERSION//
-Release:        //RPM_RELEASE//
+Version:        RPM_VERSION
+Release:        RPM_RELEASE
 Summary:        A tool to synchronize OpenShift Container Images from public repositories to self-hosted repositories.
 
 License: BSD-3-Clause
