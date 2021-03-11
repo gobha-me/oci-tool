@@ -228,8 +228,8 @@ package-job:
       - cd /home/gitlabRunner/rpmbuild/SOURCES
       - gunzip -c oci-sync | tar xvf -
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync-TEMPLATE.spec ~/rpmbuild/SPECS/
-      - "sed -i s/\/\/RPM_VERSION/\/\/$RPM_VERSION/g ~/rpmbuild/SPECS/oci-sync.spec"
-      - "sed -i s/\/\/RPM_RELEASE/\/\/$RPM_RELEASE/g ~/rpmbuild/SPECS/oci-sync.spec"
+      - "sed -i s/RPM_VERSION/$RPM_VERSION/g ~/rpmbuild/SPECS/oci-sync.spec"
+      - "sed -i s/RPM_RELEASE/$RPM_RELEASE/g ~/rpmbuild/SPECS/oci-sync.spec"
       # rpmbuild
       - cd ~/rpmbuild/SPECS/
       - rpmbuild -ba oci-sync.spec
