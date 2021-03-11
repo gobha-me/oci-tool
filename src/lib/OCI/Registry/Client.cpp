@@ -783,7 +783,7 @@ auto OCI::Registry::Client::tagList( const std::string &rsrc ) -> OCI::Tags {
   auto location = "/v2/" + rsrc + "/tags/list";
   auto res      = cli_->Get( location.c_str(), authHeaders() );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+  if ( res and HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
     auth( res->headers, "repository:" + rsrc + ":pull" );
 
     res = cli_->Get( location.c_str(), authHeaders() );
