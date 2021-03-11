@@ -11,10 +11,10 @@ if CI_BRANCH == "master":
         version = CI_TAG
         release = "rel"
     except:
-        version = CI_SHSHA
+        version = "0.0."+CI_SHSHA
         release = "beta"
 else:
-    version = CI_SHSHA
+    version = "0.0."+CI_SHSHA
     release = "devel"
 print(version, release)
 # Output version and release to os env
