@@ -174,7 +174,6 @@ package_devel-job:
       # Clean up from any previous builds
       - rm -rf ~/oci-sync-1.0
       - rm -rf ~/rpmbuild
-      - python /home/gitlabRunner/gitPull/oci-tool/rpmbuild/rpmSpecBuild.py
       # Collect files for the rpmbuild
       - cd ~
       - mkdir -p /home/gitlabRunner/oci-sync-$RPM_VERSION
