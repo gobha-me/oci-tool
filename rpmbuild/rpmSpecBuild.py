@@ -24,7 +24,7 @@ os.environ['RPM_RELEASE'] = 'release'
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'r') as file :
     filedata = file.read()
 # Replace the target string
-filedata = filedata.replace('VERSION', version )
-filedata = filedata.replace('RELEASE', release )
+filedata = filedata.replace('RPM_VERSION', version )
+filedata = filedata.replace('RPM_RELEASE', release )
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'w') as file:
     file.write(filedata)
