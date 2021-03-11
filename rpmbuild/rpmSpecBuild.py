@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/bin/python
 import os
 print("Beginning python script to determine version and release")
 # Get Env vars of build from OS
