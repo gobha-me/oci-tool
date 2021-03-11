@@ -63,7 +63,8 @@ void OCI::Copy::execute( const Schema1::ImageManifest &image_manifest ) {
   for ( auto const &layer : image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
       if ( not dest_->copy()->hasBlob( image_manifest, layer.second ) ) {
-        spdlog::info( "OCI::Copy::execute Destintaion doesn't have layer" );
+        spdlog::warn( "OCI::Copy::execute Schema1::ImageManifest Destintaion doesn't have layer '{}'", layer.second );
+        spdlog::error( "OCI::Copy::execute Schema1::ImageManifest not implemented" );
       }
     }
   }
@@ -75,12 +76,13 @@ void OCI::Copy::execute( const Schema1::SignedImageManifest &image_manifest ) {
   for ( auto const &layer : image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
       if ( not dest_->copy()->hasBlob( image_manifest, layer.second ) ) {
-        spdlog::info( "Destintaion doesn't have layer" );
+        spdlog::warn( "OCI::Copy::execute Schema1::SignedImageManifest Destintaion doesn't have layer '{}'", layer.second );
+        spdlog::error( "OCI::Copy::execute Schema1::SignedImageManifest not implemented" );
       }
     }
   }
 
-  spdlog::warn( "Test is successful and Post Schema1::ImageManifest to OCI::Base::Client::putManifest" );
+  spdlog::warn( "Test is successful and Post Schema1::SignedImageManifest to OCI::Base::Client::putManifest" );
 }
 
 void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
