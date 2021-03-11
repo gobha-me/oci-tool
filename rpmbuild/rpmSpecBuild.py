@@ -28,3 +28,28 @@ filedata = filedata.replace('RPM_VERSION', version )
 filedata = filedata.replace('RPM_RELEASE', release )
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'w') as file:
     file.write(filedata)
+# Create properly-named directory for build
+if not os.path.exists("/home/gitlabRunner/oci-sync-"+RPM_VERSION):
+    os.makedirs("/home/gitlabRunner/oci-sync-"+RPM_VERSION)
+# Collect files for the rpmbuild TODO: Make this a function
+shutil.copyfile(/home/gitlabRunner/gitPull/oci-tool/LICENSE, "/home/gitlabRunner/oci-sync-"+RPM_VERSION+"/", *, follow_symlinks=True)
+shutil.copymode(/home/gitlabRunner/gitPull/oci-tool/LICENSE, "/home/gitlabRunner/oci-sync-"+RPM_VERSION+"/", *, follow_symlinks=True)
+shutil.copyfile(/home/gitlabRunner/build_files/build/bin/oci-sync, "/home/gitlabRunner/oci-sync-"+RPM_VERSION+"/oci-sync.bin", *, follow_symlinks=True)
+shutil.copymode(/home/gitlabRunner/build_files/build/bin/oci-sync, "/home/gitlabRunner/oci-sync-"+RPM_VERSION+"/oci-sync.bin", *, follow_symlinks=True)
+shutil.copyfile(/home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man, "/home/gitlabRunner/oci-sync-"+RPM_VERSION+"/", *, follow_symlinks=True)
+shutil.copymode(/home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man, "/home/gitlabRunner/oci-sync-"+RPM_VERSION+"/", *, follow_symlinks=True)
+os.system('rpmdev-setuptree')
+# Collect more files for the rpmbuild TODO: No, really, make this a function
+- cp /home/gitlabRunner/gitPull/oci-tool/LICENSE ~/rpmbuild/SOURCES/
+- cp /home/gitlabRunner/build_files/build/bin/oci-sync ~/rpmbuild/SOURCES/oci-sync.bin
+- cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man ~/rpmbuild/SOURCES/
+- tar -czf ~/oci-sync ./oci-sync-$RPM_VERSION
+    # Ensure all files are in the right place for the rpmbuild
+- mv ~/oci-sync ~/rpmbuild/SOURCES/
+- cd /home/gitlabRunner/rpmbuild/SOURCES
+- gunzip -c oci-sync | tar xvf -
+- cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync-TEMPLATE.spec ~/rpmbuild/SPECS/
+# rpmbuild
+- cd ~/rpmbuild/SPECS/
+- rpmbuild -ba oci-sync-TEMPLATE.spec
+- rm -rf /home/gitlabRunner/oci-sync-$RPM_VERSION
