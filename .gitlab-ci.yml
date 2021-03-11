@@ -191,8 +191,7 @@ package_devel-job:
       - cd /home/gitlabRunner/rpmbuild/SOURCES
       - gunzip -c oci-sync | tar xvf -
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync-TEMPLATE.spec ~/rpmbuild/SPECS/
-      - "sed -i s/RPM_VERSION/$RPM_VERSION/g ~/rpmbuild/SPECS/oci-sync-TEMPLATE.spec"
-      - "sed -i s/RPM_RELEASE/$RPM_RELEASE/g ~/rpmbuild/SPECS/oci-sync-TEMPLATE.spec"
+      - python /home/gitlabRunner/gitPull/oci-tool/rpmbuild/rpmSpecBuild.py
       # rpmbuild
       - cd ~/rpmbuild/SPECS/
       - rpmbuild -ba oci-sync-TEMPLATE.spec
@@ -211,7 +210,6 @@ package-job:
       # Clean up from any previous builds
       - rm -rf ~/oci-sync-1.0
       - rm -rf ~/rpmbuild
-      - python /home/gitlabRunner/gitPull/oci-tool/rpmbuild/rpmSpecBuild.py
       # Collect files for the rpmbuild
       - cd ~
       - mkdir -p /home/gitlabRunner/oci-sync-$RPM_VERSION
@@ -228,8 +226,7 @@ package-job:
       - cd /home/gitlabRunner/rpmbuild/SOURCES
       - gunzip -c oci-sync | tar xvf -
       - cp /home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync-TEMPLATE.spec ~/rpmbuild/SPECS/
-      - "sed -i s/RPM_VERSION/$RPM_VERSION/g ~/rpmbuild/SPECS/-TEMPLATE"
-      - "sed -i s/RPM_RELEASE/$RPM_RELEASE/g ~/rpmbuild/SPECS/oci-sync-TEMPLATE.spec"
+      - python /home/gitlabRunner/gitPull/oci-tool/rpmbuild/rpmSpecBuild.py
       # rpmbuild
       - cd ~/rpmbuild/SPECS/
       - rpmbuild -ba oci-sync-TEMPLATE.spec
