@@ -244,7 +244,7 @@ auto OCI::Extensions::Dir::putBlob( const Schema1::ImageManifest &im, const std:
 
   auto retVal = false;
 
-  spdlog::error( "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" );
+  spdlog::warn( "OCI::Extensions::Dir::putBlob Schema1::ImageManifest is not implemented" );
 
   return retVal;
 }
@@ -456,7 +456,7 @@ auto OCI::Extensions::Dir::putManifest( Schema1::ImageManifest const &im, std::s
   (void)im;
   (void)target;
 
-  spdlog::error( "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented" );
+  spdlog::warn( "OCI::Extensions::Dir::putManifest Schema1::ImageManifest is not implemented" );
 
   return retVal;
 }
@@ -466,7 +466,7 @@ auto OCI::Extensions::Dir::putManifest( Schema1::SignedImageManifest const &sim,
   (void)sim;
   (void)target;
 
-  spdlog::error( "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented" );
+  spdlog::warn( "OCI::Extensions::Dir::putManifest Schema1::SignedImageManifest is not implemented" );
 
   return retVal;
 }
