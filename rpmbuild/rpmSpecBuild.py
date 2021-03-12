@@ -21,17 +21,14 @@ else:
     version = "0.0."+CI_SHSHA
     release = "devel"
 print(version, release)
-# Output version and release to os env
-#os.environ['RPM_VERSION'] = 'version'
-#os.environ['RPM_RELEASE'] = 'release'
-RPM_VERSION = 'version'
-RPM_RELEASE = 'release'
+RPM_VERSION = version
+RPM_RELEASE = release
 # Read file into mem
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'r') as file :
     filedata = file.read()
 # Replace the target string
-filedata = filedata.replace('RPM_VERSION', version )
-filedata = filedata.replace('RPM_RELEASE', release )
+    filedata = filedata.replace('RPM_VERSION', version )
+    filedata = filedata.replace('RPM_RELEASE', release )
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'w') as file:
     file.write(filedata)
 # Create properly-named directory for build
