@@ -33,15 +33,21 @@ funcFCopyAndPermissions( "/home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.
 # Make call out to os to execute rpmdev-setuptree
 os.system('rpmdev-setuptree')
 # Collect more files for the rpmbuild
-funcFCopyAndPermissions( "/home/gitlabRunner/gitPull/oci-tool/LICENSE", "/home/gitlabRunner/gitPull/oci-tool/rpmbuild/SOURCES/LICENSE")
-funcFCopyAndPermissions( "/home/gitlabRunner/build_files/build/bin/oci-sync", "/home/gitlabRunner/gitPull/oci-tool/rpmbuild/SOURCES/oci-sync.bin")
-funcFCopyAndPermissions( "/home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man", "/home/gitlabRunner/gitPull/oci-tool/rpmbuild/SOURCES/oci-sync.man")
+funcFCopyAndPermissions( "/home/gitlabRunner/gitPull/oci-tool/LICENSE", "/home/gitlabRunner/rpmbuild/SOURCES/LICENSE")
+funcFCopyAndPermissions( "/home/gitlabRunner/build_files/build/bin/oci-sync", "/home/gitlabRunner/rpmbuild/SOURCES/oci-sync.bin")
+funcFCopyAndPermissions( "/home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync.man", "/home/gitlabRunner/rpmbuild/SOURCES/oci-sync.man")
 funcFCopyAndPermissions( "/home/gitlabRunner/gitPull/oci-tool/rpmbuild/oci-sync-TEMPLATE.spec", "/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec")
-# Read file into mem
+# Read spec file into mem and edit the version and release
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'r') as file :
     filedata = file.read()
     # Replace the target string
     filedata = filedata.replace('RPM_VERSION', version )
     filedata = filedata.replace('RPM_RELEASE', release )
+# Write back changes to file
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'w') as file:
     file.write(filedata)
+#tar -czf ~/oci-sync ./oci-sync-$RPM_VERSION
+#mv ~/oci-sync ~/rpmbuild/SOURCES/
+#cd /home/gitlabRunner/rpmbuild/SOURCES
+#gunzip -c oci-sync | tar xvf -
+#rpmbuild -ba ~/rpmbuild/SPECS/oci-sync-TEMPLATE.spec
