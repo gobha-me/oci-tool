@@ -76,7 +76,8 @@ void OCI::Copy::execute( const Schema1::SignedImageManifest &image_manifest ) {
   for ( auto const &layer : image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
       if ( not dest_->copy()->hasBlob( image_manifest, layer.second ) ) {
-        spdlog::warn( "OCI::Copy::execute Schema1::SignedImageManifest Destintaion doesn't have layer '{}'", layer.second );
+        spdlog::warn( "OCI::Copy::execute Schema1::SignedImageManifest Destintaion doesn't have layer '{}'",
+                      layer.second );
         spdlog::error( "OCI::Copy::execute Schema1::SignedImageManifest not implemented" );
       }
     }
