@@ -173,11 +173,11 @@ package-job:
       - echo "Beginning the package stage for $CI_PROJECT_NAME"
       # Clean up from any previous builds
       - rm -rf ~/rpmbuild
-      # Execute python build for rpm since Gitlab CI can't handle what we needed it to do to dynamically generate\
+      # Execute python build for rpm since Gitlab CI can't handle what we needed it to do to dynamically generate
       # the specfile
       - cd ~
       - python /home/gitlabRunner/gitPull/oci-tool/rpmbuild/rpmSpecBuild.py
-    rules:
+   rules:
       - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
       - if: "$CI_COMMIT_MESSAGE !~ /nopackage/"
 
