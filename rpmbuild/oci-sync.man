@@ -28,6 +28,8 @@ Images destination
 yaml-formatted input list of target image projects
 .IP dir:
 Output directory of sync'd images
+.IP docker:
+Docker as a source will clone a single project. As a destination with sync a dir or docker to the target
 "--" can be used to terminate flag options and force all following arguments to be treated as positional options
 .SH SEE ALSO
 .SH BUGS
