@@ -174,7 +174,7 @@ package-job:
       # Clean up from any previous builds
       - rm -rf ~/rpmbuild
       # Execute python build for rpm since Gitlab CI can't handle what we needed it to do to dynamically generate
-      # the specfile
+      # the specfile. It's smart enough to know the difference between non-release and release.
       - cd ~
       - python /home/gitlabRunner/gitPull/oci-tool/rpmbuild/rpmSpecBuild.py
    rules:
