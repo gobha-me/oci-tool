@@ -46,7 +46,7 @@ with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'r') as fi
 # Write back changes to file
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'w') as file:
     file.write(filedata)
-#tar -czf ~/oci-sync ./oci-sync-$RPM_VERSION
+os.system('tar -czf /home/gitlabRunner/oci-sync /home/gitlabRunner/oci-sync-'+RPM_VERSION)
 #mv ~/oci-sync ~/rpmbuild/SOURCES/
 #cd /home/gitlabRunner/rpmbuild/SOURCES
 #gunzip -c oci-sync | tar xvf -
