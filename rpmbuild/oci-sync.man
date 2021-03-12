@@ -32,6 +32,8 @@ Output directory of sync'd images
 Docker single-project sync. As destination, will sync a directory or docker to the target
 .IP NOTE:
 "--" can be used to terminate flag options and force all following arguments to be treated as positional options
+.SH PERFORMANCE
+oci-sync will automatically scale operations based on the number of cores. A minimum of 120MB of RAM per core, and a minimum of 2 cores, is recommended.
 .SH SEE ALSO
 .SH BUGS
 No known bugs.

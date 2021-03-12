@@ -47,7 +47,6 @@ with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'r') as fi
 with open('/home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec', 'w') as file:
     file.write(filedata)
 os.system('tar -czf /home/gitlabRunner/oci-sync -C /home/gitlabRunner ./oci-sync-'+RPM_VERSION)
-#mv ~/oci-sync ~/rpmbuild/SOURCES/
-#cd /home/gitlabRunner/rpmbuild/SOURCES
-#gunzip -c oci-sync | tar xvf -
-#rpmbuild -ba ~/rpmbuild/SPECS/oci-sync-TEMPLATE.spec
+funcFCopyAndPermissions( "/home/gitlabRunner/oci-sync", "/home/gitlabRunner/rpmbuild/SOURCES/oci-sync")
+os.system('gunzip -c /home/gitlabRunner/rpmbuild/SOURCES/oci-sync | tar xvf - -C /home/gitlabRunner/rpmbuild/SOURCES/')
+os.system('rpmbuild -ba /home/gitlabRunner/rpmbuild/SPECS/oci-sync-TEMPLATE.spec')
