@@ -577,7 +577,8 @@ void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest &im, Schema1::
 
     im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
   } catch ( nlohmann::detail::parse_error &e ) {
-    spdlog::error( "OCI::Registry::Client::fetchManifest Schema1 {}:{} '{}'", request.name, request.requestedTarget, e.what() );
+    spdlog::error( "OCI::Registry::Client::fetchManifest Schema1 {}:{} '{}'", request.name, request.requestedTarget,
+                   e.what() );
   }
 }
 
