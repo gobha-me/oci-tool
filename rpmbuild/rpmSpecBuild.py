@@ -10,17 +10,17 @@ def funcFCopyAndPermissions( inputF, outputF, a="*", followS="follow_symlinks=Tr
     shutil.copyfile(inputF, outputF)
     shutil.copymode(inputF, outputF)
 # Little if-else to ensure we have valid version and release
-if CI_BRANCH == "master":
-    try:
+if CI_TAG is not None:
+    tagFirstChar = CI_TAG.split(".")[0]
+    if int(tagFirstChar) < 1:
+        version = CI_TAG
+        release = "beta"
+    else:
         version = CI_TAG
         release = "rel"
-    except:
-        version = "0.0."+CI_SHSHA
-        release = "beta"
 else:
     version = "0.0."+CI_SHSHA
     release = "devel"
-print(version, release)
 RPM_VERSION = version
 RPM_RELEASE = release
 # Create properly-named directory for build staging
