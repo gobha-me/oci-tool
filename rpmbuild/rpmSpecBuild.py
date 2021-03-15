@@ -10,11 +10,14 @@ def funcFCopyAndPermissions( inputF, outputF, a="*", followS="follow_symlinks=Tr
     shutil.copyfile(inputF, outputF)
     shutil.copymode(inputF, outputF)
 #Debug statements
-print("tag is "+CI_TAG)
-print("branch is "+CI_BRANCH)
-print("shortSHA is "+CI_SHSHA)
+if CI_BRANCH is None:
+  print("tag is "+CI_TAG)
+if CI_TAG is None:
+  print("branch is "+CI_BRANCH)
+if CI_BRANCH != /master/:
+  print("shortSHA is "+CI_SHSHA)
 # Little if-else to ensure we have valid version and release
-if CI_BRANCH == "master":
+if CI_BRANCH is None:
     try:
         version = CI_TAG
         release = "rel"
