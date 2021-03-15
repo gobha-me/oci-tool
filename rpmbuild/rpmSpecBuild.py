@@ -9,6 +9,10 @@ CI_SHSHA = os.getenv('CI_COMMIT_SHORT_SHA')
 def funcFCopyAndPermissions( inputF, outputF, a="*", followS="follow_symlinks=True"):
     shutil.copyfile(inputF, outputF)
     shutil.copymode(inputF, outputF)
+#Debug statements
+print("tag is "+CI_TAG)
+print("branch is "+CI_BRANCH)
+print("shortSHA is "+CI_SHSHA)
 # Little if-else to ensure we have valid version and release
 if CI_BRANCH == "master":
     try:
