@@ -14,7 +14,7 @@ if CI_TAG is not None:
     tagFirstChar = CI_TAG.split(".")[0]
     if int(tagFirstChar) < 1:
         version = CI_TAG
-        version = "beta"
+        release = "beta"
     else:
         version = CI_TAG
         release = "rel"
