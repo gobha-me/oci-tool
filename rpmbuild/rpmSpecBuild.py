@@ -9,19 +9,10 @@ CI_SHSHA = os.getenv('CI_COMMIT_SHORT_SHA')
 def funcFCopyAndPermissions( inputF, outputF, a="*", followS="follow_symlinks=True"):
     shutil.copyfile(inputF, outputF)
     shutil.copymode(inputF, outputF)
-#Debug statements
-if CI_BRANCH is None:
-  print("tag is "+CI_TAG)
-if CI_TAG is None:
-  print("branch is "+CI_BRANCH)
 # Little if-else to ensure we have valid version and release
 if CI_BRANCH is None:
-    try:
-        version = CI_TAG
-        release = "rel"
-    except:
-        version = "0.0."+CI_SHSHA
-        release = "beta"
+    version = CI_TAG
+    release = "rel"
 else:
     version = "0.0."+CI_SHSHA
     release = "devel"
