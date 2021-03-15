@@ -14,7 +14,7 @@ if CI_BRANCH is None:
   print("tag is "+CI_TAG)
 if CI_TAG is None:
   print("branch is "+CI_BRANCH)
-if CI_BRANCH != /master/:
+if re.match(/master/, CI_BRANCH):
   print("shortSHA is "+CI_SHSHA)
 # Little if-else to ensure we have valid version and release
 if CI_BRANCH is None:
