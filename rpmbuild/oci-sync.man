@@ -1,0 +1,41 @@
+.\" Manpage for oci-sync.
+.\" Contact jefsmith@redhat.com to correct errors or typos.
+.TH man 8 "05 Mar 2021" "1.0" "oci-sync man page"
+.SH NAME
+oci-sync \- A tool to synchronize OpenShift Container Images from public repositories to self-hosted repositories.
+.SH SYNOPSIS
+oci-sync [<proto>:<uri>] [<proto>:<uri>] {OPTIONS}
+.SH DESCRIPTION
+OCI Sync is a tool to synchronize OpenShift Container Images from public repositories to self-hosted
+repositories on stand-alone or airgapped networks.  It supports synchronization of multiple processor architectures. The
+tool also supports v1 and v2 OCI manifests.
+.SH OPTIONS
+.IP -h, --help
+Display this help message
+.IP -v, --verbose
+Output log verbosity
+.IP -l, --log-file
+Output log file location
+.IP -u[USERNAME], --username=[USERNAME]
+Destination registry username
+.IP -p[PASSWORD], --password=[PASSWORD]
+Destination registry password
+.IP <proto>:<uri>
+Images source
+.IP <proto>:<uri>
+Images destination
+.IP yaml:
+yaml-formatted input list of target image projects
+.IP dir:
+Output directory of sync'd images
+.IP docker:
+Docker single-project sync. As destination, will sync a directory or docker to the target
+.IP NOTE:
+"--" can be used to terminate flag options and force all following arguments to be treated as positional options
+.SH PERFORMANCE
+oci-sync will automatically scale operations based on the number of cores. A minimum of 120MB of RAM per core, and a minimum of 2 cores, is recommended.
+.SH SEE ALSO
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+Jeff Smith (jefsmith@redhat.com) github.com/gobha-me

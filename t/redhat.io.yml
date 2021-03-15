@@ -1,6 +1,9 @@
 registry.redhat.io:
-  username: {{username}} 
-  password: {{password}}
+  credentials:
+    username: 
+    password: 
+  tag-options:
+    filter: ^(latest|v?(\d+\.?){2,3}(-\d+)?(-p\d)?)$
   images:
     openshift4/apb-base:
     openshift4/apb-tools:

@@ -6,5 +6,5 @@
 #include <string>
 
 namespace OCI {
-  void Inspect( std::string const& rsrc, std::string const& target, OCI::Base::Client* client );
+  void Inspect( std::string const &rsrc, std::string const &target, OCI::Base::Client *client );
 } // namespace OCI

@@ -15,13 +15,18 @@ namespace OCI::Extensions {
       using Username = std::string;
       using Password = std::string;
       using RepoName = std::string;
+      using Arch     = std::string;
 
       std::map< Domain, OCI::Catalog >                    catalogs;
       std::map< Domain, std::pair< Username, Password > > credentials;
       std::vector< Domain >                               domains;
-      std::vector< std::string >                          architectures;
-      std::string                                         tag_filter;
+      std::vector< Arch >                                 architectures;
       std::map< Domain, std::map< RepoName, OCI::Tags > > tags;
+      struct {
+        std::string filter;
+        uint16_t    limit; // TODO: to implement this correctly, need to order fetched tag list by version order with
+                           // latest first
+      } tag_options;
     };
 
     Yaml() = default;
@@ -34,7 +39,7 @@ namespace OCI::Extensions {
     auto operator=( Yaml const &other ) -> Yaml &;
     auto operator=( Yaml &&other ) noexcept -> Yaml &;
 
-    auto catalog() -> const OCI::Catalog& override;
+    auto catalog() -> const OCI::Catalog & override;
     auto catalog( std::string const &domain ) -> OCI::Catalog;
 
     auto copy() -> std::unique_ptr< OCI::Base::Client > override;
@@ -66,11 +71,12 @@ namespace OCI::Extensions {
     auto tagList( std::string const &rsrc, std::regex const &re ) -> OCI::Tags override;
 
     auto swap( Yaml &other ) -> void;
+
   protected:
   private:
-    mutable std::mutex                   _mutex;
-    std::unique_ptr< OCI::Base::Client > _client;
-    std::string                          _current_domain;
-    Catalog                              _catalog;
+    mutable std::mutex                   mutex_;
+    std::unique_ptr< OCI::Base::Client > client_;
+    std::string                          current_domain_;
+    Catalog                              catalog_;
   };
 } // namespace OCI::Extensions

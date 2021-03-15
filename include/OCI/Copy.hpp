@@ -1,9 +1,9 @@
 #pragma once
-#include <gobha/SimpleThreadManager.hpp>
 #include <OCI/Base/Client.hpp>
 #include <OCI/Manifest.hpp>
 #include <OCI/Schema1.hpp>
 #include <OCI/Schema2.hpp>
+#include <gobha/SimpleThreadManager.hpp>
 #include <indicators.hpp>
 #include <memory>
 #include <string>
@@ -15,17 +15,18 @@ namespace OCI {
   using WorkingDigests = std::vector< std::string >;
   using WD_ptr         = std::shared_ptr< WorkingDigests >;
 
-  auto getIndicator( size_t max_progress, std::string const& prefix, indicators::Color color = indicators::Color::white ) -> indicators::ProgressBar;
+  auto getIndicator( size_t max_progress, std::string const &prefix,
+                     indicators::Color color = indicators::Color::white ) -> indicators::ProgressBar;
 
   class Copy {
   public:
-    Copy( OCI::Base::Client * source, OCI::Base::Client * destination );
-    Copy( Copy const& ) = delete;
-    Copy( Copy && ) = delete;
+    Copy( OCI::Base::Client *source, OCI::Base::Client *destination );
+    Copy( Copy const & ) = delete;
+    Copy( Copy && )      = delete;
 
     ~Copy();
 
-    auto operator=( Copy const& ) = delete;
+    auto operator=( Copy const & ) = delete;
     auto operator=( Copy && ) = delete;
 
     auto execute( std::string const rsrc, std::string const target ) -> void;
@@ -35,18 +36,20 @@ namespace OCI {
     auto execute( Schema2::ImageManifest const &image_manifest, std::string const &target ) -> bool;
 
     friend class Sync;
+
   protected:
     Copy();
-    Copy( OCI::Base::Client * source, OCI::Base::Client * destination, STM_ptr stm, PB_ptr progress_bars );
+    Copy( OCI::Base::Client *source, OCI::Base::Client *destination, STM_ptr stm, PB_ptr progress_bars );
+
   private:
-    STM_ptr _stm{nullptr};
-    PB_ptr  _progress_bars{nullptr};
+    STM_ptr stm_{ nullptr };
+    PB_ptr  progress_bars_{ nullptr };
 
-    std::mutex _wd_mutex;
-    std::condition_variable _finish_download;
-    WD_ptr     _working_digests{nullptr};
+    std::mutex              wd_mutex_;
+    std::condition_variable finish_download_;
+    WD_ptr                  working_digests_{ nullptr };
 
-    OCI::Base::Client * _src{nullptr};
-    OCI::Base::Client * _dest{nullptr};
+    OCI::Base::Client *src_{ nullptr };
+    OCI::Base::Client *dest_{ nullptr };
   };
 } // namespace OCI

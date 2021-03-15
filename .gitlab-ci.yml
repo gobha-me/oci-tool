@@ -1,44 +1,85 @@
 # Originally created 2/10/2021 for the oci-tool project
-# Define the stages in this pipeline
-# Stages in each stage build in parallel except for before_script and after_script
+# Stage execution logic depends on commit message contents. Please do not use commit messages with " autoformatted " in them.
+# You can combine multiple trigger comments. Valid trigger comments: noformat nopull nobuild nodeploy notest valtest heltest nopackage
+# Define the stages in this pipeline and then execute them in order.
 stages:
-   - test
-   - manual_pull
+   - format
+   - tidy
+   - git_pull
    - build
+   - functional_test
+   - valgrind_test
+   - helgrind_test
+   - package
    - deploy
-test-job:
-   stage: test
-   tags: 
+
+#Format C++ code and push it back to the repo
+format-job:
+   stage: format
+   tags:
       - development
       - ubuntu
-   # TODO: Do something useful with clang-tidy and clang-format   
    script:
-      - echo "Beginning test stage for $CI_PROJECT_NAME"
-      - mkdir -p BUILD
-      - cd BUILD
-      - cmake -DCMAKE_BUILD_TYPE=Debug ..
-      - make
-      - make test
-      - cd ..
+      - echo "Starting the format stage for $CI_PROJECT_NAME"
+      - git config --global user.email "svc-gitlabRunner@evoforge.org"
+      - git config --global user.name "gitlab-runner"
+      #Format hpp files in ./include/OCI and add them to git
+      - for files in `find ./include/OCI -name "*.hpp"`; do clang-format -i $files; done
+      - find ./include/OCI -name "*.hpp" -exec git add {} \;
+      #Format cpp files in ./src and add them to git
+      - for files2 in `find ./src -name "*.cpp"`; do clang-format -i $files2; done
+      - find ./src -name "*.cpp" -exec git add {} \;
+      #We shouldn't be doing this, but... it's nonportable with out
+      - git config http.sslVerify false
+      - git commit -m "Formatted version of Commit SHA $CI_COMMIT_SHA. Pushed by Gitlab CI. autoformatted "
+      - git remote add test https://redhat-imports.svc:$REDHAT_IMPORTS_SVC_KEY@gitlab.evoforge.org/mpo/oci-tool.git
+      - git push test HEAD:test
+   only:
+      refs:
+         - branches
+      changes:
+         - include/OCI/*.hpp
+         - src/bin/*.cpp
+         - src/lib/*.cpp
+         - src/lib/Extensions/*.cpp
+         - src/lib/Registry/*.cpp
+
+# Execute tests written in the C++ codebase
+tidy-job:
+   stage: tidy
+   tags:
+      - development
+      - ubuntu
+   script:
+      - echo "Starting the tidy stage for $CI_PROJECT_NAME"
       - clang-tidy src/bin/oci-sync.cpp -- -Iinclude --std=c++17
-      - echo "Completed the test stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /notest/"
-manual_pull-job:
-   # TODO: Figure out how to test for existence of gitPull directory for the manual_clone stage
-   #stage: manual_clone
-   #script:
-   #   - echo "Beginning manual clone stage for $CI_PROJECT_NAME"
-   #   - mkdir -p /home/gitlabRunner/gitPull
-#
-   #if: #if the oci-tool directory doesn't already exist
-   stage: manual_pull
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+
+# Cause the gitlab-runner to pull code from the repo, outside of the normal workspace. We do this because...
+# ...we are building on RHEL, which doesn't have an up-to-date version of git, so the default git has to "clone".
+# We don't want to clone, because we'd lose build objects and every build job would take 5 min.
+git_pull-job:
+   stage: git_pull
+   tags:
+      - rhel
+      - development
    script:
       - echo "Beginning manual pull stage for $CI_PROJECT_NAME"
+      - mkdir -p ~/gitPull/oci-tool
+      - cd ~/gitPull/
+      # Clone directory if it doesn't exist, otherwise, continue on with a pull.
+      - if [ "$(ls -A ~/gitPull/oci-tool)" ]; then echo "git dir exists, continuing"; else git clone git@gitlab.evoforge.org:mpo/oci-tool.git; fi
       - cd ~/gitPull/oci-tool
       - git checkout test
       - git pull
       - echo "Completed git pull for $CI_PROJECT_NAME"
+   rules:
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /nopull/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+
+# Execute the code compliation on a RHEL box and put it into an rpm.
 build-job:
    stage: build
    tags:
@@ -53,17 +94,104 @@ build-job:
       - make test
       - echo "Completed build stage"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test' && $CI_COMMIT_MESSAGE !~ /nobuild/" # After getting clang-format working, add "formatted"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /nobuild/"
 
+# Execute functional testing. Current setup takes as much as 5.7GB on /tmp to execute.
+functional_test-job:
+   stage: functional_test
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Begining functional test stage for $CI_PROJECT_NAME"
+      # Clear out the tmp dir
+      - rm -rf /tmp/oci-test
+      # Create temporary directory to output test files in
+      - mkdir -p /tmp/oci-test/blobs
+      - mkdir -p /tmp/oci-test/temp
+      - mkdir -p /tmp/oci-test/registry.redhat.io
+      # Cheat our way into getting a masked password into the repo.yml file for testing.
+      - cp /home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml /tmp/oci-test/temp/FunctionalTestRepo.yml
+      - "sed -i s/password:$/password:\\ $REDHAT_IMPORTS_REDHAT_IO_PASSWORD/g /tmp/oci-test/temp/FunctionalTestRepo.yml"
+      - /home/gitlabRunner/build_files/build/bin/oci-sync  -vl /tmp/oci-test/test.log yaml:/tmp/oci-test/temp/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
+      - cat /tmp/oci-test/test.log
+      # Clean up test output directory - save space
+      - rm -rf /tmp/oci-test/temp
+   rules:
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/"
 
+# Test using valgrind, this takes AT LEAST two hours. So specify you want to run with "valtest" cm.
+valgrind_test-job:
+   stage: valgrind_test
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning valgrind stage for for $CI_PROJECT_NAME"
+      - mkdir -p /tmp/oci-test/blobs
+      - mkdir -p /tmp/oci-test/temp
+      - mkdir -p /tmp/oci-test/regstery.redhat.io
+      # Perform valgrind test
+      - valgrind --log-file=/tmp/oci-test/valgrind.log /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
+      # Make sure we look at the valgrind log before removing it.
+      - cat /tmp/oci-test/valgrind.log
+      # Clear out the tmp dir
+      - rm -rf /tmp/oci-test
+   rules:
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /valtest/"
+
+# Test memory and threads using helgrind this takes AT LEAST two hours. So specify you want to run with "heltest" cm.
+helgrind_test-job:
+   stage: helgrind_test
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning gelgrind stage for for $CI_PROJECT_NAME"
+      - mkdir -p /tmp/oci-test/blobs
+      - mkdir -p /tmp/oci-test/temp
+      - mkdir -p /tmp/oci-test/regstery.redhat.io
+      # Perform helgrind test
+      - valgrind  --tool=helgrind --log-file=/tmp/oci-test/helgrind.log /home/gitlabRunner/build_files/build/bin/oci-sync yaml:/home/gitlabRunner/gitPull/oci-tool/src/tests/FunctionalTestRepo.yml dir:/tmp/oci-test/ 2>&1 >> /dev/null
+      # Make sure we look at the helgrind log before removing it.
+      - cat /tmp/oci-test/helgrind.log
+      # Clear out the tmp dir
+      - rm -rf /tmp/oci-test
+   rules:
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH != 'master' && $CI_COMMIT_MESSAGE !~ /notest/ && $CICOMMIT_MESSAGE =~ /heltest/"
+
+package-job:
+   stage: package
+   tags:
+      - rhel
+      - development
+   script:
+      - echo "Beginning the package stage for $CI_PROJECT_NAME"
+      # Clean up from any previous builds
+      - rm -rf ~/rpmbuild
+      # Execute python build for rpm since Gitlab CI can't handle what we needed it to do to dynamically generate
+      # the specfile. It's smart enough to know the difference between non-release and release.
+      - cd ~
+      - python /home/gitlabRunner/gitPull/oci-tool/rpmbuild/rpmSpecBuild.py
+   rules:
+      - if: "$CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_MESSAGE !~ /nopackage/"
+
+# Move the completed RPM file into an RPM repository for ingestion upwards.
 deploy-job:
    stage: deploy
    tags:
       - rhel
       - development
    script:
+      # collect ~/BUILD/bin/oci-sync , rpm package it and move it to ##Talk to Bruce about rpm low-to-high
       - echo "Beginning the deploy stage for $CI_PROJECT_NAME"
       - echo "Deploy steps here - IF I HAD ANY"
       - echo "Completed the deploy stage, ending pipeline run"
    rules:
-      - if: "$CI_COMMIT_BRANCH == 'test'&& $CI_COMMIT_MESSAGE !~ /nodeploy/" # After getting clang-format working, add "formatted"
+      - if: "$CI_COMMIT_BRANCH == 'master' && $CI_COMMIT_MESSAGE =~ /autoformatted/"
+      - if: "$CI_COMMIT_BRANCH == 'master' && $CI_COMMIT_MESSAGE !~ /nodeploy/"

@@ -28,8 +28,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 file(GLOB_RECURSE OCI_SRC src/lib/*.cpp)
 add_executable(oci-sync src/bin/oci-sync.cpp ${OCI_SRC} yaml/Yaml.cpp)
 
-if ( ${CMAKE_MAJOR_VERSION} GREATER "3" )
-  target_include_directories(oci-sync PUBLIC include)
+if ( ${CMAKE_MAJOR_VERSION} EQUAL "3" OR ${CMAKE_MAJOR_VERSION} GREATER "3" )
+  include_directories( include )
+  #target_include_directories(oci-sync PUBLIC include)
 
   target_link_libraries(oci-sync ssl pthread crypto)
 else()
@@ -38,7 +39,7 @@ else()
   if ( EXISTS "/usr/include/openssl11" )
     include_directories( BEFORE SYSTEM "/usr/include/openssl11" )
 
-    target_link_libraries(oci-sync /usr/lib64/libssl.so.1.1.1c /usr/lib64/libcrypto.so.1.1.1c pthread crypto)
+    target_link_libraries(oci-sync /usr/lib64/libssl.so.1.1 /usr/lib64/libcrypto.so.1.1 pthread crypto)
   endif()
 endif()
 
