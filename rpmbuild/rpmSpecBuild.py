@@ -12,7 +12,8 @@ def funcFCopyAndPermissions( inputF, outputF, a="*", followS="follow_symlinks=Tr
 # Little if-else to ensure we have valid version and release
 if CI_BRANCH is not None:
     branchFirstChar = CI_BRANCH.split(".")[0]
-    if int(branchFirstChar) < 1:
+    branchFirstNum = int(branchFirstChar)
+    if branchFirstNum < 1:
         version = CI_TAG
         version = "beta"
     else:
