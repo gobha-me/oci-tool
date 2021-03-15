@@ -10,10 +10,9 @@ def funcFCopyAndPermissions( inputF, outputF, a="*", followS="follow_symlinks=Tr
     shutil.copyfile(inputF, outputF)
     shutil.copymode(inputF, outputF)
 # Little if-else to ensure we have valid version and release
-if CI_BRANCH is not None:
-    branchFirstChar = CI_BRANCH.split(".")[0]
-    branchFirstNum = int(branchFirstChar)
-    if branchFirstNum < 1:
+if CI_TAG is not None:
+    tagFirstChar = CI_TAG.split(".")[0]
+    if int(tagFirstChar) < 1:
         version = CI_TAG
         version = "beta"
     else:
