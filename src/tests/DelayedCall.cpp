@@ -1,4 +1,4 @@
-#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
+#define CATCH_CONFIG_MAIN // This tells Catch to provide a main() - only do this in one cpp file
 #include "catch2/catch.hpp"
 #include <gobha/SimpleThreadManager.hpp>
 
@@ -8,7 +8,7 @@ TEST_CASE( "DelayedCall" ) {
   // each section starts with fresh values as defined above
   SECTION( "Create DelayedCall Object" ) {
     { // DelayedCall, executes lamdba on descruction
-      gobha::DelayedCall test([&tested]() { tested = true; } );
+      gobha::DelayedCall test( [ &tested ]() { tested = true; } );
 
       REQUIRE( tested == false );
     }

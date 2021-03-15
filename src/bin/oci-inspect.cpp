@@ -1,33 +1,34 @@
-#include <iostream>
+#include <OCI/Extensions/Dir.hpp>
 #include <OCI/Inspect.hpp>
 #include <OCI/Registry/Client.hpp>
-#include <OCI/Extensions/Dir.hpp>
+#include <iostream>
 
-int main( int argc, char ** argv ) {
+int main( int argc, char **argv ) {
   using namespace std::string_literals;
   // simply we start with requiring at least two options, the command and the uri
-  if ( argc <= 1 ) return EXIT_FAILURE;
+  if ( argc <= 1 )
+    return EXIT_FAILURE;
 
-  auto uri        = std::string( argv[1] );
-  auto proto_itr  = uri.find( ":" );
+  auto uri       = std::string( argv[ 1 ] );
+  auto proto_itr = uri.find( ":" );
 
   std::shared_ptr< OCI::Base::Client > client;
-  std::string proto;
-  std::string location;
+  std::string                          proto;
+  std::string                          location;
 
   if ( proto_itr != std::string::npos ) {
-    proto     = uri.substr( 0, proto_itr );
-    location  = uri.substr( proto_itr + 1 );
+    proto    = uri.substr( 0, proto_itr );
+    location = uri.substr( proto_itr + 1 );
   }
 
   // If URI is of target docker
 
   // command is the basic operation we want to perform against the registry for a given URI
 
-  if ( proto == "docker" ) { // TODO: need search domains, on input without a domain domain == rsrc
-    location = location.substr( 2 ); // the // is not needed for this http client library
+  if ( proto == "docker" ) {            // TODO: need search domains, on input without a domain domain == rsrc
+    location    = location.substr( 2 ); // the // is not needed for this http client library
     auto domain = location.substr( 0, location.find( '/' ) );
-    auto rsrc   = location.substr( location.find( '/') + 1 );
+    auto rsrc   = location.substr( location.find( '/' ) + 1 );
     auto target = "latest"s;
 
     // if domain not provided use /etc/containers/registries.conf - INI? This process turns into a loop?
@@ -42,8 +43,8 @@ int main( int argc, char ** argv ) {
     }
 
     if ( rsrc.find( ':' ) != std::string::npos ) {
-      target  = rsrc.substr( rsrc.find( ':' ) + 1 );
-      rsrc    = rsrc.substr( 0, rsrc.find( ':' ) );
+      target = rsrc.substr( rsrc.find( ':' ) + 1 );
+      rsrc   = rsrc.substr( 0, rsrc.find( ':' ) );
     }
 
     if ( rsrc.find( '/' ) == std::string::npos )

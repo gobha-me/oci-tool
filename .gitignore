@@ -3,4 +3,3 @@ oci-tool
 /bin
 .clangd
 /BUILD
-.gitlab-ci.yml

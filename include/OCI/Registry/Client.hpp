@@ -31,7 +31,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
 
     void auth( httplib::Headers const &headers, std::string const &scope );
 
-    auto catalog() -> const OCI::Catalog& override;
+    auto catalog() -> const OCI::Catalog & override;
 
     auto copy() -> std::unique_ptr< OCI::Base::Client > override;
 
@@ -59,7 +59,7 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     auto putManifest( Schema2::ImageManifest const &im, std::string const &target ) -> bool override;
 
     auto tagList( std::string const &rsrc ) -> Tags override;
-    auto tagList( std::string const &rsrc, std::regex const& re ) -> Tags override;
+    auto tagList( std::string const &rsrc, std::regex const &re ) -> Tags override;
 
     auto ping() -> bool;
     auto pingResource( std::string const &rsrc ) -> bool;
@@ -81,14 +81,14 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
         -> std::string const;
 
   private:
-    std::string                        domain_; // Required for making copies
-    std::string                        username_;
-    std::string                        password_;
+    std::string domain_; // Required for making copies
+    std::string username_;
+    std::string password_;
 
-    bool                               secure_con_{false};
+    bool                               secure_con_{ false };
     std::shared_ptr< httplib::Client > cli_{ nullptr };
     std::unique_ptr< httplib::Client > patch_cli_{ nullptr };
-    size_t                             last_offset_{0};
+    size_t                             last_offset_{ 0 };
     std::string                        patch_location_;
 
     TokenResponse ctr_;

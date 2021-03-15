@@ -31,26 +31,23 @@ enum class HTTP_CODE {
   Service_Unavail                 = 503,
 };
 
-template< class HTTP_CLIENT >
-class ToggleLocationGuard {
-  public:
-    ToggleLocationGuard( HTTP_CLIENT client, bool follow ) : client_( client), follow_( follow ) { // NOLINT
-      client_->set_follow_location( follow_ );
-    }
+template < class HTTP_CLIENT > class ToggleLocationGuard {
+public:
+  ToggleLocationGuard( HTTP_CLIENT client, bool follow ) : client_( client ), follow_( follow ) { // NOLINT
+    client_->set_follow_location( follow_ );
+  }
 
-    ToggleLocationGuard( ToggleLocationGuard const & ) = delete;
-    ToggleLocationGuard( ToggleLocationGuard && ) = delete;
-    
-    ~ToggleLocationGuard() {
-      client_->set_follow_location( not follow_ );
-    }
+  ToggleLocationGuard( ToggleLocationGuard const & ) = delete;
+  ToggleLocationGuard( ToggleLocationGuard && )      = delete;
 
-    auto operator=( ToggleLocationGuard const & ) -> ToggleLocationGuard& = delete;
-    auto operator=( ToggleLocationGuard && ) -> ToggleLocationGuard& = delete;
+  ~ToggleLocationGuard() { client_->set_follow_location( not follow_ ); }
 
-  private:
-    HTTP_CLIENT client_;
-    bool        follow_;
+  auto operator=( ToggleLocationGuard const & ) -> ToggleLocationGuard & = delete;
+  auto operator=( ToggleLocationGuard && ) -> ToggleLocationGuard & = delete;
+
+private:
+  HTTP_CLIENT client_;
+  bool        follow_;
 };
 
 auto splitLocation( std::string location ) -> std::tuple< std::string, std::string, std::string > {
@@ -70,7 +67,7 @@ auto splitLocation( std::string location ) -> std::tuple< std::string, std::stri
   return { proto, domain, uri };
 }
 
-void http_logger( const httplib::Request & req, const httplib::Response & resp ) {
+void http_logger( const httplib::Request &req, const httplib::Response &resp ) {
   spdlog::trace( "http Request" );
   spdlog::trace( " Method: {}", req.method );
   spdlog::trace( " Path: {}", req.path );
@@ -189,20 +186,22 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
     std::string proto;
     std::string domain;
 
-    auto realm    = auth_hint.substr( 0, coma );
-    realm         = realm.substr( realm.find( '"' ) + 1, realm.length() - ( realm.find( '"' ) + 2 ) );
-    auto service  = auth_hint.substr( coma + 1, ncoma - coma - 1 );
-    service       = service.substr( service.find( '"' ) + 1, service.length() - ( service.find( '"' ) + 2 ) );
+    auto realm   = auth_hint.substr( 0, coma );
+    realm        = realm.substr( realm.find( '"' ) + 1, realm.length() - ( realm.find( '"' ) + 2 ) );
+    auto service = auth_hint.substr( coma + 1, ncoma - coma - 1 );
+    service      = service.substr( service.find( '"' ) + 1, service.length() - ( service.find( '"' ) + 2 ) );
 
     std::tie( proto, domain, location ) = splitLocation( realm );
 
     std::shared_ptr< httplib::Client > client;
 
     if ( proto == "https" ) {
-      client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+      client =
+          std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
       client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
     } else {
-      client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
+      client =
+          std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
     }
 
     client->set_logger( &http_logger );
@@ -216,21 +215,20 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
     auto result = client->Get( location.c_str() );
 
     if ( result ) {
-      switch( HTTP_CODE( result->status ) ) {
+      switch ( HTTP_CODE( result->status ) ) {
       case HTTP_CODE::OK: {
-          auto j = nlohmann::json::parse( result->body );
+        auto j = nlohmann::json::parse( result->body );
 
-          if ( j.find( "token" ) == j.end() ) {
-            spdlog::error( "OCI::Registry::Client::auth Failed: {}", j.dump( 2 ) );
-          } else {
-            j.get_to( ctr_ );
-            spdlog::debug( "OCI::Registry::Client::auth recieved token: {} issued_at: {} expires_in: {}",
-                ctr_.token,
-                std::chrono::duration_cast<std::chrono::seconds>( ctr_.issued_at.time_since_epoch() ).count(),
-                ctr_.expires_in.count() );
-          }
+        if ( j.find( "token" ) == j.end() ) {
+          spdlog::error( "OCI::Registry::Client::auth Failed: {}", j.dump( 2 ) );
+        } else {
+          j.get_to( ctr_ );
+          spdlog::debug(
+              "OCI::Registry::Client::auth recieved token: {} issued_at: {} expires_in: {}", ctr_.token,
+              std::chrono::duration_cast< std::chrono::seconds >( ctr_.issued_at.time_since_epoch() ).count(),
+              ctr_.expires_in.count() );
         }
-        break;
+      } break;
       case HTTP_CODE::Unauthorized:
         spdlog::error( "OCI::Registry::Client::auth Unauthorized {}/{}", domain, location );
 
@@ -241,10 +239,12 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
         auth( headers, scope );
         break;
       default:
-        spdlog::error( "OCI::Registry::Client::auth status: {} Location: {} Body: {}", result->status, location, result->body );
+        spdlog::error( "OCI::Registry::Client::auth status: {} Location: {} Body: {}", result->status, location,
+                       result->body );
         break;
       }
     } else {
+      // FIXME: This kills the application, should we have a return value so failures can be handled gracefully?
       throw std::runtime_error( "OCI::Registry::Client::auth recieved NULL '" + location + "'" );
     }
   }
@@ -256,11 +256,13 @@ auto OCI::Registry::Client::authHeaders() const -> httplib::Headers {
   if ( ctr_.token.empty() ) {
     spdlog::debug( "OCI::Registry::Client::authHeaders TokenResponse token is empty" );
   } else if ( ( ctr_.issued_at + ctr_.expires_in ) <= std::chrono::system_clock::now() ) {
-    spdlog::debug( "OCI::Registry::Client::authHeaders TokenResponse token is expired issued_at: {} expires_at: {} current_time: {}",
-            std::chrono::duration_cast<std::chrono::seconds>( ctr_.issued_at.time_since_epoch() ).count(),
-            ctr_.expires_in.count(),
-            std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now().time_since_epoch() ).count()
-        );
+    spdlog::debug(
+        "OCI::Registry::Client::authHeaders TokenResponse token is expired issued_at: {} expires_at: {} current_time: "
+        "{}",
+        std::chrono::duration_cast< std::chrono::seconds >( ctr_.issued_at.time_since_epoch() ).count(),
+        ctr_.expires_in.count(),
+        std::chrono::duration_cast< std::chrono::seconds >( std::chrono::system_clock::now().time_since_epoch() )
+            .count() );
   } else {
     retVal = httplib::Headers{
         { "Authorization", "Bearer " + ctr_.token } // only return this if token is valid
@@ -270,7 +272,7 @@ auto OCI::Registry::Client::authHeaders() const -> httplib::Headers {
   return retVal;
 }
 
-auto OCI::Registry::Client::catalog() -> const OCI::Catalog& {
+auto OCI::Registry::Client::catalog() -> const OCI::Catalog & {
   static Catalog retVal;
 
   spdlog::warn( "OCI::Registry::Client::catalog Not implemented" );
@@ -285,8 +287,8 @@ auto OCI::Registry::Client::copy() -> std::unique_ptr< OCI::Base::Client > {
 auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
                                        std::function< bool( const char *, uint64_t ) > &call_back ) -> bool {
   ToggleLocationGuard< decltype( cli_ ) > tlg{ cli_, false };
-  bool retVal = true;
-  auto client = cli_;
+  bool                                    retVal = true;
+  auto                                    client = cli_;
 
   auto location = std::string( "/v2/" + rsrc + "/blobs/" + sha );
   auto res      = client->Head( location.c_str(), authHeaders() );
@@ -308,7 +310,8 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
   }
 
   if ( not res ) {
-    spdlog::error( "OCI::Registry::Client::fetchBlob failed to get redirect post auth for {}:{}, returned NULL", rsrc, sha );
+    spdlog::error( "OCI::Registry::Client::fetchBlob failed to get redirect post auth for {}:{}, returned NULL", rsrc,
+                   sha );
     return false;
   }
 
@@ -320,10 +323,12 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
 
     if ( domain != domain_ ) {
       if ( proto == "https" ) {
-        client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+        client =
+            std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
         client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
       } else {
-        client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
+        client =
+            std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
       }
 
       client->set_logger( &http_logger );
@@ -380,10 +385,12 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
 
     if ( domain != domain_ ) {
       if ( proto == "https" ) {
-        client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+        client =
+            std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
         client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
       } else {
-        client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
+        client =
+            std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
       }
 
       client->set_logger( &http_logger );
@@ -435,10 +442,12 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
 
     if ( domain != domain_ ) {
       if ( proto == "https" ) {
-        client = std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
+        client =
+            std::make_shared< httplib::Client >( ( "https://" + domain + ":" + std::to_string( SSL_PORT ) ).c_str() );
         client->enable_server_certificate_verification( false ); // tls-verify option would be benificial
       } else {
-        client = std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
+        client =
+            std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
       }
     }
 
@@ -480,7 +489,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
                                      uint64_t blob_part_size ) -> bool {
   bool retVal  = false;
   auto headers = authHeaders();
-  auto last_offset{0};
+  auto last_offset{ 0 };
 
   httplib::Result res;
 
@@ -504,16 +513,20 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
       spdlog::debug( "OCI::Registry::Client::putBlob Finalizing upload for Blob {} Size {}", blob_sha, total_size );
       headers.emplace( "Host", domain_ );
 
-      res = patch_cli_->Put( ( patch_location_ + "?digest=" + blob_sha ).c_str(), headers, { blob_part, blob_part_size }, "application/octet-stream" );
+      res = patch_cli_->Put( ( patch_location_ + "?digest=" + blob_sha ).c_str(), headers,
+                             { blob_part, blob_part_size }, "application/octet-stream" );
     } else {
       if ( last_offset == 0 ) {
-        headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset + blob_part_size - 1 ) );
+        headers.emplace( "Content-Range",
+                         std::to_string( last_offset_ ) + "-" + std::to_string( last_offset + blob_part_size - 1 ) );
       } else {
-        headers.emplace( "Content-Range", std::to_string( last_offset_ ) + "-" + std::to_string( last_offset + blob_part_size ) );
+        headers.emplace( "Content-Range",
+                         std::to_string( last_offset_ ) + "-" + std::to_string( last_offset + blob_part_size ) );
       }
 
       // This is slow, interesting enough, using Get in the same library is fast -- lets look there
-      res = patch_cli_->Patch( patch_location_.c_str(), headers, { blob_part, blob_part_size }, "application/octet-stream" );
+      res = patch_cli_->Patch( patch_location_.c_str(), headers, { blob_part, blob_part_size },
+                               "application/octet-stream" );
     }
 
     if ( not res ) {
@@ -552,21 +565,26 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::ImageManifest &im, Schema1::ImageManifest const &request ) {
-  im.raw_str     = fetchManifest( im.mediaType, request.name, request.requestedTarget );
-  auto json_body = nlohmann::json::parse( im.raw_str );
+  try {
+    im.raw_str     = fetchManifest( im.mediaType, request.name, request.requestedTarget );
+    auto json_body = nlohmann::json::parse( im.raw_str );
 
-  json_body.get_to( im );
+    json_body.get_to( im );
 
-  if ( im.name.empty() ) {
-    im.name = request.name;
+    if ( im.name.empty() ) {
+      im.name = request.name;
+    }
+
+    im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
+  } catch ( nlohmann::detail::parse_error &e ) {
+    spdlog::error( "OCI::Registry::Client::fetchManifest Schema1 {}:{} '{}'", request.name, request.requestedTarget,
+                   e.what() );
   }
-
-  im.originDomain = request.originDomain; // This is just for sync from a Registry to a Directory
 }
 
 void OCI::Registry::Client::fetchManifest( Schema1::SignedImageManifest &      sim,
                                            Schema1::SignedImageManifest const &request ) {
-  sim.raw_str     = fetchManifest( sim.mediaType, request.name, request.requestedTarget );
+  sim.raw_str    = fetchManifest( sim.mediaType, request.name, request.requestedTarget );
   auto json_body = nlohmann::json::parse( sim.raw_str );
 
   json_body.get_to( sim );
@@ -603,7 +621,7 @@ void OCI::Registry::Client::fetchManifest( Schema2::ManifestList &ml, Schema2::M
 }
 
 void OCI::Registry::Client::fetchManifest( Schema2::ImageManifest &im, Schema2::ImageManifest const &request ) {
-  im.raw_str     = fetchManifest( im.mediaType, request.name, request.requestedDigest );
+  im.raw_str = fetchManifest( im.mediaType, request.name, request.requestedDigest );
 
   if ( not im.raw_str.empty() ) {
     auto json_body = nlohmann::json::parse( im.raw_str );
@@ -643,17 +661,19 @@ auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const s
 
       if ( auth_retry_ ) {
         auth_retry_ = false;
-        auth( res->headers, "repository:" + resource + ":pull" ); // auth modifies the headers, so should auth return headers???
+        auth( res->headers,
+              "repository:" + resource + ":pull" ); // auth modifies the headers, so should auth return headers???
 
         retVal = fetchManifest( mediaType, resource, target );
       } else {
-        throw std::runtime_error( "OCI::Registry::Client::fetchManifest recieved HTTP_CODE::Unauthorized for " + location );
+        throw std::runtime_error( "OCI::Registry::Client::fetchManifest recieved HTTP_CODE::Unauthorized for " +
+                                  location );
       }
 
       break;
     case HTTP_CODE::OK:
       auth_retry_ = true;
-      retVal = res->body;
+      retVal      = res->body;
       break;
     case HTTP_CODE::Not_Found:
       auth_retry_ = true;
@@ -665,7 +685,8 @@ auto OCI::Registry::Client::fetchManifest( const std::string &mediaType, const s
       spdlog::error( "OCI::Registry::Client::fetchManifest {}", location );
     }
   } else {
-    throw std::runtime_error( "OCI::Registry::Client::fetchManifest request error, returned NULL " + resource + ":" + target );
+    throw std::runtime_error( "OCI::Registry::Client::fetchManifest request error, returned NULL " + resource + ":" +
+                              target );
   }
 
   return retVal;
@@ -692,15 +713,17 @@ auto OCI::Registry::Client::putManifest( const Schema1::SignedImageManifest &sim
 }
 
 auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const std::string &target ) -> bool {
-  bool           retVal = false;
+  bool retVal = false;
 
-  auto res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str, ml.mediaType.c_str() );
+  auto res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str,
+                        ml.mediaType.c_str() );
 
   if ( res ) {
     if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
       auth( res->headers, "repository:" + ml.name + ":pull,push" );
 
-      res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str, ml.mediaType.c_str() );
+      res = cli_->Put( ( "/v2/" + ml.name + "/manifests/" + target ).c_str(), authHeaders(), ml.raw_str,
+                       ml.mediaType.c_str() );
     }
 
     switch ( HTTP_CODE( res->status ) ) {
@@ -708,7 +731,8 @@ auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const 
       retVal = true;
       break;
     default:
-      spdlog::error( "OCI::Registry::Client::putManifest({}) Schema2::ImageManifest {}:{}", res->status, ml.name, target );
+      spdlog::error( "OCI::Registry::Client::putManifest({}) Schema2::ImageManifest {}:{}", res->status, ml.name,
+                     target );
       spdlog::error( "OCI::Registry::Client::putManifest {}", ml.raw_str );
     }
   }
@@ -717,16 +741,17 @@ auto OCI::Registry::Client::putManifest( const Schema2::ManifestList &ml, const 
 }
 
 auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::string const &target ) -> bool {
-  bool   retVal = false;
+  bool retVal   = false;
   auto temp_sha = "sha256:" + digestpp::sha256().absorb( im.raw_str ).hexdigest();
   if ( temp_sha != target ) {
     throw std::runtime_error( "OCI::Registry::Client::putManifest sha mismatch for " + im.name );
   }
 
   auto headers = authHeaders();
-  //headers.emplace( "Host", domain_ );
+  // headers.emplace( "Host", domain_ );
 
-  auto res = cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), headers, im.raw_str, im.mediaType.c_str() );
+  auto res =
+      cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), headers, im.raw_str, im.mediaType.c_str() );
 
   auto error = false;
   while ( res != nullptr and not error and not retVal ) {
@@ -735,13 +760,15 @@ auto OCI::Registry::Client::putManifest( Schema2::ImageManifest const &im, std::
       auth( res->headers, "repository:" + im.name + ":pull,push" );
       headers = authHeaders();
 
-      res = cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), headers, im.raw_str, im.mediaType.c_str() );
+      res =
+          cli_->Put( ( "/v2/" + im.name + "/manifests/" + target ).c_str(), headers, im.raw_str, im.mediaType.c_str() );
       break;
     case HTTP_CODE::Created:
       retVal = true;
       break;
     default:
-      spdlog::error( "OCI::Registry::Client::putManifest({}) Schema2::ImageManifest {}:{}", res->status, im.name, target );
+      spdlog::error( "OCI::Registry::Client::putManifest({}) Schema2::ImageManifest {}:{}", res->status, im.name,
+                     target );
       spdlog::error( im.raw_str );
       error = true;
       break;
@@ -757,34 +784,40 @@ auto OCI::Registry::Client::tagList( const std::string &rsrc ) -> OCI::Tags {
   auto location = "/v2/" + rsrc + "/tags/list";
   auto res      = cli_->Get( location.c_str(), authHeaders() );
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
+  if ( res and HTTP_CODE( res->status ) == HTTP_CODE::Unauthorized ) {
     auth( res->headers, "repository:" + rsrc + ":pull" );
 
     res = cli_->Get( location.c_str(), authHeaders() );
   }
 
-  if ( HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
+  if ( res and HTTP_CODE( res->status ) == HTTP_CODE::OK ) {
     retVal = nlohmann::json::parse( res->body ).get< Tags >();
   } else {
-    spdlog::error( "OCI::Registry::Client::tagList {}", location );
+    spdlog::error( "OCI::Registry::Client::tagList failed to retrieve for {}", location );
   }
 
   return retVal;
 }
 
 auto OCI::Registry::Client::tagList( const std::string &rsrc, std::regex const &re ) -> OCI::Tags {
-  auto retVal = tagList( rsrc );
+  try {                            // FIXME: Depends on how we handle auth failures
+    auto retVal = tagList( rsrc ); // Auth would be within tagList
 
-  retVal.tags.erase( std::remove_if( retVal.tags.begin(), retVal.tags.end(),
-                                     [ re ]( std::string const &tag ) {
-                                       std::smatch m;
-                                       std::regex_search( tag, m, re );
+    retVal.tags.erase( std::remove_if( retVal.tags.begin(), retVal.tags.end(),
+                                       [ re ]( std::string const &tag ) {
+                                         std::smatch m;
+                                         std::regex_search( tag, m, re );
 
-                                       return m.empty();
-                                     } ),
-                     retVal.tags.end() );
+                                         return m.empty();
+                                       } ),
+                       retVal.tags.end() );
 
-  return retVal;
+    return retVal;
+  } catch ( std::runtime_error &e ) {
+    spdlog::error( e.what() );
+  }
+
+  return {};
 }
 
 auto OCI::Registry::Client::ping() -> bool {
@@ -828,10 +861,10 @@ auto OCI::Registry::Client::swap( Client &other ) -> void {
 }
 
 void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
-  std::uint16_t port{0};
-  std::string proto;
-  std::string domain;
-  std::string uri;
+  std::uint16_t port{ 0 };
+  std::string   proto;
+  std::string   domain;
+  std::string   uri;
 
   // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
   spdlog::debug( "OCI::Registry::Client::initiateUpload starting {}", ur.blob_sha );
@@ -850,9 +883,7 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
     case HTTP_CODE::Accepted:
       spdlog::debug( "OCI::Registry::Client::initiateUpload Accepted {}:{}", ur.target, ur.blob_sha );
 
-      {
-        std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) );
-      }
+      { std::tie( proto, domain, patch_location_ ) = splitLocation( res->get_header_value( "Location" ) ); }
 
       if ( patch_cli_ == nullptr ) {
         if ( proto == "https" ) {
@@ -869,10 +900,12 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
         }
 
         if ( proto == "https" ) {
-          patch_cli_ = std::make_unique< httplib::Client >( ( "https://" + domain + ":" + std::to_string( port ) ).c_str() );
+          patch_cli_ =
+              std::make_unique< httplib::Client >( ( "https://" + domain + ":" + std::to_string( port ) ).c_str() );
           patch_cli_->enable_server_certificate_verification( false ); // tls-verify option would be benificial
         } else {
-          patch_cli_ = std::make_unique< httplib::Client >( ( "http://" + domain + ":" + std::to_string( port ) ).c_str() );
+          patch_cli_ =
+              std::make_unique< httplib::Client >( ( "http://" + domain + ":" + std::to_string( port ) ).c_str() );
         }
 
         patch_cli_->set_logger( &http_logger );
@@ -880,7 +913,8 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
 
       break;
     case HTTP_CODE::Bad_Request:
-      throw std::runtime_error( "OCI::Registry::Client::initiateUpload HTTP Bad Request " + ur.target + ":" + ur.blob_sha );
+      throw std::runtime_error( "OCI::Registry::Client::initiateUpload HTTP Bad Request " + ur.target + ":" +
+                                ur.blob_sha );
       break;
     case HTTP_CODE::Unauthorized:
       spdlog::info( "OCI::Registry::Client First auth" );
@@ -899,7 +933,7 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
 }
 
 auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
-  size_t retVal{0};
+  size_t      retVal{ 0 };
   std::string proto;
   std::string domain;
   std::string uri;
@@ -930,7 +964,8 @@ auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
 
       break;
     case HTTP_CODE::Bad_Request:
-      throw std::runtime_error( "OCI::Registry::Client::uploadStatus HTTP Bad Request " + ur.target + ":" + ur.blob_sha );
+      throw std::runtime_error( "OCI::Registry::Client::uploadStatus HTTP Bad Request " + ur.target + ":" +
+                                ur.blob_sha );
       break;
     case HTTP_CODE::Unauthorized:
       spdlog::info( "OCI::Registry::Client First auth" );
@@ -942,7 +977,8 @@ auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
       res = patch_cli_->Get( patch_location_.c_str(), headers );
       break;
     default:
-      throw std::runtime_error( "OCI::Registry::Client::uploadStatus Unhandled Status: " + std::to_string( res->status ) );
+      throw std::runtime_error( "OCI::Registry::Client::uploadStatus Unhandled Status: " +
+                                std::to_string( res->status ) );
       break;
     }
   }
@@ -951,7 +987,7 @@ auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
 }
 
 std::mutex TIME_ZONE_MUTEX;
-void OCI::Registry::from_json( nlohmann::json const &j, Client::TokenResponse &ctr ) {
+void       OCI::Registry::from_json( nlohmann::json const &j, Client::TokenResponse &ctr ) {
   if ( j.find( "token" ) != j.end() ) {
     j.at( "token" ).get_to( ctr.token );
   }
@@ -970,7 +1006,7 @@ void OCI::Registry::from_json( nlohmann::json const &j, Client::TokenResponse &c
     std::tm           tm = {};
     std::stringstream ss( j.at( "issued_at" ).get< std::string >() );
     ss >> std::get_time( &tm, "%Y-%m-%dT%H:%M:%S" ); // EXAMPLE 2020-04-20T11:52:16.177118311Z
-    
+
     std::lock_guard< std::mutex > lg( TIME_ZONE_MUTEX );
     ctr.issued_at = std::chrono::system_clock::from_time_t( std::mktime( &tm ) );
   } else {
