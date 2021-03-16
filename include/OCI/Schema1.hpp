@@ -13,10 +13,10 @@ namespace OCI::Schema1 {
         "application/vnd.docker.distribution.manifest.v1+json"; // not part of the json object, this is part of the
                                                                 // interface
     std::string name;                                           // image repo tag
-    std::string tag;                                            // image tag CODEUSED
-    std::string architecture;                                   // arch for the image, info purposes only CODEUSED
+    std::string tag;                                            // image tag
+    std::string architecture;                                   // arch for the image, info purposes only
     std::vector< std::pair< std::string, std::string > >
-                                                         fsLayers; // blobSum digest of filesystem image layers. SHA256 CODEUSED
+                                                         fsLayers; // blobSum digest of filesystem image layers. SHA256
     std::vector< std::pair< std::string, std::string > > history;       // array of v1Compatibility strings
     std::string                                          schemaVersion; // image manifest schema
     std::string                                          raw_str; // local extension, raw string of entire JSON document
