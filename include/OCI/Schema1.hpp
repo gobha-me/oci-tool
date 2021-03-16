@@ -18,7 +18,7 @@ namespace OCI::Schema1 {
     std::vector< std::pair< std::string, std::string > >
                                                          fsLayers; // blobSum digest of filesystem image layers. SHA256 CODEUSED
     std::vector< std::pair< std::string, std::string > > history;       // array of v1Compatibility strings
-    std::string                                            schemaVersion; // image manifest schema
+    std::string                                          schemaVersion; // image manifest schema
     std::string                                          raw_str;       // raw string of entire JSON document
   };
 
