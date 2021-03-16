@@ -63,7 +63,7 @@ void OCI::Copy::execute( const Schema1::ImageManifest &image_manifest ) {
   for ( auto const &layer : image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
       if ( not dest_->copy()->hasBlob( image_manifest, layer.second ) ) {
-        spdlog::warn( "OCI::Copy::execute Schema1::ImageManifest Destintaion doesn't have layer '{}'", layer.second );
+        spdlog::warn( "OCI::Copy::execute Schema1::ImageManifest Destination doesn't have layer '{}'", layer.second );
         spdlog::error( "OCI::Copy::execute Schema1::ImageManifest not implemented" );
       }
     }
@@ -76,7 +76,7 @@ void OCI::Copy::execute( const Schema1::SignedImageManifest &image_manifest ) {
   for ( auto const &layer : image_manifest.fsLayers ) {
     if ( layer.first == "blobSum" ) {
       if ( not dest_->copy()->hasBlob( image_manifest, layer.second ) ) {
-        spdlog::warn( "OCI::Copy::execute Schema1::SignedImageManifest Destintaion doesn't have layer '{}'",
+        spdlog::warn( "OCI::Copy::execute Schema1::SignedImageManifest Destination doesn't have layer '{}'",
                       layer.second );
         spdlog::error( "OCI::Copy::execute Schema1::SignedImageManifest not implemented" );
       }
@@ -278,11 +278,11 @@ auto OCI::getIndicator( size_t max_progress, std::string const &prefix, indicato
   // clang-format off
   return indicators::ProgressBar{
       indicators::option::BarWidth{80}, // NOLINT
-    	indicators::option::Start{"["},
-    	indicators::option::Fill{"■"},
-    	indicators::option::Lead{"■"},
-    	indicators::option::Remainder{" "},
-    	indicators::option::End{" ]"},
+      indicators::option::Start{"["},
+      indicators::option::Fill{"■"},
+      indicators::option::Lead{"■"},
+      indicators::option::Remainder{" "},
+      indicators::option::End{" ]"},
       indicators::option::MaxProgress{ max_progress },
       indicators::option::ForegroundColor{ color },
       indicators::option::PrefixText{ prefix },
