@@ -12,32 +12,32 @@ namespace OCI::Schema1 {
     const std::string mediaType =
         "application/vnd.docker.distribution.manifest.v1+json"; // not part of the json object, this is part of the
                                                                 // interface
-    std::string                                          name; // image repo tag
-    std::string                                          tag; // image tag CODEUSED
-    std::string                                          architecture; // arch for the image, info purposes only CODEUSED
-    std::vector< std::pair< std::string, std::string > > fsLayers; // blobSum digest of filesystem image layers. SHA256 CODEUSED
-    std::vector< std::pair< std::string, std::string > > history; // array of v1Compatibility strings
+    std::string name;                                           // image repo tag
+    std::string tag;                                            // image tag CODEUSED
+    std::string architecture;                                   // arch for the image, info purposes only CODEUSED
+    std::vector< std::pair< std::string, std::string > >
+                                                         fsLayers; // blobSum digest of filesystem image layers. SHA256 CODEUSED
+    std::vector< std::pair< std::string, std::string > > history;       // array of v1Compatibility strings
     std::int                                             schemaVersion; // image manifest schema
-    std::string                                          raw_str; // raw string of entire JSON document
+    std::string                                          raw_str;       // raw string of entire JSON document
   };
 
   struct SignedImageManifest : ImageManifest {
     struct Signature { // can be implemented at some point
+      struct {
         struct {
-          struct {
-          std::string                                          crv; // Curve parameter
-          std::string                                          kid; // Key ID
-          std::string                                          kty; // Key Type
-          std::string                                          x; // "x"
-          std::string                                          y; // "y"
-          } jwk;                                          //jwk field
-        std::string                                     alg; //Key algo
-        } header;                                        //header field http://self-issued.info/docs/draft-ietf-jose-json-web-signature.html
+          std::string crv;    // Curve parameter
+          std::string kid;    // Key ID
+          std::string kty;    // Key Type
+          std::string x;      // "x"
+          std::string y;      // "y"
+        } jwk;                // jwk field
+        std::string alg;      // Key algo
+      } header;               // header field http://self-issued.info/docs/draft-ietf-jose-json-web-signature.html
       std::string signature;  // Key signature
       std::string protected_; // protected is a keyword :P
-
     };
-    const std::string        mediaType = "application/vnd.docker.distribution.manifest.v1+prettyjws";
+    const std::string mediaType = "application/vnd.docker.distribution.manifest.v1+prettyjws";
   };
 
   auto operator==( ImageManifest const &im1, ImageManifest const &im2 ) -> bool;
