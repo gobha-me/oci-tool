@@ -33,7 +33,7 @@ namespace OCI::Schema1 {
           std::string kty;    // Key Type
           std::string x;      // "x"
           std::string y;      // "y"
-        } jwk;                // jwk field
+        } jwk;                // JSON Web Key field
         std::string alg;      // Key algo
       } header;               // header field http://self-issued.info/docs/draft-ietf-jose-json-web-signature.html
       std::string signature;  // Key signature
