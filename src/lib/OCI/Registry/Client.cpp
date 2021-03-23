@@ -968,7 +968,7 @@ auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
                                 ur.blob_sha );
       break;
     case HTTP_CODE::Unauthorized:
-      spdlog::info( "OCI::Registry::Client First auth" );
+      spdlog::info( "OCI::Registry::Client::uploadStatus First auth" );
       auth( res->headers, "repository:" + ur.name + ":pull,push" );
 
       headers = authHeaders();
