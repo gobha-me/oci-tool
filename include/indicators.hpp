@@ -1787,6 +1787,8 @@ namespace indicators {
         run_thr_ = false;
 
         prt_thr_.join();
+
+        std::cout << termcolor::reset;
       }
     }
 

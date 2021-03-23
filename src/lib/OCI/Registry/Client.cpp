@@ -516,6 +516,8 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
       res = patch_cli_->Put( ( patch_location_ + "?digest=" + blob_sha ).c_str(), headers,
                              { blob_part, blob_part_size }, "application/octet-stream" );
     } else {
+      // FIXME: if I remember how Quay and Docker Registry handle Content-Range is differnt, this will have to be
+      //        reworked at some point to support multiple registries
       if ( last_offset == 0 ) {
         headers.emplace( "Content-Range",
                          std::to_string( last_offset_ ) + "-" + std::to_string( last_offset + blob_part_size - 1 ) );
@@ -530,7 +532,7 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
     }
 
     if ( not res ) {
-      throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha );
+      throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha + " " + std::to_string( res.error() ) );
     }
 
     switch ( HTTP_CODE( res->status ) ) {
@@ -868,11 +870,11 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
 
   // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
   spdlog::debug( "OCI::Registry::Client::initiateUpload starting {}", ur.blob_sha );
-  httplib::Result res;
+  //httplib::Result res;
 
   auto headers = authHeaders();
   headers.emplace( "Host", domain_ );
-  res = cli_->Post( ( "/v2/" + ur.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
+  auto res = cli_->Post( ( "/v2/" + ur.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
 
   if ( not res ) {
     throw std::runtime_error( "OCI::Registry::Client::initiateUpload received NULL starting " + ur.blob_sha );
@@ -917,7 +919,7 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
                                 ur.blob_sha );
       break;
     case HTTP_CODE::Unauthorized:
-      spdlog::info( "OCI::Registry::Client First auth" );
+      spdlog::info( "OCI::Registry::Client::initiateUpload First auth" ); // FIXME: infinite loop for unauthorized user
       auth( res->headers, "repository:" + ur.name + ":pull,push" );
 
       headers = authHeaders();
@@ -968,7 +970,7 @@ auto OCI::Registry::Client::uploadStatus( UploadRequest ur ) -> size_t {
                                 ur.blob_sha );
       break;
     case HTTP_CODE::Unauthorized:
-      spdlog::info( "OCI::Registry::Client First auth" );
+      spdlog::info( "OCI::Registry::Client::uploadStatus First auth" );
       auth( res->headers, "repository:" + ur.name + ":pull,push" );
 
       headers = authHeaders();
