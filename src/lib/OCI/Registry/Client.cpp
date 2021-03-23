@@ -868,11 +868,11 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
 
   // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
   spdlog::debug( "OCI::Registry::Client::initiateUpload starting {}", ur.blob_sha );
-  httplib::Result res;
+  //httplib::Result res;
 
   auto headers = authHeaders();
   headers.emplace( "Host", domain_ );
-  res = cli_->Post( ( "/v2/" + ur.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
+  auto res = cli_->Post( ( "/v2/" + ur.name + "/blobs/uploads/" ).c_str(), headers, "", "" );
 
   if ( not res ) {
     throw std::runtime_error( "OCI::Registry::Client::initiateUpload received NULL starting " + ur.blob_sha );
@@ -917,7 +917,7 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
                                 ur.blob_sha );
       break;
     case HTTP_CODE::Unauthorized:
-      spdlog::info( "OCI::Registry::Client First auth" );
+      spdlog::info( "OCI::Registry::Client::initiateUpload First auth" ); // FIXME: infinite loop for unauthorized user
       auth( res->headers, "repository:" + ur.name + ":pull,push" );
 
       headers = authHeaders();
