@@ -35,13 +35,14 @@ format-job:
       - git remote add test https://redhat-imports.svc:$REDHAT_IMPORTS_SVC_KEY@gitlab.evoforge.org/mpo/oci-tool.git
       - git push test HEAD:test
    only:
-      - test
-     changes:
-       - include/OCI/*.hpp
-       - src/bin/*.cpp
-       - src/lib/*.cpp
-       - src/lib/Extensions/*.cpp
-       - src/lib/Registry/*.cpp
+      refs:
+         - test
+      changes:
+         - include/OCI/*.hpp
+         - src/bin/*.cpp
+         - src/lib/*.cpp
+         - src/lib/Extensions/*.cpp
+         - src/lib/Registry/*.cpp
 
 # Execute tests written in the C++ codebase
 tidy-job:
