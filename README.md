@@ -48,4 +48,4 @@ On the TODO list
   - There are senarios where this is a problem, it is about timing and the timeout period for an upload on the registry side
 - Tests???? (Being Added)
   - still not sure how to write good tests for this, as it is heavily depentant on a properly implemented docker registry
-- spdlog has replaced std::cout and std::cerr, next step is to determine how to handle exceptions and weither custome exceptions are needed
+- spdlog has replaced std::cout and std::cerr, next step is to determine how to handle exceptions and weither custom exceptions are needed
