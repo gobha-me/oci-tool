@@ -2,6 +2,7 @@
 #include <digestpp/algorithm/sha2.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
+#include <cstdlib>
 #include <sstream>
 #include <stdexcept>
 
@@ -96,6 +97,29 @@ OCI::Registry::Client::Client( std::string const &location ) {
     domain_ = resource;
   }
 
+  std::string proxy_tmp;
+  
+  if ( std::getenv( "http_proxy" ) != nullptr ) {
+    proxy_tmp = std::getenv( "http_proxy" );
+  } else if ( std::getenv( "https_proxy" ) != nullptr ) {
+    proxy_tmp = std::getenv( "https_proxy" );
+  }
+
+  if ( not proxy_tmp.empty() ) {
+    proxy_tmp = proxy_tmp.substr( proxy_tmp.find( '/' ) + 2 ); // strip http:// or https://
+
+    if ( proxy_tmp.find( ':' ) != std::string::npos ) {
+      auto proxy_port_tmp = proxy_tmp.substr( proxy_tmp.find( ':' ) + 1 );
+
+      if ( not proxy_port_tmp.empty() ) {
+        std::cout << proxy_port_tmp << std::endl;
+        proxy_port_ = std::stoi( proxy_port_tmp );
+      }
+    }
+
+    proxy_ = proxy_tmp.substr( 0, proxy_tmp.find( ':' ) );
+  }
+
   // in uri docker will translate to https
   // if docker.io use registry-1.docker.io as the site doesn't redirect
   if ( domain_ == "docker.io" ) {
@@ -118,6 +142,10 @@ OCI::Registry::Client::Client( std::string const &location ) {
 
   cli_->set_follow_location( true );
   cli_->set_logger( &http_logger );
+
+  if ( not proxy_.empty() ) {
+    cli_->set_proxy( proxy_.c_str(), proxy_port_ );
+  }
 }
 
 OCI::Registry::Client::Client( std::string const &location, std::string username, std::string password )
@@ -141,6 +169,10 @@ OCI::Registry::Client::Client( Client const &other ) {
 
   cli_->set_follow_location( true );
   cli_->set_logger( &http_logger );
+
+  if ( not proxy_.empty() ) {
+    cli_->set_proxy( proxy_.c_str(), proxy_port_ );
+  }
 }
 
 OCI::Registry::Client::Client( Client &&other ) noexcept {
@@ -208,6 +240,10 @@ void OCI::Registry::Client::auth( httplib::Headers const &headers, std::string c
 
     if ( not username_.empty() and not password_.empty() ) {
       client->set_basic_auth( username_.c_str(), password_.c_str() );
+    }
+
+    if ( not proxy_.empty() ) {
+      client->set_proxy( proxy_.c_str(), proxy_port_ );
     }
 
     location += "?service=" + service + "&scope=" + scope;
@@ -332,6 +368,10 @@ auto OCI::Registry::Client::fetchBlob( const std::string &rsrc, SHA256 sha,
       }
 
       client->set_logger( &http_logger );
+
+      if ( not proxy_.empty() ) {
+        client->set_proxy( proxy_.c_str(), proxy_port_ );
+      }
     }
   }
 
@@ -394,6 +434,10 @@ auto OCI::Registry::Client::hasBlob( const Schema1::ImageManifest &im, SHA256 sh
       }
 
       client->set_logger( &http_logger );
+
+      if ( not proxy_.empty() ) {
+        client->set_proxy( proxy_.c_str(), proxy_port_ );
+      }
     }
 
     res = client->Head( location.c_str(), authHeaders() );
@@ -448,6 +492,10 @@ auto OCI::Registry::Client::hasBlob( const Schema2::ImageManifest &im, const std
       } else {
         client =
             std::make_shared< httplib::Client >( ( "http://" + domain + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
+      }
+
+      if ( not proxy_.empty() ) {
+        client->set_proxy( proxy_.c_str(), proxy_port_ );
       }
     }
 
@@ -911,6 +959,10 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
         }
 
         patch_cli_->set_logger( &http_logger );
+
+        if ( not proxy_.empty() ) {
+          patch_cli_->set_proxy( proxy_.c_str(), proxy_port_ );
+        }
       }
 
       break;
