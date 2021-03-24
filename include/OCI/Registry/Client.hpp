@@ -84,6 +84,8 @@ namespace OCI::Registry { // https://docs.docker.com/registry/spec/api/
     std::string domain_; // Required for making copies
     std::string username_;
     std::string password_;
+    std::string proxy_;
+    std::uint16_t proxy_port_{ 8080 };
 
     bool                               secure_con_{ false };
     std::shared_ptr< httplib::Client > cli_{ nullptr };
