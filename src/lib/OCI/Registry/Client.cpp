@@ -149,6 +149,10 @@ OCI::Registry::Client::Client( std::string const &location ) {
 
   cli_->set_follow_location( true );
   cli_->set_logger( &http_logger );
+
+  if ( not proxy_.empty() ) {
+    cli_->set_proxy( proxy_.c_str(), proxy_port_ );
+  }
 }
 
 OCI::Registry::Client::Client( std::string const &location, std::string username, std::string password )
