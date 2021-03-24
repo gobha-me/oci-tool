@@ -112,7 +112,6 @@ OCI::Registry::Client::Client( std::string const &location ) {
       auto proxy_port_tmp = proxy_tmp.substr( proxy_tmp.find( ':' ) + 1 );
 
       if ( not proxy_port_tmp.empty() ) {
-        std::cout << proxy_port_tmp << std::endl;
         proxy_port_ = std::stoi( proxy_port_tmp );
       }
     }
@@ -130,8 +129,16 @@ OCI::Registry::Client::Client( std::string const &location ) {
   cli_ = std::make_shared< httplib::Client >( ( "https://" + domain_ + ":" + std::to_string( SSL_PORT ) ).c_str() );
   cli_->enable_server_certificate_verification( false ); // tls-verify option would be benificial
 
+  if ( not proxy_.empty() ) {
+    cli_->set_proxy( proxy_.c_str(), proxy_port_ );
+  }
+
   if ( not ping() ) {
     cli_ = std::make_shared< httplib::Client >( ( "http://" + domain_ + ":" + std::to_string( DOCKER_PORT ) ).c_str() );
+
+    if ( not proxy_.empty() ) {
+      cli_->set_proxy( proxy_.c_str(), proxy_port_ );
+    }
 
     if ( not ping() ) {
       std::runtime_error( domain_ + " does not respond to the V2 API (secure/unsecure)" );
