@@ -9,44 +9,58 @@
 // clang-format on
 
 TEST_CASE( "SimpleThreadManager" ) {
-  SECTION( "Forground Breaker" ) {
+  SECTION( "Foreground Breaker" ) {
+    spdlog::set_level(spdlog::level::trace);
     gobha::SimpleThreadManager stm{ 1 };
+    auto ep = stm.executionPool( "Test Case Foreground Breaker 1" );
     std::atomic< int >         value{ 0 };
 
-    stm.execute( [ &stm, &value ]() {
-      stm.execute( [ &stm, &value ]() {
-        stm.execute( [ &stm, &value ]() {
-          stm.execute( [ &stm, &value ]() {
-            std::cout << "Executing Value add" << std::endl;
+    ep.execute( [ &stm, &value ]() {
+      auto ep = stm.executionPool( "Test Case Foreground Breaker 2" );
+      ep.execute( [ &stm, &value ]() {
+        auto ep = stm.executionPool( "Test Case Foreground Breaker 3" );
+        ep.execute( [ &stm, &value ]() {
+          auto ep = stm.executionPool( "Test Case Foreground Breaker 4" );
+          ep.execute( [ &value ]() {
+            std::cout << "Foreground Value add " << value << std::endl;
             value++;
           } );
+
+          ep.wait();
         } );
+
+        ep.wait();
       } );
+
+      ep.wait();
     } );
 
-    while ( value == 0 ) {
-    }
+    ep.wait();
 
     REQUIRE( value == 1 );
   }
 
   SECTION( "Background Breaker" ) {
-    gobha::SimpleThreadManager stm{ 1 };
+    gobha::SimpleThreadManager stm{};
+    auto ep = stm.executionPool( "Test Case Background Breaker 1" );
     std::atomic< int >         value{ 0 };
 
-    stm.background( [ &stm, &value ]() {
-      stm.background( [ &stm, &value ]() {
-        stm.background( [ &stm, &value ]() {
-          stm.background( [ &value ]() {
-            std::cout << "Executing Value add" << std::endl;
+    for ( auto i = 1; i != 3; i++ ) {
+      ep.background( [ &stm, &value, i ]() {
+        auto ep = stm.executionPool( "Test Case Background Breaker " + std::to_string( i ) );
+
+        for ( auto x = 1; i != 3; x++ ) {
+          ep.execute( [ &value ]() {
+            std::cout << "Background Value add" << std::endl;
             value++;
           } );
-        } );
-      } );
-    } );
+        }
 
-    while ( value == 0 ) {
+        ep.wait();
+      } );
     }
+
+    ep.wait();
 
     REQUIRE( value == 1 );
   }

@@ -46,6 +46,58 @@ namespace gobha {
 
   class SimpleThreadManager {
   public:
+    class ExecutionPool {
+    public:
+      ExecutionPool( SimpleThreadManager * stm ) : stm_( stm ) {
+        spdlog::trace( "gobha::SimpleThreadManger::ExecutionPool constructing" );
+      }
+      ExecutionPool( std::string const & location, SimpleThreadManager* stm ) : location_( location ), stm_( stm ) {
+        spdlog::trace( "gobha::SimpleThreadManger::ExecutionPool constructing {}", location_ );
+      }
+      ~ExecutionPool() {
+        spdlog::trace( "gobha::SimpleThreadManger::ExecutionPool deconstructing {}", location_ );
+      }
+
+      ExecutionPool( ExecutionPool const & ) = delete;
+      ExecutionPool( ExecutionPool && ) = delete;
+
+      auto operator=( ExecutionPool const& ) -> ExecutionPool& = delete;
+      auto operator=( ExecutionPool && ) -> ExecutionPool& = delete;
+
+      operator bool() {
+        if ( count_ > 0 )
+          return true;
+        return false;
+      }
+
+      void background( std::function< void() >&& func ) {
+        count_++;
+        stm_->background( [&func, this]() {
+            func();
+            count_--;
+            } );
+      }
+
+      void execute( std::function< void() >&& func ) {
+        count_++;
+        stm_->execute( [&func, this]() {
+            func();
+            count_--;
+            } );
+      }
+
+      void wait() {
+        while ( count_ > 0 ) {
+          std::this_thread::yield();
+        }
+      }
+    protected:
+    private:
+      std::string                location_;
+      std::atomic< std::size_t > count_{0};
+      SimpleThreadManager*       stm_{nullptr};
+    };
+
     SimpleThreadManager() : SimpleThreadManager( std::thread::hardware_concurrency() * 2 ) {}
 
     explicit SimpleThreadManager( size_t thr_count ) : capacity_( thr_count ) {
@@ -86,6 +138,17 @@ namespace gobha {
     auto operator=( SimpleThreadManager const& ) -> SimpleThreadManager& = delete;
     auto operator=( SimpleThreadManager && ) -> SimpleThreadManager& = delete;
 
+    auto executionPool() -> ExecutionPool {
+      return ExecutionPool{ this };
+    }
+
+    auto executionPool( std::string const & location ) -> ExecutionPool {
+      return ExecutionPool{ location, this };
+    }
+
+    friend class executionPool;
+
+    [[deprecated( "Use executionPool instead" )]]
     auto execute( std::function< void() >&& func ) -> void {
       bool enqueued{ false };
 
@@ -104,6 +167,7 @@ namespace gobha {
       }
     }
 
+    [[deprecated( "Use executionPool instead" )]]
     auto background( std::function< void() >&& func ) -> void {
       std::this_thread::yield();
       std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
