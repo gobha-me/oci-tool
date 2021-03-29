@@ -49,13 +49,17 @@ namespace gobha {
     class ExecutionPool {
     public:
       ExecutionPool( SimpleThreadManager * stm ) : stm_( stm ) {
-        spdlog::trace( "gobha::SimpleThreadManger::ExecutionPool constructing" );
+        spdlog::trace( "gobha::SimpleThreadManager::ExecutionPool constructing" );
       }
       ExecutionPool( std::string const & location, SimpleThreadManager* stm ) : location_( location ), stm_( stm ) {
-        spdlog::trace( "gobha::SimpleThreadManger::ExecutionPool constructing {}", location_ );
+        spdlog::trace( "gobha::SimpleThreadManager::ExecutionPool constructing {}", location_ );
       }
       ~ExecutionPool() {
-        spdlog::trace( "gobha::SimpleThreadManger::ExecutionPool deconstructing {}", location_ );
+        spdlog::trace( "~gobha::SimpleThreadManager::ExecutionPool deconstructing {}", location_ );
+        while ( count_ > 0 ) {
+          spdlog::trace( "~gobha::SimpleThreadManager::ExecutionPool {} task(s) left", count_ );
+          std::this_thread::yield();
+        }
       }
 
       ExecutionPool( ExecutionPool const & ) = delete;
@@ -72,7 +76,8 @@ namespace gobha {
 
       void background( std::function< void() >&& func ) {
         count_++;
-        stm_->background( [&func, this]() {
+        stm_->background_( [&func, this]() {
+            spdlog::trace( "gobha::SimpleThreadManager::ExecutionPool::background {}", count_ );
             func();
             count_--;
           } );
@@ -80,16 +85,11 @@ namespace gobha {
 
       void execute( std::function< void() >&& func ) {
         count_++;
-        stm_->execute( [&func, this]() {
+        stm_->execute_( [&func, this]() {
+            spdlog::trace( "gobha::SimpleThreadManager::ExecutionPool::execute {}", count_ );
             func();
             count_--;
           } );
-      }
-
-      void wait() {
-        while ( count_ > 0 ) {
-          std::this_thread::yield();
-        }
       }
     protected:
     private:
@@ -115,7 +115,7 @@ namespace gobha {
     }
 
     ~SimpleThreadManager() {
-      spdlog::trace( "gobha::SimpleThreadManger Destructor" );
+      spdlog::trace( "gobha::SimpleThreadManager Destructor" );
       using namespace std::chrono_literals;
       auto completed = false;
 
@@ -128,6 +128,8 @@ namespace gobha {
       }
 
       run_thr_ = false;
+      spdlog::trace( "gobha::SimpleThreadManager all tasks completed, notifying threads" );
+      cv_.notify_all();
 
       if ( started_ ) {
         for ( auto &thr : thrs_ ) {
@@ -150,29 +152,41 @@ namespace gobha {
     friend class executionPool;
 
     [[deprecated( "Use executionPool instead" )]]
-    auto execute( std::function< void() >&& func ) -> void {
+    void execute( std::function< void() >&& func ) {
+      execute_( std::move( func ) );
+    }
+
+    [[deprecated( "Use executionPool instead" )]]
+    void background( std::function< void() >&& func ) {
+      background_( std::move( func ) );
+    }
+  protected:
+    void execute_( std::function< void() >&& func ) {
       bool enqueued{ false };
 
-      if ( running_count_ < capacity_ ) {
-        const std::lock_guard fg_lg( fq_mutex_ );
-      
-        enqueued = true;
-        f_func_queue_.emplace( func );
-      }
+//      if ( queued_ < capacity_ ) {
+//        const std::lock_guard fg_lg( fq_mutex_ );
+//        ++queued_;
+//      
+//        enqueued = true;
+//        f_func_queue_.push( func );
+//        cv_.notify_all();
+//      }
 
       if ( not enqueued ) {
         func();
       }
     }
 
-    [[deprecated( "Use executionPool instead" )]]
-    auto background( std::function< void() >&& func ) -> void {
+    void background_( std::function< void() >&& func ) {
       std::this_thread::yield();
-      const std::lock_guard fg_lg( bq_mutex_ );
+      const std::lock_guard fg_lg( fq_mutex_ );
+      ++queued_;
       
-      b_func_queue_.emplace( func );
+      b_func_queue_.push( func );
+      cv_.notify_all();
     }
-  protected:
+
     auto startManager() -> void {
       using namespace std::chrono_literals;
 
@@ -186,29 +200,29 @@ namespace gobha {
               while ( run_thr_ ) {
                 std::function< void() > func;
 
-                if ( not f_func_queue_.empty() ) {
-                  const std::lock_guard fg_lg( fq_mutex_ );
+                {
+                  std::unique_lock< std::mutex > ul( fq_mutex_ );
+                  cv_.wait_for( ul, 250ms, [this]() -> bool { return not f_func_queue_.empty() or not b_func_queue_.empty() or not run_thr_; } );
 
-                  if ( not f_func_queue_.empty() ) {
-                    spdlog::trace( "gobha::SimpleThreadManger Pulling foreground work" );
-                    func = f_func_queue_.front();
-                    f_func_queue_.pop();
+                  if ( ul.owns_lock() ) {
+                    if ( not f_func_queue_.empty() ) {
+                      spdlog::trace( "gobha::SimpleThreadManger Pulling foreground work" );
+                      func = f_func_queue_.front();
+                      f_func_queue_.pop();
+                    } else if ( not b_func_queue_.empty() ) {
+                      spdlog::trace( "gobha::SimpleThreadManger Pulling background work" );
+                      func = b_func_queue_.front();
+                      b_func_queue_.pop();
+                    }
                   }
-                } else if ( not b_func_queue_.empty() ) {
-                  const std::lock_guard bg_lg( bq_mutex_ );
 
-                  if ( not b_func_queue_.empty() ) {
-                    spdlog::trace( "gobha::SimpleThreadManger Pulling background work" );
-                    func = b_func_queue_.front();
-                    b_func_queue_.pop();
-                  }
+                  cv_.notify_one();
                 }
 
                 if ( func != nullptr ) {
-                  ++running_count_;
+                  --queued_;
                   func();
                   spdlog::trace( "gobha::SimpleThreadManger finished a task" );
-                  --running_count_;
                 }
 
                 std::this_thread::yield();
@@ -222,7 +236,7 @@ namespace gobha {
   private:
     bool                                 started_{ false };
     std::atomic< bool >                  run_thr_{ true };
-    std::atomic< size_t >                running_count_{ 0 };
+    std::atomic< size_t >                queued_{ 0 };
     size_t                               capacity_;
     std::vector< std::thread >           thrs_;
     std::queue< std::function< void() > > f_func_queue_;
