@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
-#include <list>
+#include <queue>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -75,7 +75,7 @@ namespace gobha {
         stm_->background( [&func, this]() {
             func();
             count_--;
-            } );
+          } );
       }
 
       void execute( std::function< void() >&& func ) {
@@ -83,7 +83,7 @@ namespace gobha {
         stm_->execute( [&func, this]() {
             func();
             count_--;
-            } );
+          } );
       }
 
       void wait() {
@@ -115,6 +115,7 @@ namespace gobha {
     }
 
     ~SimpleThreadManager() {
+      spdlog::trace( "gobha::SimpleThreadManger Destructor" );
       using namespace std::chrono_literals;
       auto completed = false;
 
@@ -152,14 +153,11 @@ namespace gobha {
     auto execute( std::function< void() >&& func ) -> void {
       bool enqueued{ false };
 
-      {
-        std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
-        
-        if ( running_count_ < capacity_ ) {
-          enqueued = true;
-          f_func_queue_.push_back( func );
-          cv_.notify_all();
-        }
+      if ( running_count_ < capacity_ ) {
+        const std::lock_guard fg_lg( fq_mutex_ );
+      
+        enqueued = true;
+        f_func_queue_.emplace( func );
       }
 
       if ( not enqueued ) {
@@ -170,10 +168,9 @@ namespace gobha {
     [[deprecated( "Use executionPool instead" )]]
     auto background( std::function< void() >&& func ) -> void {
       std::this_thread::yield();
-      std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
+      const std::lock_guard fg_lg( bq_mutex_ );
       
-      b_func_queue_.push_back( func );
-      cv_.notify_all();
+      b_func_queue_.emplace( func );
     }
   protected:
     auto startManager() -> void {
@@ -188,29 +185,29 @@ namespace gobha {
 
               while ( run_thr_ ) {
                 std::function< void() > func;
-                bool has_func = false;
 
-                {
-                  std::unique_lock< std::mutex > ul( fq_mutex_ );
-                  cv_.wait_for( ul, 250ms, [this]() -> bool { return not f_func_queue_.empty() or not b_func_queue_.empty(); } );
+                if ( not f_func_queue_.empty() ) {
+                  const std::lock_guard fg_lg( fq_mutex_ );
 
                   if ( not f_func_queue_.empty() ) {
                     spdlog::trace( "gobha::SimpleThreadManger Pulling foreground work" );
-                    has_func = true;
                     func = f_func_queue_.front();
-                    f_func_queue_.pop_front();
-                  } else if ( not b_func_queue_.empty() ) {
+                    f_func_queue_.pop();
+                  }
+                } else if ( not b_func_queue_.empty() ) {
+                  const std::lock_guard bg_lg( bq_mutex_ );
+
+                  if ( not b_func_queue_.empty() ) {
                     spdlog::trace( "gobha::SimpleThreadManger Pulling background work" );
-                    has_func = true;
                     func = b_func_queue_.front();
-                    b_func_queue_.pop_front();
+                    b_func_queue_.pop();
                   }
                 }
 
-                if ( has_func ) {
+                if ( func != nullptr ) {
                   ++running_count_;
                   func();
-                  spdlog::trace( "gobha::SimpleThreadManger finished work" );
+                  spdlog::trace( "gobha::SimpleThreadManger finished a task" );
                   --running_count_;
                 }
 
@@ -228,9 +225,11 @@ namespace gobha {
     std::atomic< size_t >                running_count_{ 0 };
     size_t                               capacity_;
     std::vector< std::thread >           thrs_;
-    std::list< std::function< void() > > f_func_queue_;
-    std::list< std::function< void() > > b_func_queue_;
+    std::queue< std::function< void() > > f_func_queue_;
+    std::queue< std::function< void() > > b_func_queue_;
     std::condition_variable              cv_;
+    std::mutex                           aq_mutex_;
+    std::mutex                           bq_mutex_;
     std::mutex                           fq_mutex_;
   };
 } // namespace gobha

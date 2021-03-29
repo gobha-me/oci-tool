@@ -127,7 +127,7 @@ void OCI::Copy::execute( Schema2::ManifestList &manifest_list ) {
 
         dest_->copy()->putManifest( manifest_list, manifest_list.requestedTarget );
 
-        spdlog::debug( "OCI::Copy::execute completed ManifestList for '{}'", manifest_list.name );
+        spdlog::info( "OCI::Copy::execute completed ManifestList for '{}'", manifest_list.name );
       }
     }
   } catch ( std::runtime_error const &e ) {
@@ -172,7 +172,7 @@ auto OCI::Copy::execute( Schema2::ImageManifest const &image_manifest, std::stri
         }
 
         if ( layer_itr == layers.end() ) {
-          // This is just a "busy" loop, with a pause, waiting for blobs to be ready to create symlinks
+          // This is just a "busy" loop, with a pause, waiting for blobs to be ready before writing the manifests
           //   is there a way to "toss" this into a wait thread, so we can free this one for another operation
           //   considering the magnitude of the number of possible Projects -> tags -> blobs how do we avoid
           //   thread bombing the running host

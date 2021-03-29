@@ -9,8 +9,10 @@
 // clang-format on
 
 TEST_CASE( "SimpleThreadManager" ) {
+  spdlog::set_level(spdlog::level::trace);
+  spdlog::set_pattern( "[%H:%M:%S] [%^%l%$] [thread %t] %v" );
+
   SECTION( "Foreground Breaker" ) {
-    spdlog::set_level(spdlog::level::trace);
     gobha::SimpleThreadManager stm{ 1 };
     auto ep = stm.executionPool( "Test Case Foreground Breaker 1" );
     std::atomic< int >         value{ 0 };
@@ -42,19 +44,17 @@ TEST_CASE( "SimpleThreadManager" ) {
 
   SECTION( "Background Breaker" ) {
     gobha::SimpleThreadManager stm{};
-    auto ep = stm.executionPool( "Test Case Background Breaker 1" );
+    auto ep = stm.executionPool( "Test Case Background Breaker Outter" );
     std::atomic< int >         value{ 0 };
 
-    for ( auto i = 1; i != 3; i++ ) {
+    for ( auto i = 0; i != 8; i++ ) {
       ep.background( [ &stm, &value, i ]() {
-        auto ep = stm.executionPool( "Test Case Background Breaker " + std::to_string( i ) );
+        auto ep = stm.executionPool( "Test Case Background Breaker Inner " + std::to_string( i ) );
 
-        for ( auto x = 1; x != 3; x++ ) {
-          ep.execute( [ &value ]() {
-            std::cout << "Background Value add" << std::endl;
-            value++;
-          } );
-        }
+        ep.execute( [ &value, i ]() {
+          std::cout << "Background Value add Inner execution " << i << std::endl;
+          value++;
+        } );
 
         ep.wait();
       } );
