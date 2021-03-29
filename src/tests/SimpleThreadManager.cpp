@@ -49,7 +49,7 @@ TEST_CASE( "SimpleThreadManager" ) {
       ep.background( [ &stm, &value, i ]() {
         auto ep = stm.executionPool( "Test Case Background Breaker " + std::to_string( i ) );
 
-        for ( auto x = 1; i != 3; x++ ) {
+        for ( auto x = 1; x != 3; x++ ) {
           ep.execute( [ &value ]() {
             std::cout << "Background Value add" << std::endl;
             value++;
