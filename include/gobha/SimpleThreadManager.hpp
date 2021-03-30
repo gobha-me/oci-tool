@@ -2,10 +2,11 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
-#include <queue>
+#include <list>
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <queue>
 #include <spdlog/spdlog.h>
 
 namespace gobha {
@@ -51,7 +52,7 @@ namespace gobha {
       ExecutionPool( SimpleThreadManager * stm ) : stm_( stm ) {
         spdlog::trace( "gobha::SimpleThreadManager::ExecutionPool constructing" );
       }
-      ExecutionPool( std::string const & location, SimpleThreadManager* stm ) : location_( location ), stm_( stm ) {
+      ExecutionPool( std::string const location, SimpleThreadManager* stm ) : location_( location ), stm_( stm ) {
         spdlog::trace( "gobha::SimpleThreadManager::ExecutionPool constructing {}", location_ );
       }
       ~ExecutionPool() {
@@ -145,7 +146,7 @@ namespace gobha {
       return ExecutionPool{ this };
     }
 
-    auto executionPool( std::string const & location ) -> ExecutionPool {
+    auto executionPool( std::string const location ) -> ExecutionPool {
       return ExecutionPool{ location, this };
     }
 
@@ -169,7 +170,7 @@ namespace gobha {
 //        ++queued_;
 //      
 //        enqueued = true;
-//        f_func_queue_.push( func );
+//        f_func_queue_.push_back( func );
 //        cv_.notify_all();
 //      }
 
@@ -183,7 +184,7 @@ namespace gobha {
       const std::lock_guard fg_lg( fq_mutex_ );
       ++queued_;
       
-      b_func_queue_.push( func );
+      b_func_queue_.push_back( std::move( func ) );
       cv_.notify_all();
     }
 
@@ -208,11 +209,11 @@ namespace gobha {
                     if ( not f_func_queue_.empty() ) {
                       spdlog::trace( "gobha::SimpleThreadManger Pulling foreground work" );
                       func = f_func_queue_.front();
-                      f_func_queue_.pop();
+                      f_func_queue_.pop_front();
                     } else if ( not b_func_queue_.empty() ) {
                       spdlog::trace( "gobha::SimpleThreadManger Pulling background work" );
                       func = b_func_queue_.front();
-                      b_func_queue_.pop();
+                      b_func_queue_.pop_front();
                     }
                   }
 
@@ -222,6 +223,7 @@ namespace gobha {
                 if ( func != nullptr ) {
                   --queued_;
                   func();
+                  func = nullptr;
                   spdlog::trace( "gobha::SimpleThreadManger finished a task" );
                 }
 
@@ -234,16 +236,16 @@ namespace gobha {
       }
     }
   private:
-    bool                                 started_{ false };
-    std::atomic< bool >                  run_thr_{ true };
-    std::atomic< size_t >                queued_{ 0 };
-    size_t                               capacity_;
-    std::vector< std::thread >           thrs_;
-    std::queue< std::function< void() > > f_func_queue_;
-    std::queue< std::function< void() > > b_func_queue_;
-    std::condition_variable              cv_;
-    std::mutex                           aq_mutex_;
-    std::mutex                           bq_mutex_;
-    std::mutex                           fq_mutex_;
+    bool                                  started_{ false };
+    std::atomic< bool >                   run_thr_{ true };
+    std::atomic< size_t >                 queued_{ 0 };
+    size_t                                capacity_;
+    std::vector< std::thread >            thrs_;
+    std::list< std::function< void() > > f_func_queue_;
+    std::list< std::function< void() > > b_func_queue_;
+    std::condition_variable               cv_;
+    std::mutex                            aq_mutex_;
+    std::mutex                            bq_mutex_;
+    std::mutex                            fq_mutex_;
   };
 } // namespace gobha
