@@ -6,6 +6,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <queue>
 #include <spdlog/spdlog.h>
 
 namespace gobha {
@@ -46,127 +47,122 @@ namespace gobha {
 
   class SimpleThreadManager {
   public:
-    SimpleThreadManager() : SimpleThreadManager( std::thread::hardware_concurrency() * 2 ) {}
+    SimpleThreadManager() {
+      using namespace std::chrono_literals;
 
-    explicit SimpleThreadManager( size_t thr_count ) : capacity_( thr_count ) {
-      thrs_.reserve( capacity_ );
+      for ( size_t thr_limit = 0; thr_limit != thread_limit_; ++thr_limit ) {
+        thrs_.emplace_back( [ this ]() {
+          spdlog::trace( "gobha::SimpleThreadManager Thread worker starting" );
 
-      startManager();
+          while ( run_thr_ ) {
+            std::function< void() > func;
+
+            {
+              std::unique_lock< std::mutex > ul( q_mut_ );
+              cv_.wait_for( ul, 250ms, [this]() -> bool { return not bg_funcs_.empty() or not fg_funcs_.empty(); } );
+
+              if ( ul.owns_lock() ) {
+                if ( not fg_funcs_.empty() ) {
+                  func = fg_funcs_.front();
+
+                  fg_funcs_.pop_front();
+                } else if ( not bg_funcs_.empty() ) {
+                  func = bg_funcs_.front();
+
+                  bg_funcs_.pop_front();
+                }
+              }
+
+              cv_.notify_one();
+            }
+
+            if ( func != nullptr ) {
+              idle_--;
+              func();
+              idle_++;
+            }
+          }
+
+          spdlog::trace( "gobha::SimpleThreadManager Thread worker closing" );
+        } );
+      }
     }
 
     SimpleThreadManager( SimpleThreadManager const& ) = delete;
-    SimpleThreadManager( SimpleThreadManager && other ) noexcept {
-      capacity_         = other.capacity_;
-      f_func_queue_     = std::move( other.f_func_queue_ );
-      b_func_queue_     = std::move( other.b_func_queue_ );
-      thrs_             = std::move( other.thrs_ );
-    }
+    SimpleThreadManager( SimpleThreadManager && ) = delete;
 
     ~SimpleThreadManager() {
       using namespace std::chrono_literals;
-      auto completed = false;
 
-      while ( not completed ) {
-        std::unique_lock< std::mutex > ul( fq_mutex_ );
+      bool finished = false;
 
-        cv_.wait_for( ul, 250ms );
+      while ( not finished ) {
+        std::unique_lock ul( q_mut_ );
 
-        completed = f_func_queue_.empty() and b_func_queue_.empty();
+        if ( cv_.wait_for( ul, 250ms ) == std::cv_status::no_timeout ) {
+          finished = bg_funcs_.empty() and fg_funcs_.empty();
+        }
+
+        std::this_thread::yield();
       }
 
       run_thr_ = false;
+      spdlog::trace( "gobha::SimpleThreadManager all tasks completed, notifying threads" );
+      cv_.notify_all();
 
-      if ( started_ ) {
-        for ( auto &thr : thrs_ ) {
-          thr.join();
-        }
+      for ( auto &thr : thrs_ ) {
+        thr.join();
       }
     }
 
     auto operator=( SimpleThreadManager const& ) -> SimpleThreadManager& = delete;
     auto operator=( SimpleThreadManager && ) -> SimpleThreadManager& = delete;
 
-    auto execute( std::function< void() >&& func ) -> void {
-      bool enqueued{ false };
+    void background( std::function< void() >&& func ) {
+      const std::lock_guard lg( q_mut_ );
 
-      {
-        std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
-        
-        if ( running_count_ < capacity_ ) {
-          enqueued = true;
-          f_func_queue_.push_back( func );
-          cv_.notify_all();
-        }
-      }
+      bg_funcs_.push_back( std::move( func ) );
 
-      if ( not enqueued ) {
+      cv_.notify_one();
+    }
+
+    void execute( std::function< void() > &&func ) {
+      if ( idle_ > 0 ) {
+        spdlog::trace( "gobha::SimpleThreadManager There are idle threads" );
+        const std::lock_guard lg( q_mut_ );
+
+        fg_funcs_.push_back( std::move( func ) );
+
+        cv_.notify_one();
+      } else {
+        spdlog::trace( "gobha::SimpleThreadManager There are no idle threads" );
         func();
       }
     }
 
-    auto background( std::function< void() >&& func ) -> void {
-      std::this_thread::yield();
-      std::lock_guard< std::mutex > fg_lg( fq_mutex_ );
-      
-      b_func_queue_.push_back( func );
-      cv_.notify_all();
-    }
-  protected:
-    auto startManager() -> void {
+    void wait() {
       using namespace std::chrono_literals;
 
-      if ( not started_ ) {
-        started_ = true;
+      bool finished = false;
 
-        for ( size_t thr_limit = 0; thr_limit != thrs_.capacity(); ++thr_limit ) {
-          thrs_.emplace_back( [ this ]() {
-              spdlog::trace( "gobha::SimpleThreadManger Thread Starting" );
+      while ( not finished ) {
+        std::unique_lock ul( q_mut_ );
 
-              while ( run_thr_ ) {
-                std::function< void() > func;
-                bool has_func = false;
-
-                {
-                  std::unique_lock< std::mutex > ul( fq_mutex_ );
-                  cv_.wait_for( ul, 250ms, [this]() -> bool { return not f_func_queue_.empty() or not b_func_queue_.empty(); } );
-
-                  if ( not f_func_queue_.empty() ) {
-                    spdlog::trace( "gobha::SimpleThreadManger Pulling foreground work" );
-                    has_func = true;
-                    func = f_func_queue_.front();
-                    f_func_queue_.pop_front();
-                  } else if ( not b_func_queue_.empty() ) {
-                    spdlog::trace( "gobha::SimpleThreadManger Pulling background work" );
-                    has_func = true;
-                    func = b_func_queue_.front();
-                    b_func_queue_.pop_front();
-                  }
-                }
-
-                if ( has_func ) {
-                  ++running_count_;
-                  func();
-                  spdlog::trace( "gobha::SimpleThreadManger finished work" );
-                  --running_count_;
-                }
-
-                std::this_thread::yield();
-              }
-
-              spdlog::trace( "gobha::SimpleThreadManger Thread closing" );
-          } );
+        if ( cv_.wait_for( ul, 250ms ) == std::cv_status::no_timeout ) {
+          finished = bg_funcs_.empty() and fg_funcs_.empty();
         }
+
+        std::this_thread::yield();
       }
     }
   private:
-    bool                                 started_{ false };
+    const size_t                         thread_limit_{std::thread::hardware_concurrency() * 2};
     std::atomic< bool >                  run_thr_{ true };
-    std::atomic< size_t >                running_count_{ 0 };
-    size_t                               capacity_;
+    std::atomic< size_t >                idle_{ thread_limit_ };
+    std::list< std::function< void() > > bg_funcs_;
+    std::list< std::function< void() > > fg_funcs_;
     std::vector< std::thread >           thrs_;
-    std::list< std::function< void() > > f_func_queue_;
-    std::list< std::function< void() > > b_func_queue_;
+    std::mutex                           q_mut_;
     std::condition_variable              cv_;
-    std::mutex                           fq_mutex_;
   };
 } // namespace gobha
