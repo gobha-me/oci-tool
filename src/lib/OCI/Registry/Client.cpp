@@ -1,8 +1,8 @@
 #include <OCI/Registry/Client.hpp>
+#include <cstdlib>
 #include <digestpp/algorithm/sha2.hpp>
 #include <memory>
 #include <spdlog/spdlog.h>
-#include <cstdlib>
 #include <sstream>
 #include <stdexcept>
 
@@ -98,7 +98,7 @@ OCI::Registry::Client::Client( std::string const &location ) {
   }
 
   std::string proxy_tmp;
-  
+
   if ( std::getenv( "http_proxy" ) != nullptr ) {
     proxy_tmp = std::getenv( "http_proxy" );
   } else if ( std::getenv( "https_proxy" ) != nullptr ) {
@@ -587,7 +587,8 @@ auto OCI::Registry::Client::putBlob( Schema2::ImageManifest const &im, std::stri
     }
 
     if ( not res ) {
-      throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha + " " + std::to_string( res.error() ) );
+      throw std::runtime_error( "OCI::Registry::Client::putBlob received NULL starting " + blob_sha + " " +
+                                std::to_string( res.error() ) );
     }
 
     switch ( HTTP_CODE( res->status ) ) {
@@ -925,7 +926,7 @@ void OCI::Registry::Client::initiateUpload( UploadRequest ur ) {
 
   // https://docs.docker.com/registry/spec/api/#initiate-blob-upload -- Resumable
   spdlog::debug( "OCI::Registry::Client::initiateUpload starting {}", ur.blob_sha );
-  //httplib::Result res;
+  // httplib::Result res;
 
   auto headers = authHeaders();
   headers.emplace( "Host", domain_ );
