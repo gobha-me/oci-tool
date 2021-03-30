@@ -16,7 +16,7 @@ void OCI::Sync::execute( OCI::Extensions::Yaml *src, OCI::Base::Client *dest ) {
     auto sync_bar_ref =
         progress_bars_->push_back( getIndicator( catalog.repositories.size(), domain, indicators::Color::cyan ) );
 
-    repoSync( catalog );
+    repoSync( catalog, sync_bar_ref );
 
     spdlog::debug( "OCI::Sync::execute completed all repos for '{}'", domain );
   }
@@ -30,9 +30,9 @@ void OCI::Sync::execute( OCI::Base::Client *src, OCI::Base::Client *dest ) {
   auto       sync_bar_ref =
       progress_bars_->push_back( getIndicator( catalog.repositories.size(), "Source Repos", indicators::Color::cyan ) );
 
-  repoSync( catalog );
+  repoSync( catalog, sync_bar_ref );
 
-spdlog::debug( "OCI::Sync::execute completed all repos" );
+  spdlog::debug( "OCI::Sync::execute completed all repos" );
 }
 
 void OCI::Sync::repoSync( OCI::Catalog const &catalog, ProgressBars::BarGuard &sync_bar_ref ) {
@@ -48,7 +48,7 @@ void OCI::Sync::repoSync( OCI::Catalog const &catalog, ProgressBars::BarGuard &s
           spdlog::trace( "OCI::Sync::execute '{}' finished decrementing count", repo );
           --repo_thr_count;
         } );
-        execute( repo, src_->copy()->tagList( repo ).tags );
+        execute( repo, copier_->src_->copy()->tagList( repo ).tags );
 
         sync_bar_ref.get().tick();
         sync_bar_ref.get().set_option(
@@ -63,42 +63,42 @@ void OCI::Sync::repoSync( OCI::Catalog const &catalog, ProgressBars::BarGuard &s
     }
 }
 
-void OCI::Sync::execute( OCI::Base::Client *src, OCI::Base::Client *dest ) {
-  copier_->src_  = src;
-  copier_->dest_ = dest;
-
-  auto const catalog = src->catalog();
-  auto       sync_bar_ref =
-      progress_bars_->push_back( getIndicator( catalog.repositories.size(), "Source Repos", indicators::Color::cyan ) );
-
-  auto                  catalog_total  = catalog.repositories.size();
-  std::atomic< size_t > repo_thr_count = 0;
-  auto                  repo_index     = 0;
-
-  for ( auto const &repo : catalog.repositories ) {
-    repo_thr_count++;
-
-    stm_->background( [ &src, &repo_thr_count, &sync_bar_ref, &repo_index, &catalog_total, repo, this ]() {
-      gobha::DelayedCall dec_count( [ &repo_thr_count, repo ]() {
-        spdlog::trace( "OCI::Sync::execute '{}' finished decrementing count", repo );
-        --repo_thr_count;
-      } );
-
-      execute( repo, src->copy()->tagList( repo ).tags );
-
-      sync_bar_ref.get().tick();
-      sync_bar_ref.get().set_option(
-          indicators::option::PostfixText{ std::to_string( ++repo_index ) + "/" + std::to_string( catalog_total ) } );
-    } );
-  }
-
-  while ( repo_thr_count != 0 ) {
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for( 250ms );
-  }
-
-  spdlog::debug( "OCI::Sync::execute completed all repos" );
-}
+//void OCI::Sync::execute( OCI::Base::Client *src, OCI::Base::Client *dest ) {
+//  copier_->src_  = src;
+//  copier_->dest_ = dest;
+//
+//  auto const catalog = src->catalog();
+//  auto       sync_bar_ref =
+//      progress_bars_->push_back( getIndicator( catalog.repositories.size(), "Source Repos", indicators::Color::cyan ) );
+//
+//  auto                  catalog_total  = catalog.repositories.size();
+//  std::atomic< size_t > repo_thr_count = 0;
+//  auto                  repo_index     = 0;
+//
+//  for ( auto const &repo : catalog.repositories ) {
+//    repo_thr_count++;
+//
+//    stm_->background( [ &src, &repo_thr_count, &sync_bar_ref, &repo_index, &catalog_total, repo, this ]() {
+//      gobha::DelayedCall dec_count( [ &repo_thr_count, repo ]() {
+//        spdlog::trace( "OCI::Sync::execute '{}' finished decrementing count", repo );
+//        --repo_thr_count;
+//      } );
+//
+//      execute( repo, src->copy()->tagList( repo ).tags );
+//
+//      sync_bar_ref.get().tick();
+//      sync_bar_ref.get().set_option(
+//          indicators::option::PostfixText{ std::to_string( ++repo_index ) + "/" + std::to_string( catalog_total ) } );
+//    } );
+//  }
+//
+//  while ( repo_thr_count != 0 ) {
+//    using namespace std::chrono_literals;
+//    std::this_thread::sleep_for( 250ms );
+//  }
+//
+//  spdlog::debug( "OCI::Sync::execute completed all repos" );
+//}
 
 void OCI::Sync::execute( std::string const &rsrc ) { execute( rsrc, copier_->src_->copy()->tagList( rsrc ).tags ); }
 

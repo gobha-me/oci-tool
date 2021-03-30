@@ -8,12 +8,14 @@ namespace OCI {
   public:
     Sync();
 
-    auto execute( OCI::Extensions::Yaml *src, OCI::Base::Client *dest ) -> void;
-    auto execute( OCI::Base::Client *src, OCI::Base::Client *dest ) -> void;
+    void execute( OCI::Extensions::Yaml *src, OCI::Base::Client *dest );
+    void execute( OCI::Base::Client *src, OCI::Base::Client *dest );
 
   protected:
-    auto execute( std::string const &rsrc ) -> void;
-    auto execute( std::string const &rsrc, std::vector< std::string > const &tags ) -> void;
+    void execute( std::string const &rsrc );
+    void execute( std::string const &rsrc, std::vector< std::string > const &tags );
+
+    void repoSync( OCI::Catalog const &catalog, ProgressBars::BarGuard &sync_bar_ref );
 
   private:
     std::unique_ptr< Copy >                       copier_{ nullptr };

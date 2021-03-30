@@ -11,7 +11,7 @@ public:
 
     for ( size_t thr_limit = 0; thr_limit != thread_limit_; ++thr_limit ) {
       thrs_.emplace_back( [ this ]() {
-        spdlog::trace( "Thread Starting" );
+        spdlog::trace( "gobha::SimpleThreadManager Thread worker starting" );
 
         while ( run_thr_ ) {
           std::function< void() > func;
@@ -41,9 +41,14 @@ public:
             idle_++;
           }
         }
+
+        spdlog::trace( "gobha::SimpleThreadManager Thread worker closing" );
       } );
     }
   }
+
+  SimpleThreadManager( SimpleThreadManager const& ) = delete;
+  SimpleThreadManager( SimpleThreadManager && ) = delete;
 
   ~SimpleThreadManager() {
     using namespace std::chrono_literals;
@@ -61,12 +66,16 @@ public:
     }
 
     run_thr_ = false;
+    spdlog::trace( "gobha::SimpleThreadManager all tasks completed, notifying threads" );
     cv_.notify_all();
 
     for ( auto &thr : thrs_ ) {
       thr.join();
     }
   }
+
+  auto operator=( SimpleThreadManager const& ) -> SimpleThreadManager& = delete;
+  auto operator=( SimpleThreadManager && ) -> SimpleThreadManager& = delete;
 
   void background( std::function< void() >&& func ) {
     const std::lock_guard lg( q_mut_ );
@@ -78,14 +87,14 @@ public:
 
   void execute( std::function< void() > &&func ) {
     if ( idle_ > 0 ) {
-      spdlog::trace( "There are idle threads" );
+      spdlog::trace( "gobha::SimpleThreadManager There are idle threads" );
       const std::lock_guard lg( q_mut_ );
 
       fg_funcs_.push_back( std::move( func ) );
 
       cv_.notify_one();
     } else {
-      spdlog::trace( "There are no idle threads" );
+      spdlog::trace( "gobha::SimpleThreadManager There are no idle threads" );
       func();
     }
   }
