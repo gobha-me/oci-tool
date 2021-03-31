@@ -94,17 +94,7 @@ namespace gobha {
     ~SimpleThreadManager() {
       using namespace std::chrono_literals;
 
-      bool finished = false;
-
-      while ( not finished ) {
-        std::unique_lock ul( q_mut_ );
-
-        if ( cv_.wait_for( ul, 250ms ) == std::cv_status::no_timeout ) {
-          finished = bg_funcs_.empty() and fg_funcs_.empty();
-        }
-
-        std::this_thread::yield();
-      }
+      wait();
 
       run_thr_ = false;
       spdlog::trace( "gobha::SimpleThreadManager all tasks completed, notifying threads" );
@@ -148,8 +138,10 @@ namespace gobha {
       while ( not finished ) {
         std::unique_lock ul( q_mut_ );
 
-        if ( cv_.wait_for( ul, 250ms ) == std::cv_status::no_timeout ) {
-          finished = bg_funcs_.empty() and fg_funcs_.empty();
+        if ( idle_ == thread_limit_ ) {
+          if ( cv_.wait_for( ul, 250ms ) == std::cv_status::no_timeout ) {
+            finished = bg_funcs_.empty() and fg_funcs_.empty();
+          }
         }
 
         std::this_thread::yield();
