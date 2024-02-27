@@ -3,7 +3,7 @@
 #include <OCI/Schema2.hpp>
 
 // clang-format off
-//CMAKE_CPP_EXTRA=/home/xcaliber/Projects/oci-tool/src/lib/OCI/Schema1.cpp;/home/xcaliber/Projects/oci-tool/src/lib/OCI/Schema2.cpp
+//CMAKE_CPP_EXTRA=@CMAKE_SOURCE_DIR@/src/lib/OCI/Schema1.cpp;@CMAKE_SOURCE_DIR@/src/lib/OCI/Schema2.cpp
 // clang-format on
 
 TEST_CASE( "Schema1" ) {}

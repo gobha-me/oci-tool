@@ -3,3 +3,4 @@ oci-tool
 /bin
 .clangd
 /BUILD
+*build*
